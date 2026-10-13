@@ -1,0 +1,11 @@
+# Executables
+/agora_mid
+/bin/
+*.out
+
+# Environment variables and secrets
+.env
+.env.*
+
+# macOS
+.DS_Store
