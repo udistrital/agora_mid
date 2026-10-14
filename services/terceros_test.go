@@ -26,13 +26,13 @@ func TestBuscarPorDocumento(t *testing.T) {
 		},
 		{
 			name: "un tercero",
-			response: `[{
+			response: `{"Success":true,"Data":[{
 				"Id": 10,
 				"Numero": "123456",
 				"Activo": true,
 				"TerceroId": {"Id": 25},
 				"TipoDocumentoId": {"CodigoAbreviacion": "CC"}
-			}]`,
+			}]}`,
 			wantID:    25,
 			wantFound: true,
 		},

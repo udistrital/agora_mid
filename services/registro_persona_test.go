@@ -71,13 +71,13 @@ func TestRegistroPersonaOrquestador(t *testing.T) {
 						}
 						fmt.Fprintf(
 							w,
-							`[{"Id":%d,"CodigoAbreviacion":%q,"Activo":true}]`,
+							`{"Success":true,"Data":[{"Id":%d,"CodigoAbreviacion":%q,"Activo":true}]}`,
 							tipoDocumentoID,
 							tt.codigoDocumento,
 						)
 
 					case r.Method == http.MethodGet && r.URL.Path == "/v1/datos_identificacion":
-						fmt.Fprint(w, `[]`)
+						fmt.Fprint(w, `{"Success":true,"Data":[]}`)
 
 					case r.Method == http.MethodGet && r.URL.Path == "/v1/tipo_contribuyente":
 						if !strings.Contains(
@@ -88,7 +88,7 @@ func TestRegistroPersonaOrquestador(t *testing.T) {
 						}
 						fmt.Fprintf(
 							w,
-							`[{"Id":%d,"CodigoAbreviacion":%q,"Activo":true}]`,
+							`{"Success":true,"Data":[{"Id":%d,"CodigoAbreviacion":%q,"Activo":true}]}`,
 							tipoContribuyenteID,
 							tt.codigoContribuyente,
 						)
@@ -113,7 +113,7 @@ func TestRegistroPersonaOrquestador(t *testing.T) {
 								tipoContribuyenteID,
 							)
 						}
-						fmt.Fprintf(w, `{"Id":%d}`, terceroID)
+						fmt.Fprintf(w, `{"Success":true,"Data":{"Id":%d}}`, terceroID)
 
 					case r.Method == http.MethodPost && r.URL.Path == "/v1/datos_identificacion/":
 						var body struct {
@@ -137,7 +137,7 @@ func TestRegistroPersonaOrquestador(t *testing.T) {
 						if body.Numero == "" {
 							t.Error("el número de documento no debe estar vacío")
 						}
-						fmt.Fprint(w, `{"Id":100}`)
+						fmt.Fprint(w, `{"Success":true,"Data":{"Id":100}}`)
 
 					default:
 						t.Errorf("petición inesperada a Terceros: %s %s", r.Method, r.URL.String())

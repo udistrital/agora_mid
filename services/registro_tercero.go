@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/udistrital/agora_mid/dto"
 )
@@ -34,7 +35,7 @@ type terceroPayload struct {
 	SegundoNombre       string       `json:"SegundoNombre,omitempty"`
 	PrimerApellido      string       `json:"PrimerApellido,omitempty"`
 	SegundoApellido     string       `json:"SegundoApellido,omitempty"`
-	FechaNacimiento     *string      `json:"FechaNacimiento,omitempty"`
+	FechaNacimiento     *time.Time   `json:"FechaNacimiento,omitempty"`
 	LugarOrigen         *int         `json:"LugarOrigen,omitempty"`
 	Activo              bool         `json:"Activo"`
 	TipoContribuyenteId referenciaID `json:"TipoContribuyenteId"`
@@ -42,7 +43,17 @@ type terceroPayload struct {
 }
 
 type terceroRespuesta struct {
-	Id int `json:"Id"`
+	Id   int `json:"Id"`
+	Data struct {
+		Id int `json:"Id"`
+	} `json:"Data"`
+}
+
+func (r terceroRespuesta) terceroID() int {
+	if r.Id > 0 {
+		return r.Id
+	}
+	return r.Data.Id
 }
 
 type identificacionPayload struct {
@@ -51,7 +62,7 @@ type identificacionPayload struct {
 	TerceroId          referenciaID `json:"TerceroId"`
 	DigitoVerificacion *float64     `json:"DigitoVerificacion,omitempty"`
 	CiudadExpedicion   *int         `json:"CiudadExpedicion,omitempty"`
-	FechaExpedicion    *string      `json:"FechaExpedicion,omitempty"`
+	FechaExpedicion    *time.Time   `json:"FechaExpedicion,omitempty"`
 	Activo             bool         `json:"Activo"`
 }
 
@@ -78,6 +89,14 @@ func (s TercerosService) RegistrarOReutilizar(
 	}
 	if strings.ContainsAny(numero, ",:") {
 		return 0, errors.New("el número documental contiene caracteres incompatibles con el filtro de Terceros")
+	}
+	// Validar fechas antes de crear cualquier entidad para evitar terceros parciales
+	// por errores de formato de entrada.
+	if _, err := parseFechaOpcional(datos.FechaNacimiento); err != nil {
+		return 0, fmt.Errorf("fecha_nacimiento: %w", err)
+	}
+	if _, err := parseFechaOpcional(datos.FechaExpedicion); err != nil {
+		return 0, fmt.Errorf("fecha_expedicion: %w", err)
 	}
 
 	tipoDocumentoID, err := s.ResolverTipoDocumento(ctx, codigoDocumento)
@@ -114,7 +133,7 @@ func (s TercerosService) RegistrarOReutilizar(
 				datos.TerceroID, err,
 			)
 		}
-		if previo.Id != datos.TerceroID {
+		if previo.terceroID() != datos.TerceroID {
 			return 0, fmt.Errorf("Terceros CRUD no confirmó el tercero_id %d", datos.TerceroID)
 		}
 
@@ -160,6 +179,10 @@ func (s TercerosService) RegistrarOReutilizar(
 	if nombreCompleto == "" {
 		return 0, errors.New("terceros.nombre_completo es obligatorio si no se proporcionan nombres")
 	}
+	fechaNacimiento, err := parseFechaOpcional(datos.FechaNacimiento)
+	if err != nil {
+		return 0, fmt.Errorf("fecha_nacimiento: %w", err)
+	}
 
 	payload := terceroPayload{
 		NombreCompleto:      nombreCompleto,
@@ -167,7 +190,7 @@ func (s TercerosService) RegistrarOReutilizar(
 		SegundoNombre:       datos.SegundoNombre,
 		PrimerApellido:      datos.PrimerApellido,
 		SegundoApellido:     datos.SegundoApellido,
-		FechaNacimiento:     datos.FechaNacimiento,
+		FechaNacimiento:     fechaNacimiento,
 		LugarOrigen:         datos.LugarOrigen,
 		Activo:              true,
 		TipoContribuyenteId: referenciaID{Id: tipoContribuyenteID},
@@ -180,21 +203,22 @@ func (s TercerosService) RegistrarOReutilizar(
 	); err != nil {
 		return 0, fmt.Errorf("creando tercero en Terceros CRUD: %w", err)
 	}
-	if creado.Id <= 0 {
+	creadoID := creado.terceroID()
+	if creadoID <= 0 {
 		return 0, errors.New("Terceros CRUD no devolvió un Id válido al crear el tercero")
 	}
 
 	if err := s.crearIdentificacion(
-		ctx, base, datos, numero, tipoDocumentoID, creado.Id,
+		ctx, base, datos, numero, tipoDocumentoID, creadoID,
 	); err != nil {
-		return creado.Id, &ErrorRegistroParcial{
-			TerceroID: creado.Id,
+		return creadoID, &ErrorRegistroParcial{
+			TerceroID: creadoID,
 			Operacion: "registrar la identificación",
 			Err:       err,
 		}
 	}
 
-	return creado.Id, nil
+	return creadoID, nil
 }
 
 func (s TercerosService) crearIdentificacion(
@@ -205,13 +229,17 @@ func (s TercerosService) crearIdentificacion(
 	tipoDocumentoID int,
 	terceroID int,
 ) error {
+	fechaExpedicion, err := parseFechaOpcional(datos.FechaExpedicion)
+	if err != nil {
+		return fmt.Errorf("fecha_expedicion: %w", err)
+	}
 	payload := identificacionPayload{
 		Numero:             numero,
 		TipoDocumentoId:    referenciaID{Id: tipoDocumentoID},
 		TerceroId:          referenciaID{Id: terceroID},
 		DigitoVerificacion: datos.DigitoVerificacion,
 		CiudadExpedicion:   datos.CiudadExpedicion,
-		FechaExpedicion:    datos.FechaExpedicion,
+		FechaExpedicion:    fechaExpedicion,
 		Activo:             true,
 	}
 
@@ -233,4 +261,15 @@ func filtrarVacios(valores ...string) []string {
 		}
 	}
 	return resultado
+}
+
+func parseFechaOpcional(valor *string) (*time.Time, error) {
+	if valor == nil || strings.TrimSpace(*valor) == "" {
+		return nil, nil
+	}
+	fecha, err := parseFecha(strings.TrimSpace(*valor))
+	if err != nil {
+		return nil, err
+	}
+	return &fecha, nil
 }

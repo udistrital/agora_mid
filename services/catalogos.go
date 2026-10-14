@@ -60,8 +60,8 @@ func (s TercerosService) resolverCatalogo(
 	query.Set("limit", "2")
 	endpoint.RawQuery = query.Encode()
 
-	var registros []catalogoRespuesta
-	if _, err := s.Client.Get(ctx, endpoint.String(), &registros); err != nil {
+	registros, err := getAPIList[catalogoRespuesta](ctx, s.Client, endpoint.String())
+	if err != nil {
 		return 0, fmt.Errorf("consultando catálogo %s: %w", recurso, err)
 	}
 

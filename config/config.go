@@ -1,6 +1,10 @@
 package config
 
-import "os"
+import (
+	"bufio"
+	"os"
+	"strings"
+)
 
 // Config contiene la configuración de los servicios consumidos por Agora MID.
 type Config struct {
@@ -9,11 +13,29 @@ type Config struct {
 	GestionPersonasCRUDURL string
 }
 
-// Load obtiene la configuración desde variables de entorno.
+// Load lee la configuración desde conf/app.conf, sin depender de variables de entorno.
 func Load() Config {
+	values := make(map[string]string)
+	file, err := os.Open("conf/app.conf")
+	if err == nil {
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+				continue
+			}
+			key, value, found := strings.Cut(line, "=")
+			if !found {
+				continue
+			}
+			values[strings.ToLower(strings.TrimSpace(key))] = strings.Trim(strings.TrimSpace(value), "\"'")
+		}
+	}
+
 	return Config{
-		TercerosCRUDURL:        os.Getenv("TERCEROS_CRUD_BASE_URL"),
-		ParametrosCRUDURL:      os.Getenv("PARAMETROS_CRUD_BASE_URL"),
-		GestionPersonasCRUDURL: os.Getenv("GESTION_PERSONAS_CRUD_BASE_URL"),
+		TercerosCRUDURL:        values["terceros_crud_url"],
+		ParametrosCRUDURL:      values["parametros_crud_url"],
+		GestionPersonasCRUDURL: values["gestion_personas_crud_url"],
 	}
 }

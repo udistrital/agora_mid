@@ -65,8 +65,8 @@ func (s TercerosService) BuscarPorDocumento(
 		q.Set("offset", strconv.Itoa(offset))
 		u.RawQuery = q.Encode()
 
-		var registros []identificacionResponse
-		if _, err := s.Client.Get(ctx, u.String(), &registros); err != nil {
+		registros, err := getAPIList[identificacionResponse](ctx, s.Client, u.String())
+		if err != nil {
 			return 0, false, fmt.Errorf("consulta de Terceros: %w", err)
 		}
 

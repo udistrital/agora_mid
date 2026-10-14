@@ -21,6 +21,7 @@ func TestResolverTipoContribuyente(t *testing.T) {
 		{"codigo unico", `[{"Id":1,"CodigoAbreviacion":"P_NATURAL","Activo":true}]`, 1, nil},
 		{"sin coincidencias", `[{}]`, 0, ErrCatalogoNoEncontrado},
 		{"codigo duplicado", `[{"Id":1,"CodigoAbreviacion":"P_NATURAL","Activo":true},{"Id":2,"CodigoAbreviacion":"P_NATURAL","Activo":true}]`, 0, ErrCatalogoAmbiguo},
+		{"respuesta CRUD envuelta", `{"Success":true,"Data":[{"Id":11,"CodigoAbreviacion":"P_NATURAL","Activo":true}]}`, 11, nil},
 	}
 
 	for _, tt := range tests {
