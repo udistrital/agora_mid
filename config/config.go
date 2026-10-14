@@ -13,7 +13,7 @@ type Config struct {
 	GestionPersonasCRUDURL string
 }
 
-// Load lee la configuración desde conf/app.conf, sin depender de variables de entorno.
+// Load lee la configuración desde conf/app.conf y expande variables de entorno.
 func Load() Config {
 	values := make(map[string]string)
 	file, err := os.Open("conf/app.conf")
@@ -29,7 +29,7 @@ func Load() Config {
 			if !found {
 				continue
 			}
-			values[strings.ToLower(strings.TrimSpace(key))] = strings.Trim(strings.TrimSpace(value), "\"'")
+			values[strings.ToLower(strings.TrimSpace(key))] = os.ExpandEnv(strings.Trim(strings.TrimSpace(value), "\"'"))
 		}
 	}
 

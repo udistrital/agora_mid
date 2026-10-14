@@ -17,6 +17,7 @@ Configurar antes de ejecutar (ver también `.env.example` y `conf/app.conf`).
 ```shell
 AGORA_MID_API_NAME=[nombre de la API]
 AGORA_MID_SERVICE_NAME=[nombre del servicio]
+AGORA_MID_APP_NAME=[nombre de la aplicación Beego]
 AGORA_MID_API_BASE_DIR=[directorio base del API con respecto a $GOPATH/src]
 AGORA_MID_HTTP_PORT=[puerto HTTP del API]
 AGORA_MID_RUN_MODE=[modo de ejecución: dev, prod, test]
@@ -52,8 +53,8 @@ Compile el proyecto y la imagen:
 
 ```shell
 go mod tidy
-go build -o main
-docker build -t agora_mid .
+GOOS=linux GOARCH=amd64 go build -o main
+docker build --platform=linux/amd64 -t agora_mid .
 ```
 
 Inice un contenedor con la imagen y las variables de entorno:

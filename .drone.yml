@@ -27,8 +27,9 @@ steps:
     - push
 
 - name: go_run_test
-  image: golang:1.25
+  image: golang:1.27.1
   commands:
+    - go test ./...
     - go vet ./...
     - go fmt ./... && git diff --exit-code || (echo "Go fmt detected formatting issues! Please run 'go fmt' to format your code." && exit 1)
     - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
@@ -50,7 +51,7 @@ steps:
       - push
 
 - name: build
-  image: golang:1.25
+  image: golang:1.27.1
   commands:
     - GOOS=linux GOARCH=amd64 go build -o main
   when:
