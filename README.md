@@ -1,66 +1,70 @@
-# Agora MID
+# agora_mid
 
 Middleware de registro de personas naturales y jurídicas. El MID coordina los servicios propietarios de los datos; no se convierte en maestro de identidad ni replica campos entre CRUD.
 
-## Configuración
+## Especificaciones Técnicas
 
-Las URL base se configuran en `conf/app.conf`, sin archivos `.env` ni variables de entorno:
+### Tecnologías y Versiones
 
-- `terceros_crud_url`: URL base del CRUD de Terceros, sin el sufijo `/v1`.
-- `gestion_personas_crud_url`: URL base del CRUD de Agora Gestión de Personas, sin el sufijo `/v1`.
-- `parametros_crud_url`: reservado para las integraciones de catálogos que se incorporen cuando su contrato esté confirmado.
+- [Golang](https://github.com/udistrital/lineamientos_oas/blob/master/instalacion_de_herramientas/golang.md)
+- [Beego](https://github.com/udistrital/lineamientos_oas/blob/master/instalacion_de_herramientas/beego.md)
+- [UtilsOAS](https://github.com/udistrital/lineamientos_oas/blob/master/generacion_de_apis/control_error_json_crud.md)
 
-Los valores se dejan vacíos en el repositorio para no inventar direcciones de despliegue. Se deben completar por entorno antes de ejecutar el MID.
+### Variables de Entorno
 
-## Endpoints
+Configurar antes de ejecutar (ver también `.env.example` y `conf/app.conf`).
 
-Las siguientes rutas distinguen la operación por método HTTP:
-
-| Método | Ruta | Función |
-|---|---|---|
-| `POST` | `/v1/registro/persona-natural` | Crear o reutilizar tercero y registrar proveedor natural. |
-| `GET` | `/v1/registro/persona-natural?tercero_id={id}` | Consultar identidad, identificaciones, proveedor y datos naturales integrados. |
-| `PUT` | `/v1/registro/persona-natural?tercero_id={id}` | Actualización parcial de campos permitidos para una persona natural. |
-| `POST` | `/v1/registro/persona-juridica` | Crear o reutilizar tercero y registrar proveedor jurídico. |
-| `GET` | `/v1/registro/persona-juridica?tercero_id={id}` | Consultar identidad, identificaciones, proveedor y datos jurídicos integrados. |
-| `PUT` | `/v1/registro/persona-juridica?tercero_id={id}` | Actualización parcial de campos permitidos para una persona jurídica. |
-
-La consulta integrada responde con `tercero_id`, `tipo_registro`, `terceros`, `datos_identificacion`, `proveedor` y el bloque `proveedor_natural` o `proveedor_juridico`. Los bloques procedentes de los CRUD conservan sus nombres JSON originales.
-
-## Contrato de actualización parcial
-
-El `PUT` recibe `tercero_id` en el cuerpo o en la consulta y uno o más bloques. Solo los campos presentes se actualizan; los valores omitidos se recuperan del recurso vigente y se conservan en el `PUT` dirigido al CRUD propietario.
-
-Ejemplo de persona natural:
-
-```json
-{
-  "tercero_id": 25,
-  "terceros": { "primer_nombre": "Ana María" },
-  "datos_identificacion": { "id": 99, "digito_verificacion": 9 },
-  "proveedor": { "descripcion_portafolio": "Servicios profesionales" },
-  "proveedor_natural": { "experiencia_laboral_meses": 24 }
-}
+```shell
+AGORA_MID_API_NAME=[nombre de la API]
+AGORA_MID_SERVICE_NAME=[nombre del servicio]
+AGORA_MID_API_BASE_DIR=[directorio base del API con respecto a $GOPATH/src]
+AGORA_MID_HTTP_PORT=[puerto HTTP del API]
+AGORA_MID_RUN_MODE=[modo de ejecución: dev, prod, test]
+AGORA_MID_TERCEROS_CRUD_URL=[URL base del CRUD de Terceros, sin el sufijo /v1]
+AGORA_MID_GESTION_PERSONAS_CRUD_URL=[URL base del CRUD de Gestión de Personas, sin el sufijo /v1]
+AGORA_MID_PARAMETROS_CRUD_URL=[URL base del CRUD de Parámetros, sin el sufijo /v1]
 ```
 
-Campos admitidos en `terceros`: `nombre_completo`, `primer_nombre`, `segundo_nombre`, `primer_apellido`, `segundo_apellido`, `fecha_nacimiento`, `lugar_origen`. Tipo y número de documento no se modifican por este endpoint. Para `datos_identificacion` se requiere el `id` que devuelve la consulta integrada. Se admiten `digito_verificacion`, `ciudad_expedicion` y `fecha_expedicion`. El tipo y número documental pueden cambiarse únicamente juntos (`codigo_tipo_documento` + `numero_documento`): el MID resuelve dinámicamente el tipo y verifica que el nuevo par no exista en otra identificación activa.
+### Ejecución del Proyecto
 
-Campos admitidos en `proveedor`: `descripcion_portafolio`.
+#### Clonar el repositorio
 
-Campos admitidos en `proveedor_natural`: `perfil_declarado_id`, `experiencia_laboral_meses`, `experiencia_profesional_meses`.
+```shell
+mkdir -p $GOPATH/src/github.com/udistrital
+cd $GOPATH/src/github.com/udistrital
+git clone https://github.com/udistrital/agora_mid.git
+cd agora_mid
+```
 
-Campos admitidos en `proveedor_juridico`: `nombre_comercial`, `matricula_mercantil`, `fecha_constitucion`, `fecha_renovacion`, `reporta_beneficios_finales`, `cotiza_bolsa`, `requiere_revisor_fiscal`.
+#### Ejecución para Desarrollo
 
-Si se presenta un fallo después de que otro servicio ya actualizó datos, el MID informa que la actualización puede ser parcial; no intenta borrar una persona compartida ni ejecutar compensaciones destructivas.
+```shell
+cp .env.example .env # Configurar las variables de entorno
+set -a && source .env && set +a
 
-## Alcance y pendientes
+go mod tidy
+bee run
+```
 
-- La creación conserva el flujo previo de identidad en Terceros y los datos de proveedor en Agora.
-- La consulta integrada y actualización parcial usan los endpoints del CRUD disponibles en el contrato de desarrollo revisado.
-- La caracterización, los contactos generales, la seguridad social y algunos catálogos parametrizados requieren aún cerrar y probar el contrato específico de Terceros/Parámetros antes de incorporarlos.
-- Las vinculaciones contractuales no pertenecen al alcance del MID para registro de personas.
+#### Ejecución con Docker
 
-## Pruebas
+Compile el proyecto y la imagen:
+
+```shell
+go mod tidy
+go build -o main
+docker build -t agora_mid .
+```
+
+Inice un contenedor con la imagen y las variables de entorno:
+
+```shell
+cp .env.example .env # Configurar las variables de entorno
+set -a && source .env && set +a
+docker run --name agora_mid -p "$AGORA_MID_HTTP_PORT:$AGORA_MID_HTTP_PORT" --env-file .env agora_mid
+```
+
+### Ejecución Pruebas
 
 Ejecutar en un entorno con la versión de Go declarada en `go.mod` y acceso a las dependencias:
 
@@ -68,3 +72,19 @@ Ejecutar en un entorno con la versión de Go declarada en `go.mod` y acceso a la
 go test ./...
 go build ./...
 ```
+
+## Estado CI
+
+| Develop | Relese 0.0.1 | Master |
+| -- | -- | -- |
+| [![Build Status](https://hubci.portaloas.udistrital.edu.co/api/badges/udistrital/agora_mid/status.svg?ref=refs/heads/develop)](https://hubci.portaloas.udistrital.edu.co/udistrital/agora_mid/) | [![Build Status](https://hubci.portaloas.udistrital.edu.co/api/badges/udistrital/agora_mid/status.svg?ref=refs/heads/release/0.0.1)](https://hubci.portaloas.udistrital.edu.co/udistrital/agora_mid/) | [![Build Status](https://hubci.portaloas.udistrital.edu.co/api/badges/udistrital/agora_mid/status.svg)](https://hubci.portaloas.udistrital.edu.co/udistrital/agora_mid/) |
+
+## Licencia
+
+This file is part of agora_mid.
+
+agora_mid is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+agora_mid is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with novedades_crud. If not, see [https://www.gnu.org/licenses/](https://www.gnu.org/licenses/).
