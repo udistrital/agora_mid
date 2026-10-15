@@ -75,8 +75,8 @@ func escribirRelaciones(t *testing.T, servicio, contenido string) string {
 	return dir
 }
 
-// Task 2.2: un archivo válido se carga correctamente, incluyendo relaciones
-// anidadas, y el related_service resuelve contra las URLs.
+// Un archivo válido se carga correctamente, incluyendo relaciones anidadas, y
+// related_api resuelve contra las URLs.
 func TestLoadRelacionesArchivoValido(t *testing.T) {
 	dir := escribirRelaciones(t, "registro_persona", relacionesValidas)
 
@@ -104,7 +104,7 @@ func TestLoadRelacionesArchivoValido(t *testing.T) {
 	}
 }
 
-// Task 2.3: configuraciones inválidas abortan con un mensaje que identifica el
+// Las configuraciones inválidas abortan con un mensaje que identifica el
 // archivo y, cuando aplica, la relación.
 func TestLoadRelacionesInvalidas(t *testing.T) {
 	base := func(mut func(string) string) string {
@@ -206,8 +206,7 @@ func TestLoadRelacionesInvalidas(t *testing.T) {
 	}
 }
 
-// Un directorio sin archivos de relaciones devuelve un mapa vacío sin error; la
-// ausencia de un archivo esperado se maneja al cablear los servicios (task 6.1).
+// Un directorio sin archivos de relaciones devuelve un mapa vacío sin error.
 func TestLoadRelacionesSinArchivos(t *testing.T) {
 	dir := t.TempDir()
 	configs, err := LoadRelaciones(dir, urlsPrueba())

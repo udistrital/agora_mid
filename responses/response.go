@@ -1,11 +1,6 @@
 // Package responses define el contrato de respuesta uniforme del API en formato
-// OAS plano (Success/Status/Message/Data) con la extensión opcional
-// MetaData.Errors para avisos de expansión de objetos anidados.
-//
-// El envoltorio conserva la raíz plana que ya emite utils_oas (customerror/
-// errorctrl), de modo que los controladores de negocio y el controlador de
-// errores estándar comparten la misma forma. El bloque MetaData solo se incluye
-// cuando existe al menos un aviso de expansión.
+// OAS plano (Success/Status/Message/Data) con un bloque opcional MetaData para
+// avisos de expansión de objetos anidados y el total de las listas.
 package responses
 
 // RelationError describe un aviso de expansión de relaciones. Nunca debe incluir
@@ -34,8 +29,8 @@ type MetaData struct {
 
 // Response es el envoltorio OAS plano usado en todos los verbos del API.
 //
-// MetaData es opcional (puntero con omitempty) y solo se completa cuando existen
-// avisos de expansión; en respuestas sin avisos se omite por completo.
+// MetaData es opcional y se incluye solo cuando aporta datos (avisos de
+// expansión o el total de una lista); en caso contrario se omite.
 type Response struct {
 	Success  bool      `json:"Success"`
 	Status   string    `json:"Status"`
