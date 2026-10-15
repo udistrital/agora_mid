@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	github.com/beego/beego/v2 v2.3.10
 	github.com/udistrital/utils_oas/v2 v2.0.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -47,5 +48,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
