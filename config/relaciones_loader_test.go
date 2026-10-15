@@ -30,7 +30,7 @@ relations:
     cardinality: one
     depth: 1
     mapped_name: Tercero
-    endpoint: /v1/terceros
+    endpoint: /v1/tercero
     query_template: "Id:{ids}"
     allowed_fields:
       - Id

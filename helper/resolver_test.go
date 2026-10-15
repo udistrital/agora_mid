@@ -18,14 +18,14 @@ func relacionPrueba(base string) (config.RelationConfig, config.ServiceURLs) {
 		Name:           "Tercero",
 		RelatedService: "tercero",
 		RelatedAPI:     "terceros",
-		RelatedTable:   "terceros",
+		RelatedTable:   "tercero",
 		Direction:      config.DirectionLocalToRelated,
 		LocalField:     "TerceroId",
 		RelatedField:   "Id",
 		Cardinality:    config.CardinalityOne,
 		Depth:          1,
 		MappedName:     "Tercero",
-		Endpoint:       "/v1/terceros",
+		Endpoint:       "/v1/tercero",
 		QueryTemplate:  "Id:{ids}",
 	}
 	urls := config.ServiceURLs{"terceros": base}
