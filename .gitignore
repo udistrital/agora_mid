@@ -1,0 +1,30 @@
+# Executables
+/agora_mid
+/main
+/bin/
+*.out
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Local development files
+lastupdate.tmp
+.vscode/
+.scannerwork/
+
+# Swagger files
+swagger/**
+!swagger/swagger.json
+!swagger/swagger.yml
+
+# Agentes
+.agent/
+.kiro/
+.opencode/
+.github/
+!.github/workflows/
