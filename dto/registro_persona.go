@@ -21,16 +21,16 @@ type DatosTercerosDTO struct {
 
 // RegistroPersonaNaturalRequest agrupa los datos para una persona natural.
 type RegistroPersonaNaturalRequest struct {
-	DatosTerceros    DatosTercerosDTO    `json:"terceros"`
-	Proveedor        ProveedorDTO        `json:"proveedor"`
-	ProveedorNatural ProveedorNaturalDTO `json:"proveedor_natural"`
+	DatosTerceros    DatosTercerosDTO    `json:"-"`
+	Proveedor        ProveedorDTO        `json:"-"`
+	ProveedorNatural ProveedorNaturalDTO `json:"-"`
 }
 
 // RegistroPersonaJuridicaRequest agrupa los datos para una persona jurídica.
 type RegistroPersonaJuridicaRequest struct {
-	DatosTerceros     DatosTercerosDTO     `json:"terceros"`
-	Proveedor         ProveedorDTO         `json:"proveedor"`
-	ProveedorJuridico ProveedorJuridicoDTO `json:"proveedor_juridico"`
+	DatosTerceros     DatosTercerosDTO     `json:"-"`
+	Proveedor         ProveedorDTO         `json:"-"`
+	ProveedorJuridico ProveedorJuridicoDTO `json:"-"`
 }
 
 // ProveedorDTO contiene los campos generales propios de ÁGORA.

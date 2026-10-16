@@ -19,16 +19,24 @@ var (
 	ErrDocumentoDuplicado    = errors.New("el documento ya está asociado a otra identificación activa")
 )
 
-// PersonaIntegradaResultado reúne la identidad en Terceros y el registro propio de Agora.
-// Se preserva el contrato JSON de los CRUD externos dentro de cada bloque.
+// PersonaIntegradaResultado conserva los componentes internos necesarios para integrar el proveedor.
+// En el contrato público serializa el proveedor como raíz con Tercero anidado.
 type PersonaIntegradaResultado struct {
-	TerceroID           int             `json:"tercero_id"`
-	TipoRegistro        string          `json:"tipo_registro"`
-	Terceros            json.RawMessage `json:"terceros"`
-	DatosIdentificacion json.RawMessage `json:"datos_identificacion"`
-	Proveedor           json.RawMessage `json:"proveedor"`
-	ProveedorNatural    json.RawMessage `json:"proveedor_natural,omitempty"`
-	ProveedorJuridico   json.RawMessage `json:"proveedor_juridico,omitempty"`
+	TerceroID           int             `json:"-"`
+	TipoRegistro        string          `json:"-"`
+	Terceros            json.RawMessage `json:"-"`
+	DatosIdentificacion json.RawMessage `json:"-"`
+	Proveedor           json.RawMessage `json:"-"`
+	ProveedorNatural    json.RawMessage `json:"-"`
+	ProveedorJuridico   json.RawMessage `json:"-"`
+	payload             json.RawMessage
+}
+
+func (r PersonaIntegradaResultado) MarshalJSON() ([]byte, error) {
+	if len(r.payload) == 0 {
+		return []byte("null"), nil
+	}
+	return r.payload, nil
 }
 
 type apiEnvelopeRaw struct {
@@ -83,6 +91,7 @@ func (s RegistroPersonaService) ConsultarPersona(
 	}
 	resultado.Proveedor = proveedorRaw
 
+	var detalleRaw json.RawMessage
 	if tipo == "natural" {
 		detalle, status, err := obtenerDataRaw(ctx, s.GestionPersonas.Client,
 			basePath(s.GestionPersonas.BaseURL, "/v1/proveedor_natural/"+strconv.Itoa(proveedor.Id)))
@@ -93,6 +102,7 @@ func (s RegistroPersonaService) ConsultarPersona(
 			return resultado, fmt.Errorf("consultando proveedor natural %d: %w", proveedor.Id, err)
 		}
 		resultado.ProveedorNatural = detalle
+		detalleRaw = detalle
 	} else {
 		detalle, status, err := obtenerDataRaw(ctx, s.GestionPersonas.Client,
 			basePath(s.GestionPersonas.BaseURL, "/v1/proveedor_juridico/"+strconv.Itoa(proveedor.Id)))
@@ -103,7 +113,20 @@ func (s RegistroPersonaService) ConsultarPersona(
 			return resultado, fmt.Errorf("consultando proveedor jurídico %d: %w", proveedor.Id, err)
 		}
 		resultado.ProveedorJuridico = detalle
+		detalleRaw = detalle
 	}
+
+	payload, err := componerProveedor(
+		resultado.Proveedor,
+		resultado.Terceros,
+		resultado.DatosIdentificacion,
+		detalleRaw,
+	)
+	if err != nil {
+		return resultado, fmt.Errorf("componiendo respuesta del proveedor: %w", err)
+	}
+	resultado.payload = payload
+
 	return resultado, nil
 }
 
@@ -141,6 +164,9 @@ func (s RegistroPersonaService) ActualizarPersona(
 	}
 	if proveedor == nil {
 		return PersonaIntegradaResultado{TerceroID: req.TerceroID}, ErrPersonaNoEncontrada
+	}
+	if req.ProveedorID > 0 && req.ProveedorID != proveedor.Id {
+		return PersonaIntegradaResultado{TerceroID: req.TerceroID}, fmt.Errorf("%w: el Id del proveedor no corresponde al tercero indicado", ErrActualizacionInvalida)
 	}
 	perfilPath := "/v1/proveedor_natural/"
 	if tipo == "juridica" {
@@ -357,6 +383,70 @@ func rawObject(raw json.RawMessage) (map[string]json.RawMessage, error) {
 		return nil, errors.New("respuesta JSON vacía")
 	}
 	return object, nil
+}
+
+func componerProveedor(
+	proveedorRaw json.RawMessage,
+	terceroRaw json.RawMessage,
+	identificacionesRaw json.RawMessage,
+	detalleRaw json.RawMessage,
+) (json.RawMessage, error) {
+	proveedor, err := rawObject(proveedorRaw)
+	if err != nil {
+		return nil, fmt.Errorf("leyendo proveedor: %w", err)
+	}
+
+	tercero, err := rawObject(terceroRaw)
+	if err != nil {
+		return nil, fmt.Errorf("leyendo tercero: %w", err)
+	}
+
+	var identificaciones []json.RawMessage
+	if len(identificacionesRaw) > 0 &&
+		strings.TrimSpace(string(identificacionesRaw)) != "null" {
+		if err := json.Unmarshal(identificacionesRaw, &identificaciones); err != nil {
+			return nil, fmt.Errorf("leyendo identificaciones: %w", err)
+		}
+	}
+	if identificaciones == nil {
+		identificaciones = []json.RawMessage{}
+	}
+
+	identificacionesJSON, err := json.Marshal(identificaciones)
+	if err != nil {
+		return nil, fmt.Errorf("serializando identificaciones: %w", err)
+	}
+	tercero["DatosIdentificacion"] = identificacionesJSON
+
+	// La FK interna se representa mediante el objeto Tercero.
+	delete(proveedor, "TerceroId")
+
+	detalle, err := rawObject(detalleRaw)
+	if err != nil {
+		return nil, fmt.Errorf("leyendo detalle de proveedor: %w", err)
+	}
+	for key, value := range detalle {
+		switch key {
+		case "Id", "ProveedorId", "TerceroId":
+			continue
+		}
+		// Mantener los campos generales del proveedor si existe una colisión.
+		if _, exists := proveedor[key]; !exists {
+			proveedor[key] = value
+		}
+	}
+
+	terceroJSON, err := json.Marshal(tercero)
+	if err != nil {
+		return nil, fmt.Errorf("serializando tercero: %w", err)
+	}
+	proveedor["Tercero"] = terceroJSON
+
+	resultado, err := json.Marshal(proveedor)
+	if err != nil {
+		return nil, fmt.Errorf("serializando proveedor integrado: %w", err)
+	}
+	return resultado, nil
 }
 
 func putRawObject(ctx context.Context, client interface {

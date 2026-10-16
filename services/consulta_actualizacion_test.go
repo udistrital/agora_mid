@@ -70,6 +70,61 @@ func TestConsultarPersonaNaturalIntegraTercerosYAgora(t *testing.T) {
 	if err := json.Unmarshal(result.DatosIdentificacion, &ids); err != nil || len(ids) != 1 || ids[0]["Numero"] != "123456" {
 		t.Fatalf("identificación no incluida: %s, error=%v", result.DatosIdentificacion, err)
 	}
+
+	publicJSON, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("no se pudo serializar el contrato público: %v", err)
+	}
+
+	var proveedor map[string]json.RawMessage
+	if err := json.Unmarshal(publicJSON, &proveedor); err != nil {
+		t.Fatalf("respuesta pública no es un objeto proveedor: %v", err)
+	}
+
+	for _, campoInterno := range []string{
+		"tercero_id", "tipo_registro", "terceros", "datos_identificacion",
+		"proveedor", "proveedor_natural", "proveedor_juridico", "TerceroId",
+	} {
+		if _, existe := proveedor[campoInterno]; existe {
+			t.Errorf("el contrato público expone el campo separado %q", campoInterno)
+		}
+	}
+
+	var proveedorID int
+	if err := json.Unmarshal(proveedor["Id"], &proveedorID); err != nil || proveedorID != 81 {
+		t.Errorf("Id raíz incorrecto: valor=%s error=%v", proveedor["Id"], err)
+	}
+
+	var experiencia int
+	if err := json.Unmarshal(proveedor["ExperienciaLaboralMeses"], &experiencia); err != nil || experiencia != 12 {
+		t.Errorf("ExperienciaLaboralMeses no está en la raíz: valor=%s error=%v",
+			proveedor["ExperienciaLaboralMeses"], err)
+	}
+
+	var terceroAnidado map[string]json.RawMessage
+	if err := json.Unmarshal(proveedor["Tercero"], &terceroAnidado); err != nil {
+		t.Fatalf("Tercero no está anidado en el proveedor: %v", err)
+	}
+
+	var terceroID int
+	if err := json.Unmarshal(terceroAnidado["Id"], &terceroID); err != nil || terceroID != 25 {
+		t.Errorf("Id de Tercero incorrecto: valor=%s error=%v", tercero["Id"], err)
+	}
+
+	var identificaciones []map[string]json.RawMessage
+	if err := json.Unmarshal(terceroAnidado["DatosIdentificacion"], &identificaciones); err != nil {
+		t.Fatalf("DatosIdentificacion no está anidado como lista en Tercero: %v", err)
+	}
+	if len(identificaciones) != 1 {
+		t.Fatalf("se esperó una identificación anidada; se recibieron %d", len(identificaciones))
+	}
+
+	var numero string
+	if err := json.Unmarshal(identificaciones[0]["Numero"], &numero); err != nil || numero != "123456" {
+		t.Errorf("número de identificación incorrecto: valor=%s error=%v",
+			identificaciones[0]["Numero"], err)
+	}
+
 }
 
 func TestActualizarIdentificacionPreservaCamposNoEnviados(t *testing.T) {

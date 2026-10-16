@@ -24,6 +24,10 @@ func TestBuscarProveedorPorTercero(t *testing.T) {
 			response: `{"Data":[{}]}`,
 		},
 		{
+			name:     "proveedor asociado a otro tercero",
+			response: `{"Data":[{"Id":81,"TerceroId":77}]}`,
+		},
+		{
 			name:      "proveedor encontrado",
 			response:  `{"Data":[{"Id":8,"TerceroId":25,"TipoRegistroId":1,"Activo":true}]}`,
 			wantID:    8,
