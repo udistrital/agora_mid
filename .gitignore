@@ -21,3 +21,10 @@ lastupdate.tmp
 swagger/**
 !swagger/swagger.json
 !swagger/swagger.yml
+
+# Agentes
+.agent/
+.kiro/
+.opencode/
+.github/
+!.github/workflows/

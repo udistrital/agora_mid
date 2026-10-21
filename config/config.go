@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"log"
 	"os"
 	"strings"
 )
@@ -30,6 +31,11 @@ func Load() Config {
 				continue
 			}
 			values[strings.ToLower(strings.TrimSpace(key))] = os.ExpandEnv(strings.Trim(strings.TrimSpace(value), "\"'"))
+		}
+		if err := scanner.Err(); err != nil {
+			// La lectura es tolerante: se conserva lo ya interpretado y solo se
+			// registra el error de E/S para diagnóstico.
+			log.Printf("config: error leyendo conf/app.conf: %v", err)
 		}
 	}
 

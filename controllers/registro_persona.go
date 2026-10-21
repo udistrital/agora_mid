@@ -9,23 +9,12 @@ import (
 	"github.com/udistrital/agora_mid/clients"
 	"github.com/udistrital/agora_mid/config"
 	"github.com/udistrital/agora_mid/dto"
+	"github.com/udistrital/agora_mid/responses"
 	"github.com/udistrital/agora_mid/services"
 )
 
 type RegistroPersonaHandler struct {
 	servicio services.RegistroPersonaService
-}
-
-type respuestaRegistro struct {
-	Success bool                              `json:"success"`
-	Data    services.RegistroPersonaResultado `json:"data"`
-	Error   string                            `json:"error,omitempty"`
-}
-
-type respuestaOperacion struct {
-	Success bool   `json:"success"`
-	Data    any    `json:"data,omitempty"`
-	Error   string `json:"error,omitempty"`
 }
 
 func NewRegistroPersonaHandler(cfg config.Config) *RegistroPersonaHandler {
@@ -111,20 +100,25 @@ func (h *RegistroPersonaHandler) responder(
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	if err != nil {
-		w.WriteHeader(http.StatusBadGateway)
-		_ = json.NewEncoder(w).Encode(respuestaRegistro{
-			Success: false,
-			Data:    resultado,
-			Error:   err.Error(),
-		})
+		status := http.StatusBadGateway
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(responses.New(
+			false,
+			strconv.Itoa(status),
+			err.Error(),
+			resultado,
+		))
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(respuestaRegistro{
-		Success: true,
-		Data:    resultado,
-	})
+	status := http.StatusOK
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(responses.New(
+		true,
+		strconv.Itoa(status),
+		"Registro procesado correctamente",
+		resultado,
+	))
 }
 
 func (h *RegistroPersonaHandler) consultar(w http.ResponseWriter, r *http.Request, tipo string) {
@@ -181,12 +175,12 @@ func (h *RegistroPersonaHandler) responderOperacion(w http.ResponseWriter, data 
 			}
 		}
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(respuestaOperacion{Success: false, Data: data, Error: err.Error()})
+		_ = json.NewEncoder(w).Encode(responses.New(false, strconv.Itoa(status), err.Error(), data))
 		return
 	}
 	if status == 0 {
 		status = http.StatusOK
 	}
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(respuestaOperacion{Success: true, Data: data})
+	_ = json.NewEncoder(w).Encode(responses.New(true, strconv.Itoa(status), "Operación procesada correctamente", data))
 }
