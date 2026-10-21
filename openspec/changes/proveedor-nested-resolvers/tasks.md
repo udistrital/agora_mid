@@ -2,26 +2,26 @@
 
 ## 1. Dispatch relación→resolver en el helper
 
-- [ ] 1.1 Extender el expansor para aceptar un registro inyectado `map[string]Resolver` (por nombre de relación) y despachar cada relación a su resolver específico, cayendo al genérico cuando no haya entrada; verificar con `go build ./...`
-- [ ] 1.2 Emitir el aviso `generic_resolver` solo cuando una relación usa el fallback genérico, y ninguno cuando usa un resolver específico; verificar con prueba unitaria de ambos caminos
-- [ ] 1.3 Agregar pruebas del dispatch: relación con resolver específico (no toca el genérico), relación sin resolver (usa genérico + aviso), y que el expansor no conoce el mapeo salvo por inyección; verificar con `go test ./helper/...`
+- [x] 1.1 Extender el expansor para aceptar un registro inyectado `map[string]Resolver` (por nombre de relación) y despachar cada relación a su resolver específico, cayendo al genérico cuando no haya entrada; verificar con `go build ./...`
+- [x] 1.2 Emitir el aviso `generic_resolver` solo cuando una relación usa el fallback genérico, y ninguno cuando usa un resolver específico; verificar con prueba unitaria de ambos caminos
+- [x] 1.3 Agregar pruebas del dispatch: relación con resolver específico (no toca el genérico), relación sin resolver (usa genérico + aviso), y que el expansor no conoce el mapeo salvo por inyección; verificar con `go test ./helper/...`
 
 ## 2. Resolvers específicos del núcleo (envoltorios finos sobre HTTPResolver)
 
-- [ ] 2.1 Definir un envoltorio fino reutilizable sobre `HTTPResolver` que fije endpoint y campo de consulta por entidad, reutilizando transporte, timeouts y decodificación existentes; verificar con `go build ./...`
-- [ ] 2.2 Implementar los resolvers del núcleo (tercero por id; datos_identificacion por tercero_id; tipo_contribuyente; proveedor_natural/juridico por PK compartida; perfil; contacto por proveedor_id; cuenta_bancaria por proveedor_id) sin lógica de negocio; verificar con pruebas que confirman el campo de consulta correcto por entidad
-- [ ] 2.3 Agregar pruebas con mocks HTTP de que cada resolver anida el payload sin transformar (sin marcar, filtrar ni decidir ramas) y respeta cancelación por contexto; verificar con `go test ./...` del paquete de resolvers
+- [x] 2.1 Definir un envoltorio fino reutilizable sobre `HTTPResolver` que fije endpoint y campo de consulta por entidad, reutilizando transporte, timeouts y decodificación existentes; verificar con `go build ./...`
+- [x] 2.2 Implementar los resolvers del núcleo (tercero por id; datos_identificacion por tercero_id; tipo_contribuyente; proveedor_natural/juridico por PK compartida; perfil; contacto por proveedor_id; cuenta_bancaria por proveedor_id) sin lógica de negocio; verificar con pruebas que confirman el campo de consulta correcto por entidad
+- [x] 2.3 Agregar pruebas con mocks HTTP de que cada resolver anida el payload sin transformar (sin marcar, filtrar ni decidir ramas) y respeta cancelación por contexto; verificar con `go test ./...` del paquete de resolvers
 
 ## 3. ProveedorService (orquestación y negocio)
 
-- [ ] 3.1 Implementar `ProveedorService` que trae el proveedor base por `id` desde `gestion_personas_crud` y devuelve error diferenciado para id inválido y proveedor inexistente; verificar con pruebas de id válido, inválido e inexistente
-- [ ] 3.2 Construir `ExpandOptions` desde `fields`, registrar el mapeo relación→resolver e invocar el expansor; ubicar aquí la decisión de rama natural/jurídico (por tipo_registro) y la conservación del objeto; verificar con prueba de expansión de un proveedor con tercero y detalle
-- [ ] 3.3 Agregar pruebas de que la lógica de negocio reside en el servicio y no en los resolvers (ramas natural/jurídico, ciudades sin expandir como ID plano); verificar con `go test ./services/...`
+- [x] 3.1 Implementar `ProveedorService` que trae el proveedor base por `id` desde `gestion_personas_crud` y devuelve error diferenciado para id inválido y proveedor inexistente; verificar con pruebas de id válido, inválido e inexistente
+- [x] 3.2 Construir `ExpandOptions` desde `fields`, registrar el mapeo relación→resolver e invocar el expansor; ubicar aquí la decisión de rama natural/jurídico (por tipo_registro) y la conservación del objeto; verificar con prueba de expansión de un proveedor con tercero y detalle
+- [x] 3.3 Agregar pruebas de que la lógica de negocio reside en el servicio y no en los resolvers (ramas natural/jurídico, ciudades sin expandir como ID plano); verificar con `go test ./services/...`
 
 ## 4. Configuración declarativa del proveedor
 
-- [ ] 4.1 Crear `config/relaciones_proveedor.yaml` con el árbol del núcleo (tercero→datos_identificacion, tipo_contribuyente; natural/juridico→perfil; contacto; cuenta_bancaria), con `max_depth`, `max_related_ids` y `on_relation_error`; verificar que el loader existente lo carga y valida sin error
-- [ ] 4.2 Verificar que la configuración no nombra implementaciones de código y que una relación mal declarada aborta el arranque con mensaje que identifica archivo y relación; verificar con prueba de config inválida en `config/`
+- [x] 4.1 Crear `config/relaciones_proveedor.yaml` con el árbol del núcleo (tercero→datos_identificacion, tipo_contribuyente; natural/juridico→perfil; contacto; cuenta_bancaria), con `max_depth`, `max_related_ids` y `on_relation_error`; verificar que el loader existente lo carga y valida sin error
+- [x] 4.2 Verificar que la configuración no nombra implementaciones de código y que una relación mal declarada aborta el arranque con mensaje que identifica archivo y relación; verificar con prueba de config inválida en `config/`
 
 ## 5. Controlador y ruta /v1/proveedor
 
