@@ -23,7 +23,7 @@ swagger/**
 !swagger/swagger.yml
 
 # Agentes
-.agent/
+.agents/
 .kiro/
 .opencode/
 .github/

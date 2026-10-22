@@ -38,7 +38,11 @@ El sistema SHALL expandir, a partir del proveedor raíz, las entidades relaciona
 
 #### Scenario: Campo fuera del núcleo permitido
 - **WHEN** `fields` solicita una ruta no declarada en la configuración del proveedor
-- **THEN** el sistema responde `400 Bad Request` identificando la ruta inválida y no inicia la expansión
+- **THEN** el sistema responde `400 Bad Request` identificando la ruta inválida, sin consultar el CRUD dueño ni iniciar la expansión
+
+#### Scenario: Validación de `fields` antes de consultar el CRUD
+- **WHEN** la solicitud entrega un `fields` inválido (ruta vacía, segmento vacío, duplicado o ruta no declarada)
+- **THEN** el sistema valida `fields` contra la configuración declarativa y responde `400 Bad Request` antes de consultar el proveedor base, de modo que un `fields` inválido no produce ninguna llamada al CRUD dueño
 
 ### Requirement: Orquestación por servicio de negocio
 El sistema SHALL orquestar la lectura mediante un servicio de negocio que trae el proveedor base, construye las opciones de expansión, provee el mapeo de cada relación a su resolver e invoca el expansor; la lógica de negocio reside en el servicio y no en los resolvers.

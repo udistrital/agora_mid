@@ -61,6 +61,16 @@ Ver proposal.md — Why. Estado actual relevante (verificado en el repo):
 - **Eliminación de la composición manual de 7387a47**: `componerProveedor`, el
   `MarshalJSON` a medida de `PersonaIntegradaResultado` y los DTOs compuestos se
   retiran; el shape de salida lo produce el helper.
+- **Validación de `fields` antes de tocar el CRUD (fallar temprano) con un solo
+  parseo**: la validación de `fields` contra la configuración declarativa ocurre
+  en la entrada de la lectura, antes de traer el proveedor base; un `fields`
+  inválido responde `400` sin ninguna llamada al CRUD dueño, igual que el `id`
+  inválido. El parseo de `fields` se consolida en una sola fuente de verdad (un
+  único `ParsearFields` con el mismo conjunto `allowed`) en lugar de parsear una
+  vez en el servicio con `allowed=nil` sobre la config completa y otra vez en
+  `Expand` con `allowedTopLevel` sobre la config podada. Alternativa descartada:
+  validar dentro de `Expand` tras la lectura — consume una llamada de red
+  evitable y deja dos nociones de validez divergentes para el mismo `fields`.
 
 ## Risks / Trade-offs
 
