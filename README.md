@@ -74,6 +74,56 @@ go test ./...
 go build ./...
 ```
 
+## Consulta de proveedor
+
+### Endpoint
+
+`GET /v1/proveedor`
+
+Permite consultar un proveedor por su identificador y solicitar la expansión de campos relacionados mediante el parámetro `fields`.
+
+### Parámetros de consulta
+
+| Parámetro | Obligatorio | Descripción |
+|---|---|---|
+| `id` | Sí | Identificador numérico positivo del proveedor. |
+| `fields` | No | Lista de campos separados por comas para solicitar su expansión. |
+
+**Ejemplo de consulta básica:**
+
+```http
+GET /v1/proveedor?id=12
+```
+
+**Ejemplo solicitando campos relacionados:**
+
+```http
+GET /v1/proveedor?id=12&fields=Id,Tercero.Id
+```
+
+Los campos solicitados deben corresponder a los permitidos por la configuración de relaciones y las reglas de expansión del servicio.
+
+### Respuestas HTTP
+
+| Código | Significado |
+|---|---|
+| `200` | Consulta completada sin avisos de expansión. |
+| `206` | Consulta completada con avisos de relaciones que no pudieron expandirse. |
+| `400` | Parámetros inválidos o campos no permitidos. |
+| `404` | Proveedor no encontrado. |
+| `405` | Método HTTP no permitido. |
+| `502` | Error de dependencia o fallo fatal de expansión. |
+| `504` | Tiempo de espera agotado durante un fallo fatal de expansión. |
+
+Las respuestas se serializan en JSON mediante el envelope común del proyecto. Las respuestas parciales pueden incluir `MetaData.Errors` con información sobre las relaciones que no pudieron resolverse.
+
+### Resolución del tipo de registro
+
+El endpoint resuelve el tipo de registro de persona natural mediante el catálogo de tipos de contribuyente, utilizando el código `P_NATURAL`. La resolución valida que exista una coincidencia única, activa y con un identificador válido.
+
+Si el catálogo no permite resolver el tipo de registro de forma inequívoca, la inicialización del servicio falla explícitamente. El identificador no debe codificarse de forma fija ni suponerse igual a `1`.
+
+
 ## Estado CI
 
 | Develop | Relese 0.0.1 | Master |
