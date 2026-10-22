@@ -43,6 +43,7 @@ func TestProveedorHandlerLeer(t *testing.T) {
 		{name: "id no numérico", query: "?id=abc", wantStatus: 400, wantBody: `"Status":"400"`},
 		{name: "id no positivo", query: "?id=0", wantStatus: 400, wantBody: `"Status":"400"`},
 		{name: "fields vacío", query: "?id=12&fields=", wantStatus: 400, wantBody: `"Status":"400"`},
+		{name: "fields inválido (servicio)", query: "?id=12&fields=Tercero.NoExiste", err: &helper.ErrorFields{Path: "Tercero.NoExiste", Motivo: "el campo \"NoExiste\" no está permitido"}, wantStatus: 400, wantBody: `"Status":"400"`},
 		{name: "proveedor inexistente", query: "?id=12", err: services.ErrProveedorNoEncontrado, wantStatus: 404, wantBody: `"Status":"404"`},
 		{name: "error dependencia", query: "?id=12", err: errors.New("error interno"), wantStatus: 502, wantBody: `"Status":"502"`},
 		{

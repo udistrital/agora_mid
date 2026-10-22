@@ -261,21 +261,44 @@ func TestLeerProveedorCiudadesSinExpandir(t *testing.T) {
 	}
 }
 
-// Un fields inválido devuelve *helper.ErrorFields sin iniciar la expansión.
+// Un fields inválido devuelve *helper.ErrorFields sin consultar el CRUD dueño:
+// la validación ocurre antes de traer el proveedor base (fallar temprano). Cubre
+// rutas vacías, segmentos vacíos, duplicados y rutas no declaradas.
 func TestLeerProveedorFieldsInvalido(t *testing.T) {
-	server := servidorCRUD(t, map[string]string{
-		"/v1/proveedor/": `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}]}`,
-	}, nil)
-	defer server.Close()
-
-	svc := servicioPrueba(server)
-	_, err := svc.LeerProveedor(context.Background(), 5, []string{"Tercero.CampoInexistente"})
-	if err == nil {
-		t.Fatal("se esperaba error por campo no permitido")
+	casos := []struct {
+		nombre string
+		fields []string
+	}{
+		{"ruta vacía", []string{"Id", "  "}},
+		{"segmento vacío", []string{"Tercero."}},
+		{"segmento intermedio vacío", []string{"Tercero..Id"}},
+		{"ruta duplicada", []string{"Id", "Id"}},
+		{"ruta no declarada", []string{"Tercero.CampoInexistente"}},
+		{"relación inexistente", []string{"NoExiste.Id"}},
+		{"campo base intermedio no es relación", []string{"Activo.Algo"}},
 	}
-	var errFields *helper.ErrorFields
-	if !errors.As(err, &errFields) {
-		t.Errorf("se esperaba *helper.ErrorFields; recibido: %T", err)
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			var vistos []string
+			server := servidorCRUD(t, map[string]string{
+				"/v1/proveedor/": `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}]}`,
+			}, &vistos)
+			defer server.Close()
+
+			svc := servicioPrueba(server)
+			_, err := svc.LeerProveedor(context.Background(), 5, c.fields)
+
+			var errFields *helper.ErrorFields
+			if !errors.As(err, &errFields) {
+				t.Fatalf("se esperaba *helper.ErrorFields; recibido: %T (%v)", err, err)
+			}
+			// Fallar temprano: ningún campo inválido debe producir una llamada al
+			// CRUD dueño.
+			if len(vistos) != 0 {
+				t.Errorf("un fields inválido no debe consultar el CRUD; paths: %v", vistos)
+			}
+		})
 	}
 }
 

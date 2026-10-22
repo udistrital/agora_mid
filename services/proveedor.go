@@ -72,24 +72,30 @@ func (s ProveedorService) LeerProveedor(
 		return helper.ExpandResult{}, ErrProveedorIDInvalido
 	}
 
+	// Fallar temprano: validar y parsear fields contra la configuración completa
+	// ANTES de consultar el CRUD dueño. Ambas ramas de detalle están declaradas,
+	// de modo que pedir la rama que no aplica es una ruta válida (no un 400) que
+	// simplemente no se materializa. Un fields inválido devuelve *helper.ErrorFields
+	// sin ninguna llamada al CRUD. Este árbol es la única fuente de verdad de la
+	// validación: se reutiliza en la expansión sin volver a parsear.
+	var seleccion *helper.NodoSeleccion
+	if len(fields) > 0 {
+		arbol, err := helper.ParsearFields(fields, s.Config.Relations, nil)
+		if err != nil {
+			return helper.ExpandResult{}, err
+		}
+		seleccion = arbol
+	}
+
 	base, err := s.proveedorBase(ctx, id)
 	if err != nil {
 		return helper.ExpandResult{}, err
 	}
 
-	// Validar los fields contra la configuración completa: ambas ramas de
-	// detalle están declaradas, de modo que pedir la rama que no aplica es una
-	// ruta válida (no un 400) que simplemente no se materializa.
-	if len(fields) > 0 {
-		if _, err := helper.ParsearFields(fields, s.Config.Relations, nil); err != nil {
-			return helper.ExpandResult{}, err
-		}
-	}
-
-	// Podar la rama de detalle que no corresponde al tipo de registro y descartar
-	// los fields que la seleccionaban, dejando que el servicio decida la rama.
-	cfg, descartada := s.configParaTipo(base.TipoRegistroId)
-	fieldsEfectivos := filtrarFieldsDeRama(fields, descartada)
+	// Podar la rama de detalle que no corresponde al tipo de registro; el nodo de
+	// selección de la rama descartada queda inerte porque el expansor recorre las
+	// relaciones (ya podadas), no el árbol de selección.
+	cfg := s.configParaTipo(base.TipoRegistroId)
 
 	// El recurso raíz se representa como mapa genérico para que el expansor
 	// pueda anidar las relaciones bajo sus mapped_name conservando las llaves
@@ -101,7 +107,7 @@ func (s ProveedorService) LeerProveedor(
 		"Activo":         base.Activo,
 	}
 
-	return helper.Expand(ctx, data, cfg, s.Registry, helper.ExpandOptions{Fields: fieldsEfectivos})
+	return helper.Expand(ctx, data, cfg, s.Registry, helper.ExpandOptions{Seleccion: seleccion})
 }
 
 // proveedorBase consulta el proveedor por su id contra el CRUD dueño y devuelve
@@ -145,10 +151,9 @@ func (s ProveedorService) proveedorBase(ctx context.Context, id int) (ProveedorR
 }
 
 // configParaTipo devuelve la configuración de relaciones con la rama de detalle
-// que no corresponde al tipo de registro podada, junto con el mapped_name de la
-// rama descartada. Un proveedor natural conserva ProveedorNatural y descarta
-// ProveedorJuridico, y viceversa.
-func (s ProveedorService) configParaTipo(tipoRegistro int) (config.ServiceConfig, string) {
+// que no corresponde al tipo de registro podada. Un proveedor natural conserva
+// ProveedorNatural y descarta ProveedorJuridico, y viceversa.
+func (s ProveedorService) configParaTipo(tipoRegistro int) config.ServiceConfig {
 	descartar := relacionProveedorJuridico
 	if tipoRegistro != s.TipoRegistroNatural {
 		descartar = relacionProveedorNatural
@@ -163,25 +168,7 @@ func (s ProveedorService) configParaTipo(tipoRegistro int) (config.ServiceConfig
 		relaciones = append(relaciones, rel)
 	}
 	cfg.Relations = relaciones
-	return cfg, descartar
-}
-
-// filtrarFieldsDeRama descarta las rutas de fields cuyo primer segmento es la
-// rama de detalle podada, de modo que la validación contra la configuración
-// reducida no las rechace.
-func filtrarFieldsDeRama(fields []string, rama string) []string {
-	if len(fields) == 0 {
-		return fields
-	}
-	salida := make([]string, 0, len(fields))
-	for _, f := range fields {
-		primer := strings.SplitN(strings.TrimSpace(f), ".", 2)[0]
-		if primer == rama {
-			continue
-		}
-		salida = append(salida, f)
-	}
-	return salida
+	return cfg
 }
 
 // NewProveedorService construye un ProveedorService con el transporte HTTP, la

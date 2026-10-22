@@ -31,9 +31,9 @@
 
 ## 6. Validación de `fields` temprana y parseo único (fallar temprano)
 
-- [ ] 6.1 Mover la validación de `fields` (contra la configuración declarativa del proveedor) por delante de la consulta al proveedor base en `ProveedorService.LeerProveedor`, de modo que un `fields` inválido devuelva `*helper.ErrorFields` sin invocar el CRUD dueño; verificar con prueba de que un `fields` inválido no produce ninguna llamada HTTP de lectura base
-- [ ] 6.2 Consolidar el parseo de `fields` en una sola fuente de verdad (un único `ParsearFields` con el mismo conjunto `allowed`), eliminando el doble parseo con `allowed=nil` en el servicio y `allowedTopLevel` en `Expand`; verificar con prueba de que la validez de un `fields` es consistente entre la entrada y la expansión
-- [ ] 6.3 Cubrir el escenario del spec "Validación de `fields` antes de consultar el CRUD" con prueba de controlador/servicio que afirme `400` y cero llamadas al CRUD ante rutas vacías, segmentos vacíos, duplicados y rutas no declaradas; verificar con `go test ./services/... ./controllers/...`
+- [x] 6.1 Mover la validación de `fields` (contra la configuración declarativa del proveedor) por delante de la consulta al proveedor base en `ProveedorService.LeerProveedor`, de modo que un `fields` inválido devuelva `*helper.ErrorFields` sin invocar el CRUD dueño; verificar con prueba de que un `fields` inválido no produce ninguna llamada HTTP de lectura base
+- [x] 6.2 Consolidar el parseo de `fields` en una sola fuente de verdad (un único `ParsearFields` con el mismo conjunto `allowed`), eliminando el doble parseo con `allowed=nil` en el servicio y `allowedTopLevel` en `Expand`; verificar con prueba de que la validez de un `fields` es consistente entre la entrada y la expansión
+- [x] 6.3 Cubrir el escenario del spec "Validación de `fields` antes de consultar el CRUD" con prueba de controlador/servicio que afirme `400` y cero llamadas al CRUD ante rutas vacías, segmentos vacíos, duplicados y rutas no declaradas; verificar con `go test ./services/... ./controllers/...`
 
 ## 7. Eliminación de la composición manual (7387a47)
 
