@@ -37,9 +37,9 @@
 
 ## 7. Eliminación de la composición manual (7387a47)
 
-- [ ] 7.1 Eliminar `componerProveedor` y el `MarshalJSON` a medida de `PersonaIntegradaResultado` en `services/consulta_actualizacion.go`, migrando lo que siga siendo necesario; verificar con `go build ./...`
-- [ ] 7.2 Eliminar los DTOs compuestos (`dto/registro_compuesto.go`, `dto/actualizar_compuesto.go`) y sus `UnmarshalJSON`, junto con sus tests asociados; verificar con `go build ./...` y que no queden referencias
-- [ ] 7.3 Actualizar o retirar los tests de servicios/controladores que dependían del contrato compuesto manual; verificar con `go test ./...`
+- [x] 7.1 Eliminar `componerProveedor` y el `MarshalJSON` a medida de `PersonaIntegradaResultado` en `services/consulta_actualizacion.go`, migrando lo que siga siendo necesario; verificar con `go build ./...`
+- [x] 7.2 Eliminar los DTOs compuestos (`dto/registro_compuesto.go`, `dto/actualizar_compuesto.go`) y sus `UnmarshalJSON`, junto con sus tests asociados; verificar con `go build ./...` y que no queden referencias
+- [x] 7.3 Actualizar o retirar los tests de servicios/controladores que dependían del contrato compuesto manual; verificar con `go test ./...`
 
 ## 8. Reubicación del cableado del núcleo (helper -> services)
 

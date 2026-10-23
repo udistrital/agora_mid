@@ -18,7 +18,6 @@ import (
 
 func main() {
 	cfg := config.Load()
-	handler := controllers.NewRegistroPersonaHandler(cfg)
 
 	// Cargar y validar las relaciones declaradas en config/relaciones_*.yaml.
 	urls := cfg.URLs()
@@ -51,14 +50,6 @@ func main() {
 	)
 	proveedorHandler := controllers.NewProveedorHandler(proveedorService)
 
-	beego.Any(
-		"/v1/registro/persona-natural",
-		adaptarHandler(http.HandlerFunc(handler.RegistrarNatural)),
-	)
-	beego.Any(
-		"/v1/registro/persona-juridica",
-		adaptarHandler(http.HandlerFunc(handler.RegistrarJuridica)),
-	)
 	beego.Any(
 		"/v1/proveedor",
 		adaptarHandler(http.HandlerFunc(proveedorHandler.Leer)),

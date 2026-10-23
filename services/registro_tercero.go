@@ -273,3 +273,20 @@ func parseFechaOpcional(valor *string) (*time.Time, error) {
 	}
 	return &fecha, nil
 }
+
+// parseFecha normaliza una fecha en formato YYYY-MM-DD o RFC3339 a medianoche
+// UTC. Es una primitiva compartida por los servicios que escriben contra los
+// CRUD dueños.
+func parseFecha(valor string) (time.Time, error) {
+	valor = strings.TrimSpace(valor)
+	if valor == "" {
+		return time.Time{}, errors.New("el valor de fecha es obligatorio")
+	}
+	if fecha, err := time.Parse("2006-01-02", valor); err == nil {
+		return fecha, nil
+	}
+	if fecha, err := time.Parse(time.RFC3339, valor); err == nil {
+		return time.Date(fecha.Year(), fecha.Month(), fecha.Day(), 0, 0, 0, 0, time.UTC), nil
+	}
+	return time.Time{}, fmt.Errorf("formato inválido %q; use YYYY-MM-DD o RFC3339", valor)
+}
