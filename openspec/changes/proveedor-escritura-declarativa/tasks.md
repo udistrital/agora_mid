@@ -30,6 +30,8 @@
 - [ ] 5.1 Eliminar `RegistrarPersonaNatural/Juridica`, `ActualizarPersona` y sus ayudantes de `services/`, y los DTOs compuestos (`dto/registro_compuesto.go`, `dto/actualizar_compuesto.go`); verificar con `go build ./...` y que no queden referencias
 - [ ] 5.2 Retirar las rutas `POST/PUT/GET /v1/persona_*` de `main.go` y el controlador asociado; verificar que el API arranca sin ellas
 - [ ] 5.3 Actualizar o retirar los tests que dependían de los flujos estáticos; verificar con `go test ./...`
+- [ ] 5.4 Eliminar la capa estática residual que quedó sin llamadores de producción tras retirar los orquestadores: `RegistrarOReutilizar` (`services/registro_tercero.go`) y sus ayudantes (`crearIdentificacion`, `filtrarVacios`, `parseFecha*`, `ErrorRegistroParcial`), `CrearOReutilizarProveedor` (`services/registro_proveedor.go`) con `validarProveedorExistente` y `ErrTipoProveedorIncompatible`, todo `services/gestion_personas.go` (`GestionPersonasService`, `BuscarProveedorPorTercero`), el DTO `dto/datos_terceros.go` (`DatosTercerosDTO`, único consumidor del paquete `dto/`), y las funciones muertas `BuscarPorDocumento`/`identificacionResponse`/`ErrTerceroAmbiguo` (`services/terceros.go`) y `ResolverTipoDocumento` (`services/catalogos.go`); conservar `TercerosService` y `ResolverTipoContribuyente`, que `main.go` sigue usando para resolver `P_NATURAL` al arranque; verificar con `go build ./...` y grep de que no quedan referencias
+- [ ] 5.5 Retirar los tests de la capa estática residual (`registro_tercero_test.go`, `registro_tercero_idempotencia_test.go`, `registro_proveedor_test.go`, `gestion_personas_test.go`, `TestBuscarPorDocumento` en `terceros_test.go`); verificar con `go test ./...`
 
 ## 6. Pruebas de integración y e2e
 

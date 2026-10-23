@@ -45,7 +45,14 @@ configuración, no un servicio, cuando el modelo evolucione.
   en `services/`, los DTOs compuestos (`dto/registro_compuesto.go`,
   `dto/actualizar_compuesto.go`) y las rutas `POST/PUT/GET /v1/persona_*`. La
   escritura declarativa sobre `/v1/proveedor` las reemplaza en su totalidad. No
-  hay cliente productivo que dependa del contrato anterior.
+  hay cliente productivo que dependa del contrato anterior. Se retira también la
+  capa estática residual que daba soporte a esos orquestadores y quedó sin
+  llamadores de producción: los constructores idempotentes `RegistrarOReutilizar`
+  y `CrearOReutilizarProveedor`, `GestionPersonasService`
+  (`services/gestion_personas.go`), el DTO `DatosTercerosDTO` (paquete `dto/`), y
+  las funciones muertas `BuscarPorDocumento`/`ResolverTipoDocumento`. Se conserva
+  `TercerosService.ResolverTipoContribuyente`, que el arranque sigue usando para
+  resolver el tipo `P_NATURAL`.
 - Se añaden pruebas de integración locales (router + CRUD simulados) y al menos
   una prueba e2e de un flujo completo de creación/actualización del subárbol.
 - Se actualiza la documentación pública del contrato para describir los endpoints
@@ -84,7 +91,10 @@ configuración, no un servicio, cuando el modelo evolucione.
   escribible del proveedor en `services/`; bloque `write` y su validación en el
   loader de configuración.
 - **Código eliminado (BREAKING)**: flujos estáticos de registro/actualización de
-  persona en `services/`, DTOs compuestos en `dto/`, y las rutas `/v1/persona_*`.
+  persona y su capa de soporte residual en `services/` (`registro_tercero.go`,
+  `registro_proveedor.go`, `gestion_personas.go` y las funciones muertas de
+  `terceros.go`/`catalogos.go`), el paquete `dto/` completo, y las rutas
+  `/v1/persona_*`.
 - **Config**: el YAML de relaciones del proveedor gana el bloque `write`
   namespaced; el loader valida coherencia lectura/escritura.
 - **Endpoints afectados**: alta de `POST`/`PATCH` `/v1/proveedor`; baja de
