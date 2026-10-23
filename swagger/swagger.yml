@@ -1,0 +1,385 @@
+swagger: "2.0"
+info:
+  title: agora_mid
+  description: >-
+    Middleware de registro de personas naturales y jurídicas. Coordina los
+    servicios propietarios de los datos sin convertirse en maestro de identidad.
+  version: 0.0.1
+basePath: /v1
+schemes:
+  - https
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+paths:
+  /proveedor:
+    get:
+      tags:
+        - proveedor
+      summary: Consulta un proveedor por su identificador
+      description: >-
+        Consulta un proveedor como recurso raíz por su `id` y, opcionalmente,
+        expande sus entidades relacionadas del núcleo mediante el parámetro
+        `fields`. Los campos solicitados deben corresponder a las rutas
+        permitidas por la configuración declarativa de relaciones del
+        proveedor. La validación de `fields` ocurre antes de consultar el CRUD
+        dueño: un `fields` inválido responde `400` sin ninguna llamada de
+        lectura base.
+      operationId: leerProveedor
+      parameters:
+        - name: id
+          in: query
+          description: Identificador numérico positivo del proveedor.
+          required: true
+          type: integer
+          format: int64
+          minimum: 1
+        - name: fields
+          in: query
+          description: >-
+            Lista de campos separados por comas para solicitar la expansión de
+            relaciones (por ejemplo `Id,Tercero.Id,Tercero.NombreCompleto`).
+            Cada campo debe corresponder a una ruta declarada en la
+            configuración de relaciones del proveedor
+            (`config/relaciones_proveedor.yaml`). No admite rutas vacías,
+            segmentos vacíos, duplicados ni rutas no declaradas.
+
+
+            Subconjunto mínimo expandible en esta fase (`mapped_name`,
+            cardinalidad): `Tercero` (1-1), `Tercero.DatosIdentificacion` (1-N),
+            `Tercero.TipoContribuyente` (1-1), `ProveedorNatural` (1-1),
+            `ProveedorNatural.Perfil` (1-1), `ProveedorJuridico` (1-1),
+            `Contacto` (1-N) y `CuentaBancaria` (1-N). Las ramas
+            `ProveedorNatural` y `ProveedorJuridico` son mutuamente excluyentes:
+            el servicio expande solo la que corresponde al tipo de registro del
+            proveedor. Las ciudades (`CiudadExpedicion`, `CiudadAperturaId`) se
+            entregan como ID plano, sin expandir. Entidades del modelo extendido
+            como `perfil_financiero`, `actividad_economica_proveedor`,
+            `informacion_financiera`, `representacion`, `documento` y
+            `declaracion` están diferidas y aún no son expandibles.
+          required: false
+          type: string
+      responses:
+        "200":
+          description: >-
+            Consulta completada sin avisos de expansión. El recurso se devuelve
+            en `Data` dentro del envelope plano; `MetaData` se omite.
+          schema:
+            $ref: "#/definitions/RespuestaProveedor"
+        "206":
+          description: >-
+            Consulta completada con avisos: algunas relaciones no pudieron
+            expandirse pero el recurso principal se conserva. Los avisos se
+            serializan en `MetaData.Errors`.
+          schema:
+            $ref: "#/definitions/RespuestaProveedorConAvisos"
+        "400":
+          description: >-
+            Parámetros inválidos: `id` ausente o no positivo, o `fields`
+            inválido (ruta vacía, segmento vacío, duplicado o ruta no
+            declarada). No se consulta el CRUD dueño.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "404":
+          description: No existe un proveedor con el `id` solicitado.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "405":
+          description: Método HTTP no permitido; solo se admite `GET`.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "502":
+          description: >-
+            Error de dependencia o fallo fatal de expansión al consultar un CRUD
+            relacionado bajo la política de error `fail`.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "504":
+          description: >-
+            Tiempo de espera agotado durante un fallo fatal de expansión de una
+            relación.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+definitions:
+  RespuestaProveedor:
+    type: object
+    description: Envelope OAS plano para una consulta exitosa sin avisos.
+    required:
+      - Success
+      - Status
+      - Message
+      - Data
+    properties:
+      Success:
+        type: boolean
+        example: true
+      Status:
+        type: string
+        example: "200"
+      Message:
+        type: string
+        example: Proveedor consultado correctamente
+      Data:
+        $ref: "#/definitions/Proveedor"
+  RespuestaProveedorConAvisos:
+    type: object
+    description: >-
+      Envelope OAS para una consulta con expansión parcial tolerada; incluye el
+      bloque `MetaData` con los avisos de relaciones no expandidas.
+    required:
+      - Success
+      - Status
+      - Message
+      - Data
+      - MetaData
+    properties:
+      Success:
+        type: boolean
+        example: true
+      Status:
+        type: string
+        example: "206"
+      Message:
+        type: string
+        example: Proveedor consultado con advertencias de expansión
+      Data:
+        $ref: "#/definitions/Proveedor"
+      MetaData:
+        $ref: "#/definitions/MetaData"
+  RespuestaError:
+    type: object
+    description: Envelope OAS plano para una respuesta de error; `MetaData` se omite.
+    required:
+      - Success
+      - Status
+      - Message
+    properties:
+      Success:
+        type: boolean
+        example: false
+      Status:
+        type: string
+        example: "400"
+      Message:
+        type: string
+        example: id debe ser un entero positivo
+      Data:
+        type: object
+        x-nullable: true
+  MetaData:
+    type: object
+    description: >-
+      Bloque opcional con metadatos de la respuesta. Solo se incluye cuando hay
+      avisos de expansión (`Errors`) o un total de registros (`Length`).
+    properties:
+      Errors:
+        type: array
+        description: Avisos de relaciones que no pudieron expandirse.
+        items:
+          $ref: "#/definitions/RelationError"
+      Length:
+        type: integer
+        format: int64
+        description: Total de valores posibles cuando `Data` es una lista.
+  RelationError:
+    type: object
+    description: >-
+      Aviso de una relación que no se pudo expandir. No incluye URLs ni
+      credenciales: solo la ruta lógica de la relación.
+    properties:
+      path:
+        type: string
+        description: Ruta lógica de la relación afectada (por ejemplo `Tercero`).
+        example: Tercero
+      service:
+        type: string
+        description: Nombre lógico del servicio dueño de la relación.
+        example: terceros
+      message:
+        type: string
+        example: relación no disponible, se conserva el recurso principal
+      kind:
+        type: string
+        description: >-
+          Tipo de aviso: `relation`, `depth`, `cycle` o `generic_resolver`.
+        example: relation
+  Proveedor:
+    type: object
+    description: >-
+      Proveedor raíz. Incluye siempre sus llaves locales y, bajo cada
+      `mapped_name`, las relaciones solicitadas en `fields`. Las propiedades de
+      relación solo aparecen cuando se piden y se expanden correctamente. El
+      modelo documenta el subconjunto mínimo vigente; las entidades del modelo
+      extendido están diferidas.
+    properties:
+      Id:
+        type: integer
+        format: int64
+        example: 12
+      TerceroId:
+        type: integer
+        format: int64
+        description: Llave local hacia el tercero (único por proveedor).
+        example: 25
+      TipoRegistroId:
+        type: integer
+        format: int64
+        description: >-
+          Tipo de contribuyente del proveedor. Determina qué rama de detalle
+          (`ProveedorNatural` o `ProveedorJuridico`) se expande.
+        example: 1
+      Activo:
+        type: boolean
+        example: true
+      Tercero:
+        $ref: "#/definitions/Tercero"
+      ProveedorNatural:
+        $ref: "#/definitions/ProveedorNatural"
+      ProveedorJuridico:
+        $ref: "#/definitions/ProveedorJuridico"
+      Contacto:
+        type: array
+        description: Medios de contacto del proveedor (1-N).
+        items:
+          $ref: "#/definitions/Contacto"
+      CuentaBancaria:
+        type: array
+        description: Cuentas bancarias del proveedor (1-N).
+        items:
+          $ref: "#/definitions/CuentaBancaria"
+  Tercero:
+    type: object
+    description: Datos de identidad del proveedor (1-1 vía `proveedor.tercero_id`).
+    properties:
+      Id:
+        type: integer
+        format: int64
+      NombreCompleto:
+        type: string
+      TipoContribuyenteId:
+        type: integer
+        format: int64
+      DatosIdentificacion:
+        type: array
+        description: Documentos de identificación del tercero (1-N).
+        items:
+          $ref: "#/definitions/DatosIdentificacion"
+      TipoContribuyente:
+        $ref: "#/definitions/TipoContribuyente"
+  DatosIdentificacion:
+    type: object
+    description: >-
+      Documento de identificación del tercero. `CiudadExpedicion` se entrega
+      como ID plano, sin expandir.
+    properties:
+      Id:
+        type: integer
+        format: int64
+      Numero:
+        type: string
+      TipoDocumentoId:
+        type: integer
+        format: int64
+      CiudadExpedicion:
+        type: integer
+        format: int64
+        description: ID de ciudad (CRUD de ubicaciones); no se expande.
+  TipoContribuyente:
+    type: object
+    description: Clasificación del tercero (persona natural/jurídica).
+    properties:
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+  ProveedorNatural:
+    type: object
+    description: >-
+      Detalle de persona natural (PK compartida con `proveedor`). Se expande
+      solo cuando el tipo de registro corresponde a persona natural.
+    properties:
+      Id:
+        type: integer
+        format: int64
+      PerfilDeclarado:
+        type: integer
+        format: int64
+      ExperienciaLaboralMeses:
+        type: integer
+        format: int64
+      ExperienciaProfesionalMeses:
+        type: integer
+        format: int64
+      Perfil:
+        $ref: "#/definitions/Perfil"
+  Perfil:
+    type: object
+    description: Perfil declarado del proveedor natural.
+    properties:
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+  ProveedorJuridico:
+    type: object
+    description: >-
+      Detalle de persona jurídica (PK compartida con `proveedor`). Se expande
+      solo cuando el tipo de registro corresponde a persona jurídica.
+    properties:
+      Id:
+        type: integer
+        format: int64
+      NombreComercial:
+        type: string
+      MatriculaMercantil:
+        type: integer
+        format: int64
+      FechaConstitucion:
+        type: string
+        format: date
+  Contacto:
+    type: object
+    description: Medio de contacto del proveedor (1-N por `proveedor_id`).
+    properties:
+      Id:
+        type: integer
+        format: int64
+      NombreContacto:
+        type: string
+      Finalidad:
+        type: string
+      TipoCanal:
+        type: string
+      ValorEspecifico:
+        type: string
+      EsPrincipal:
+        type: boolean
+  CuentaBancaria:
+    type: object
+    description: >-
+      Cuenta bancaria del proveedor (1-N por `proveedor_id`).
+      `EntidadBancariaId`, `TipoCuentaId` y `CiudadAperturaId` se entregan como
+      ID plano, sin expandir.
+    properties:
+      Id:
+        type: integer
+        format: int64
+      EntidadBancariaId:
+        type: integer
+        format: int64
+      TipoCuentaId:
+        type: integer
+        format: int64
+      NumeroCuenta:
+        type: string
+      NombreTitular:
+        type: string
+      CiudadAperturaId:
+        type: integer
+        format: int64
+      EsPrincipal:
+        type: boolean

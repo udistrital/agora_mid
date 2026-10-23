@@ -47,5 +47,5 @@
 
 ## 9. Verificación integral y documentación
 
-- [ ] 9.1 Documentar el contrato público de `GET /v1/proveedor` (parámetros `id` y `fields`, forma de respuesta y `MetaData.Errors`) en Swagger; verificar que la definición refleja el contrato
-- [ ] 9.2 Ejecutar `go build ./...` y `go test ./...` en verde sobre todo el proyecto, cubriendo helper, resolvers, servicio, config y controlador
+- [x] 9.1 Documentar el contrato público de `GET /v1/proveedor` (parámetros `id` y `fields`, forma de respuesta y `MetaData.Errors`) en Swagger; verificar que la definición refleja el contrato
+- [x] 9.2 Ejecutar `go build ./...` y `go test ./...` en verde sobre todo el proyecto, cubriendo helper, resolvers, servicio, config y controlador
