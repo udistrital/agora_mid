@@ -1,4 +1,4 @@
-package helper
+package services
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/udistrital/agora_mid/clients"
 	"github.com/udistrital/agora_mid/config"
+	"github.com/udistrital/agora_mid/helper"
 )
 
 // relacionNucleo arma una relación con campos de origen deliberadamente falsos
@@ -81,7 +82,7 @@ func TestResolversNucleoCampoDeConsulta(t *testing.T) {
 				"parametros":            server.URL,
 				"gestion_personas_crud": server.URL,
 			}
-			inner := NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
+			inner := helper.NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
 			resolvers := NewResolversNucleo(inner)
 
 			res, ok := resolvers[c.servicio]
@@ -112,7 +113,7 @@ func TestResolverEspecificoSinTransformacion(t *testing.T) {
 	defer server.Close()
 
 	urls := config.ServiceURLs{"terceros": server.URL}
-	inner := NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
+	inner := helper.NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
 	res := NewResolversNucleo(inner)[ServicioTercero]
 
 	rel := relacionNucleo("Tercero", ServicioTercero, config.CardinalityOne)
@@ -134,7 +135,7 @@ func TestResolverEspecificoSinTransformacion(t *testing.T) {
 	if r0["Activo"] != true {
 		t.Errorf("campo booleano no conservado: %+v", r0)
 	}
-	if EsGenerico(res) {
+	if helper.EsGenerico(res) {
 		t.Error("el resolver específico no debe detectarse como genérico")
 	}
 }
@@ -147,7 +148,7 @@ func TestResolverEspecificoContextoCancelado(t *testing.T) {
 	defer server.Close()
 
 	urls := config.ServiceURLs{"gestion_personas_crud": server.URL}
-	inner := NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
+	inner := helper.NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
 	res := NewResolversNucleo(inner)[ServicioContacto]
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -166,7 +167,7 @@ func TestResolverEspecificoListaDirecta(t *testing.T) {
 	defer server.Close()
 
 	urls := config.ServiceURLs{"gestion_personas_crud": server.URL}
-	inner := NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
+	inner := helper.NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
 	res := NewResolversNucleo(inner)[ServicioCuentaBancaria]
 
 	rel := relacionNucleo("CuentaBancaria", ServicioCuentaBancaria, config.CardinalityMany)
@@ -186,7 +187,7 @@ func TestResolverEspecificoNoMutaRelacion(t *testing.T) {
 	defer server.Close()
 
 	urls := config.ServiceURLs{"terceros": server.URL}
-	inner := NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
+	inner := helper.NewHTTPResolver(clients.HTTPClient{Client: server.Client()}, urls)
 	res := NewResolversNucleo(inner)[ServicioTercero]
 
 	rel := relacionNucleo("Tercero", ServicioTercero, config.CardinalityOne)

@@ -43,7 +43,7 @@
 
 ## 8. Reubicación del cableado del núcleo (helper -> services)
 
-- [ ] 8.1 Mover `NewResolversNucleo` y las constantes `ServicioX`/`endpointX` de `helper/entity_resolver.go` a `services/`; `helper/` conserva únicamente las primitivas reutilizables (`EntityResolver`, `NewEntityResolver`); verificar con `go build ./...`, `go test ./...` y un grep de que `helper/` no nombra entidades de dominio (tercero, proveedor, contacto, etc.) ni endpoints `/v1/x`
+- [x] 8.1 Mover `NewResolversNucleo` y las constantes `ServicioX`/`endpointX` de `helper/entity_resolver.go` a `services/`; `helper/` conserva únicamente las primitivas reutilizables (`EntityResolver`, `NewEntityResolver`); verificar con `go build ./...`, `go test ./...` y un grep de que `helper/` no nombra entidades de dominio (tercero, proveedor, contacto, etc.) ni endpoints `/v1/x`
 
 ## 9. Verificación integral y documentación
 

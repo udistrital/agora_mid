@@ -183,7 +183,7 @@ func NewProveedorService(
 	generic helper.Resolver,
 ) ProveedorService {
 	inner := helper.NewHTTPResolver(client, urls)
-	registry := helper.NewResolverRegistry(helper.NewResolversNucleo(inner), generic)
+	registry := helper.NewResolverRegistry(NewResolversNucleo(inner), generic)
 	return ProveedorService{
 		BaseURL:             urls["gestion_personas_crud"],
 		Client:              client,

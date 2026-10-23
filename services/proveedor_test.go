@@ -30,14 +30,14 @@ func cfgProveedorPrueba() config.ServiceConfig {
 		MaxRelatedIDs:   100,
 		Relations: []config.RelationConfig{
 			{
-				Name: "Tercero", RelatedService: helper.ServicioTercero, RelatedAPI: "terceros",
+				Name: "Tercero", RelatedService: ServicioTercero, RelatedAPI: "terceros",
 				RelatedTable: "tercero", Direction: config.DirectionLocalToRelated,
 				LocalField: "TerceroId", RelatedField: "Id", Cardinality: config.CardinalityOne,
 				Depth: 3, MappedName: "Tercero", Endpoint: "/v1/tercero", QueryTemplate: "Id:{ids}",
 				AllowedFields: []string{"Id", "NombreCompleto", "TipoContribuyenteId"},
 				NestedRelations: []config.RelationConfig{
 					{
-						Name: "DatosIdentificacion", RelatedService: helper.ServicioDatosIdentificacion,
+						Name: "DatosIdentificacion", RelatedService: ServicioDatosIdentificacion,
 						RelatedAPI: "terceros", RelatedTable: "datos_identificacion",
 						Direction: config.DirectionRelatedToLocal, LocalField: "Id", RelatedField: "TerceroId",
 						Cardinality: config.CardinalityMany, Depth: 1, MappedName: "DatosIdentificacion",
@@ -47,7 +47,7 @@ func cfgProveedorPrueba() config.ServiceConfig {
 				},
 			},
 			{
-				Name: "ProveedorNatural", RelatedService: helper.ServicioProveedorNatural,
+				Name: "ProveedorNatural", RelatedService: ServicioProveedorNatural,
 				RelatedAPI: "gestion_personas_crud", RelatedTable: "proveedor_natural",
 				Direction: config.DirectionLocalToRelated, LocalField: "Id", RelatedField: "Id",
 				Cardinality: config.CardinalityOne, Depth: 2, MappedName: "ProveedorNatural",
@@ -55,7 +55,7 @@ func cfgProveedorPrueba() config.ServiceConfig {
 				AllowedFields: []string{"Id", "PerfilDeclarado"},
 			},
 			{
-				Name: "ProveedorJuridico", RelatedService: helper.ServicioProveedorJuridico,
+				Name: "ProveedorJuridico", RelatedService: ServicioProveedorJuridico,
 				RelatedAPI: "gestion_personas_crud", RelatedTable: "proveedor_juridico",
 				Direction: config.DirectionLocalToRelated, LocalField: "Id", RelatedField: "Id",
 				Cardinality: config.CardinalityOne, Depth: 2, MappedName: "ProveedorJuridico",
@@ -63,7 +63,7 @@ func cfgProveedorPrueba() config.ServiceConfig {
 				AllowedFields: []string{"Id", "NombreComercial"},
 			},
 			{
-				Name: "Contacto", RelatedService: helper.ServicioContacto,
+				Name: "Contacto", RelatedService: ServicioContacto,
 				RelatedAPI: "gestion_personas_crud", RelatedTable: "contacto",
 				Direction: config.DirectionRelatedToLocal, LocalField: "Id", RelatedField: "ProveedorId",
 				Cardinality: config.CardinalityMany, Depth: 1, MappedName: "Contacto",
@@ -71,7 +71,7 @@ func cfgProveedorPrueba() config.ServiceConfig {
 				AllowedFields: []string{"Id", "ValorEspecifico"},
 			},
 			{
-				Name: "CuentaBancaria", RelatedService: helper.ServicioCuentaBancaria,
+				Name: "CuentaBancaria", RelatedService: ServicioCuentaBancaria,
 				RelatedAPI: "gestion_personas_crud", RelatedTable: "cuenta_bancaria",
 				Direction: config.DirectionRelatedToLocal, LocalField: "Id", RelatedField: "ProveedorId",
 				Cardinality: config.CardinalityMany, Depth: 1, MappedName: "CuentaBancaria",
