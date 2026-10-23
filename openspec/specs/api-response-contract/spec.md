@@ -14,8 +14,12 @@ El sistema SHALL responder con un envoltorio OAS plano que incluya `Success` (bo
 - **THEN** la respuesta incluye `Success: true`, `Status: "200"`, un `Message` y el recurso en `Data`
 
 #### Scenario: Respuesta de escritura
-- **WHEN** una operación de escritura (POST o PUT) se completa
+- **WHEN** una operación de escritura (`POST` o `PATCH`) se completa sin fallos parciales
 - **THEN** la respuesta usa el mismo envoltorio plano `Success/Status/Message/Data` sin el bloque `MetaData`
+
+#### Scenario: Respuesta de escritura con materialización parcial
+- **WHEN** una operación de escritura tolerante materializa solo parte del subárbol por un fallo de relación no bloqueante
+- **THEN** la respuesta usa `Status: "206"`, incluye `MetaData.Errors` con los avisos y `Data` con los identificadores ya materializados
 
 #### Scenario: Compatibilidad del envoltorio con el ecosistema
 - **WHEN** el controlador de errores estándar y los controladores de negocio emiten respuestas
