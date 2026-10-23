@@ -57,11 +57,3 @@ El sistema SHALL ejecutar la escritura del subárbol a través de los CRUD dueñ
   `MetaData.Errors` y `Data` incluye los identificadores ya materializados para
   permitir el reintento
 
-### Requirement: Eliminación diferida del proveedor
-El sistema SHALL tratar `DELETE /v1/proveedor` como pendiente de definición: su
-estrategia de baja no se implementa en esta fase y se decide con el equipo.
-
-#### Scenario: DELETE no disponible en la fase actual
-- **WHEN** se invoca `DELETE /v1/proveedor` en la fase actual
-- **THEN** el sistema no ejecuta una baja en cascada y el método permanece sin
-  implementar hasta validar su estrategia

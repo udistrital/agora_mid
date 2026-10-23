@@ -18,9 +18,6 @@ configuración, no un servicio, cuando el modelo evolucione.
   - `PATCH /v1/proveedor`: reconcilia (upsert) el subárbol; crea lo ausente,
     actualiza lo presente, nunca borra. Es idempotente y sirve como ruta de
     continuación tras una creación parcial.
-  - `DELETE /v1/proveedor`: se incorpora **al final** del plan; su estrategia
-    (previsiblemente baja lógica vía `activo=false`) queda **diferida** hasta
-    validación con el equipo. No se implementa junto con POST/PATCH.
 - Nuevo motor de escritura declarativo, espejo del motor de expansión de lectura:
   recorre el árbol de relaciones en orden topológico (padres antes que hijos),
   propaga la llave del padre al hijo (FK o PK compartida), aplana la entrada
@@ -61,7 +58,7 @@ configuración, no un servicio, cuando el modelo evolucione.
 
 ### New Capabilities
 - `proveedor-write`: escritura del proveedor como raíz mediante `POST`/`PATCH`
-  (y `DELETE` diferido) con cuerpo anidado, que crea y reconcilia en cascada el
+  con cuerpo anidado, que crea y reconcilia en cascada el
   subárbol del núcleo a través de los CRUD dueños, sin que el MID sea dueño de los
   datos, reportando la creación parcial y los identificadores materializados.
 - `declarative-write-engine`: motor de escritura declarativo reutilizable, espejo
@@ -90,8 +87,8 @@ configuración, no un servicio, cuando el modelo evolucione.
   persona en `services/`, DTOs compuestos en `dto/`, y las rutas `/v1/persona_*`.
 - **Config**: el YAML de relaciones del proveedor gana el bloque `write`
   namespaced; el loader valida coherencia lectura/escritura.
-- **Endpoints afectados**: alta de `POST`/`PATCH` (y `DELETE` diferido)
-  `/v1/proveedor`; baja de `POST/PUT/GET /v1/persona_*`.
+- **Endpoints afectados**: alta de `POST`/`PATCH` `/v1/proveedor`; baja de
+  `POST/PUT/GET /v1/persona_*`.
 - **CRUD dueños**: la cascada cruza Terceros CRUD y gestión de personas CRUD en
   una sola operación; sin transacción distribuida, la recuperación se apoya en
   idempotencia por clave natural y en los identificadores devueltos.
@@ -101,8 +98,7 @@ configuración, no un servicio, cuando el modelo evolucione.
 - **Documentación pública**: `swagger/swagger.yml` + `API.md` describen el
   contrato de escritura y reflejan la baja de `/v1/persona_*`; `README.md` queda
   intacto.
-- **Alcance**: Corte B (incluye `tercero`/`datos_identificacion`). `DELETE` y su
-  estrategia de baja quedan diferidos. Fase 2 (ya visible en el modelo):
+- **Alcance**: Corte B (incluye `tercero`/`datos_identificacion`). Fase 2 (ya visible en el modelo):
   `perfil_financiero`, `actividad_economica_proveedor`, `representacion`,
   `informacion_financiera`, `documento`, `declaracion`, con sus propios
   controladores/servicios explícitos.

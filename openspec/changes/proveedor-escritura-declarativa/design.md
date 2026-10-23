@@ -39,7 +39,6 @@ modelo `agora_modelo_extendido.dbml`):
   `tercero` y `datos_identificacion`).
 
 **Non-Goals:**
-- No implementar la estrategia de `DELETE` en esta fase (diferida).
 - No convertir el MID en dueño de los datos ni en un ORM genérico.
 - No escribir catálogos/parámetros: el cliente envía su `Id`.
 - No acceder directo a Postgres: el MID sigue siendo middleware HTTP.
@@ -107,8 +106,6 @@ modelo `agora_modelo_extendido.dbml`):
   esquema.
 - [Colecciones sin clave natural duplican en reintento ciego] → se exige `Id` en el
   cuerpo para actualizar; sin `Id` siempre crea. Riesgo acotado y documentado.
-- [`DELETE` prematuro sin estrategia] → diferido explícitamente; probable
-  soft-delete (`activo=false`) a confirmar con el equipo.
 - [Fuga de datos en avisos] → los write-resolvers no construyen mensajes con URLs
   ni credenciales; solo ruta lógica, igual que la lectura.
 
@@ -116,8 +113,6 @@ modelo `agora_modelo_extendido.dbml`):
 
 - Clave natural definitiva de `tercero` y comportamiento cuando el documento ya
   existe asociado a otro tercero (¿conflicto 409 o reutilización?).
-- Estrategia concreta de `DELETE` (baja lógica en cascada, alcance, qué pasa con
-  `tercero`), a validar con el equipo.
 - Endpoints y campos de escritura exactos de cada CRUD para fijar el bloque `write`
   por relación (se confirman al implementar cada write-resolver).
 - Representación del autor de modificación en el contexto (fuente del
