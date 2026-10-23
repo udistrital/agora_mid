@@ -103,3 +103,106 @@ materializa, no un `400`.
 El endpoint resuelve el tipo de registro de persona natural mediante el catálogo de tipos de contribuyente, utilizando el código `P_NATURAL`. La resolución valida que exista una coincidencia única, activa y con un identificador válido.
 
 Si el catálogo no permite resolver el tipo de registro de forma inequívoca, la inicialización del servicio falla explícitamente. El identificador no debe codificarse de forma fija ni suponerse igual a `1`.
+
+## Escritura de proveedor
+
+El proveedor se escribe como **recurso raíz** mediante un cuerpo JSON anidado que
+representa su subárbol del núcleo. El MID coordina la cascada a través de los CRUD
+dueños (terceros y gestión de personas) pero no es dueño de los datos ni maestro
+de identidad.
+
+### Endpoints
+
+| Verbo | Ruta | Propósito |
+|---|---|---|
+| `POST` | `/v1/proveedor` | Crea el subárbol del proveedor en cascada. |
+| `PATCH` | `/v1/proveedor` | Reconcilia idempotentemente el subárbol: crea lo ausente, actualiza lo presente y nunca borra. |
+
+Ambos verbos comparten la ruta del recurso raíz `GET /v1/proveedor`; el enrutado
+por método delega `POST`/`PATCH` en el servicio de escritura y el resto en la
+lectura.
+
+### Cabeceras
+
+| Cabecera | Obligatoria | Descripción |
+|---|---|---|
+| `X-Autor-Id` | No | Identificador entero positivo del autor de la modificación, poblado por la capa de autenticación. Se inyecta en los registros materializados. |
+
+### Cuerpo anidado
+
+El cuerpo es un objeto JSON con el proveedor raíz y sus entidades anidadas. Solo
+se admiten los **campos escribibles declarados por relación** en
+`config/relaciones_proveedor.yaml` (bloque `write`); cualquier otro campo
+responde `400` sin materializar nada.
+
+| Nodo | Cardinalidad | Campos escribibles | Reglas |
+|---|---|---|---|
+| (raíz) `proveedor` | 1 | `TerceroId`, `TipoRegistroId`, `DescripcionPortafolio` | `TipoRegistroId` obligatorio. `TerceroId` es clave natural e **inmutable**: cambiarlo en `PATCH` responde `400`; puede omitirse y se propaga desde el `Tercero` materializado. |
+| `Tercero` | 1-1 | `NombreCompleto`, `PrimerNombre`, `SegundoNombre`, `PrimerApellido`, `SegundoApellido`, `FechaNacimiento`, `TipoContribuyenteId` | Se crea/actualiza en el CRUD de terceros pero **nunca se elimina**; su `Id` se propaga a `proveedor.TerceroId`. |
+| `Tercero.DatosIdentificacion` | 1-N | `Numero`, `TipoDocumentoId`, `DigitoVerificacion`, `CiudadExpedicion`, `FechaExpedicion` | Idempotencia por clave natural `Numero`+`TipoDocumentoId` (ambos **inmutables**). No se elimina. |
+| `ProveedorNatural` | 1-1 | `PerfilDeclarado`, `ExperienciaLaboralMeses`, `ExperienciaProfesionalMeses` | PK compartida con `proveedor`. Válido solo si `TipoRegistroId` es persona natural. |
+| `ProveedorJuridico` | 1-1 | `NombreComercial`, `MatriculaMercantil`, `FechaConstitucion`, `FechaRenovacion`, `ReportaBeneficiosFinales`, `CotizaBolsa`, `RequiereRevisorFiscal` | PK compartida con `proveedor`. Válido solo si `TipoRegistroId` es persona jurídica. |
+| `Contacto` | 1-N | `NombreContacto`, `Finalidad`, `TipoCanal`, `ValorEspecifico`, `Extension`, `EsPrincipal` | Colección sin clave natural: elemento sin `Id` se crea, con `Id` se actualiza. |
+| `CuentaBancaria` | 1-N | `EntidadBancariaId`, `TipoCuentaId`, `NumeroCuenta`, `NombreTitular`, `CiudadAperturaId`, `EsPrincipal` | Colección sin clave natural: elemento sin `Id` se crea, con `Id` se actualiza. |
+
+Las ramas `ProveedorNatural` y `ProveedorJuridico` son **mutuamente
+excluyentes**: el cuerpo debe traer únicamente la que corresponde a
+`TipoRegistroId`; declarar la rama incorrecta, o ambas, responde `400`.
+
+Las entidades de parámetros y catálogos (`TipoContribuyenteId`, `PerfilDeclarado`,
+`EntidadBancariaId`, `TipoCuentaId`) y las ciudades (`CiudadExpedicion`,
+`CiudadAperturaId`) se referencian **solo por su `Id`**: el MID nunca las crea ni
+modifica.
+
+**Ejemplo de cuerpo (`POST`, persona natural):**
+
+```json
+{
+  "TipoRegistroId": 1,
+  "DescripcionPortafolio": "Servicios de consultoría",
+  "Tercero": {
+    "NombreCompleto": "Ana Pérez",
+    "TipoContribuyenteId": 1,
+    "DatosIdentificacion": [
+      { "Numero": "1012345678", "TipoDocumentoId": 3, "CiudadExpedicion": 149 }
+    ]
+  },
+  "ProveedorNatural": {
+    "PerfilDeclarado": 5,
+    "ExperienciaProfesionalMeses": 60
+  },
+  "Contacto": [
+    { "NombreContacto": "Ana Pérez", "TipoCanal": "correo", "ValorEspecifico": "ana@example.com", "EsPrincipal": true }
+  ],
+  "CuentaBancaria": [
+    { "EntidadBancariaId": 7, "TipoCuentaId": 1, "NumeroCuenta": "123456789", "NombreTitular": "Ana Pérez", "EsPrincipal": true }
+  ]
+}
+```
+
+### Idempotencia y reconciliación (`PATCH`)
+
+`PATCH /v1/proveedor` reconcilia el subárbol: crea lo ausente, actualiza lo
+presente y nunca borra, de modo que reenviar el mismo cuerpo produce el mismo
+estado final. Las entidades existentes se reutilizan por su clave natural
+(`proveedor` por `TerceroId`, `DatosIdentificacion` por `Numero`+`TipoDocumentoId`)
+o por el `Id` del cuerpo en las colecciones. Esto permite **continuar** un
+`POST`/`PATCH` previo que dejó el subárbol parcialmente creado, sin duplicar
+registros.
+
+### Respuestas HTTP
+
+| Código | Significado |
+|---|---|
+| `200` | Creación/actualización completa sin avisos. `Data` incluye los identificadores materializados; `MetaData` se omite. |
+| `206` | Materialización parcial tolerada: una relación no bloqueante falló tras materializar otras. El recurso se conserva, `Data` incluye los identificadores ya materializados y los avisos van en `MetaData.Errors`. |
+| `400` | Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId` ausente o no positivo, campo no escribible o inmutable, o rama de detalle incoherente con el tipo de registro. No se materializa nada. |
+| `405` | Método HTTP no permitido; solo se admiten `POST` y `PATCH` (además de `GET`). |
+| `502` | Fallo bloqueante de una relación bajo política de error estricta al escribir en un CRUD dueño. |
+| `504` | Tiempo de espera agotado durante un fallo bloqueante de escritura. |
+
+Las respuestas usan el mismo envelope plano `Success`/`Status`/`Message`/`Data`
+del proyecto. `MetaData.Errors` reporta las relaciones que no pudieron
+materializarse sin exponer URLs ni datos sensibles.
+
+La definición OpenAPI de estos endpoints está en `swagger/swagger.yml`.

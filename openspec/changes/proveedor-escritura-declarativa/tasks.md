@@ -44,7 +44,7 @@
 
 ## 7. Documentación pública del contrato de escritura
 
-- [ ] 7.1 Actualizar `swagger/swagger.yml` con `POST`/`PATCH /v1/proveedor`: cuerpo anidado del subárbol, respuestas `200`, `206` con `MetaData.Errors`, `400` y `502/504`; verificar que `swagger/swagger.json` se deriva sin error
-- [ ] 7.2 Actualizar `API.md` con los endpoints de escritura `POST`/`PATCH /v1/proveedor` (parámetros, cuerpo, códigos de respuesta y reglas) y retirar el contrato de las rutas `/v1/persona_*`; no modificar `README.md`
-- [ ] 7.3 Verificar la coherencia del contrato publicado con el comportamiento implementado (endpoints de escritura presentes, `/v1/persona_*` ausentes)
+- [x] 7.1 Actualizar `swagger/swagger.yml` con `POST`/`PATCH /v1/proveedor`: cuerpo anidado del subárbol, respuestas `200`, `206` con `MetaData.Errors`, `400` y `502/504`; verificar que `swagger/swagger.json` se deriva sin error
+- [x] 7.2 Actualizar `API.md` con los endpoints de escritura `POST`/`PATCH /v1/proveedor` (parámetros, cuerpo, códigos de respuesta y reglas) y retirar el contrato de las rutas `/v1/persona_*`; no modificar `README.md`
+- [x] 7.3 Verificar la coherencia del contrato publicado con el comportamiento implementado (endpoints de escritura presentes, `/v1/persona_*` ausentes)
 - [x] 7.4 Corregir `swagger/index.html` para que la interfaz de `/swagger` cargue `./swagger.json` (contrato local) en vez del contrato de demostración `petstore`, y añadir la excepción `!swagger/index.html` en `.gitignore` para versionar el arreglo; `README.md` no se modifica

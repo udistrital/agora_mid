@@ -102,6 +102,151 @@ paths:
             relación.
           schema:
             $ref: "#/definitions/RespuestaError"
+    post:
+      tags:
+        - proveedor
+      summary: Crea el subárbol del proveedor desde un cuerpo anidado
+      description: >-
+        Crea el proveedor como recurso raíz en cascada a través de los CRUD
+        dueños a partir de un cuerpo JSON anidado. El MID coordina la escritura
+        pero no es dueño de los datos: `Tercero` y `DatosIdentificacion` se crean
+        o actualizan en el CRUD de terceros, el detalle y las colecciones en el
+        CRUD de gestión de personas. Las entidades de parámetros y catálogos
+        (por ejemplo `TipoContribuyente`, `Perfil`) se referencian solo por su
+        `Id` y nunca se crean ni modifican.
+
+
+        La respuesta devuelve los identificadores materializados en el envelope
+        plano. Si la cascada falla en una relación tolerada tras materializar
+        otras, el recurso se conserva y la respuesta usa `206` con los avisos en
+        `MetaData.Errors`.
+      operationId: crearProveedor
+      parameters:
+        - name: X-Autor-Id
+          in: header
+          description: >-
+            Identificador del autor de la modificación, poblado por la capa de
+            autenticación. Entero positivo opcional; se inyecta en los registros
+            materializados.
+          required: false
+          type: integer
+          format: int64
+          minimum: 1
+        - name: body
+          in: body
+          description: Subárbol anidado del proveedor a crear.
+          required: true
+          schema:
+            $ref: "#/definitions/ProveedorEscritura"
+      responses:
+        "200":
+          description: >-
+            Creación completa sin avisos. `Data` incluye los identificadores
+            materializados del proveedor y de sus entidades anidadas; `MetaData`
+            se omite.
+          schema:
+            $ref: "#/definitions/RespuestaProveedorEscritura"
+        "206":
+          description: >-
+            Materialización parcial tolerada: una relación no bloqueante falló
+            tras materializar otras. El recurso se conserva, `Data` incluye los
+            identificadores ya materializados y los avisos van en
+            `MetaData.Errors`.
+          schema:
+            $ref: "#/definitions/RespuestaProveedorEscrituraConAvisos"
+        "400":
+          description: >-
+            Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId`
+            ausente o no positivo, campo no escribible o inmutable, o rama de
+            detalle (`ProveedorNatural`/`ProveedorJuridico`) incoherente con el
+            tipo de registro. No se materializa nada.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "405":
+          description: Método HTTP no permitido; solo se admiten `POST` y `PATCH`.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "502":
+          description: >-
+            Fallo bloqueante de una relación bajo política de error estricta al
+            escribir en un CRUD dueño.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "504":
+          description: >-
+            Tiempo de espera agotado durante un fallo bloqueante de escritura.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+    patch:
+      tags:
+        - proveedor
+      summary: Reconcilia idempotentemente el subárbol del proveedor
+      description: >-
+        Reconcilia el subárbol del proveedor a partir de un cuerpo anidado: crea
+        lo ausente, actualiza lo presente y nunca borra, de modo que reenviar el
+        mismo cuerpo produce el mismo estado final. Las entidades existentes se
+        reutilizan por su clave natural (`proveedor` por `TerceroId`,
+        `DatosIdentificacion` por `Numero`+`TipoDocumentoId`) o por el `Id` del
+        cuerpo en las colecciones (`Contacto`, `CuentaBancaria`). Permite
+        continuar un `POST`/`PATCH` previo que dejó el subárbol parcialmente
+        creado sin duplicar registros. Los campos inmutables (por ejemplo
+        `TerceroId`) enviados en una actualización responden `400`.
+      operationId: reconciliarProveedor
+      parameters:
+        - name: X-Autor-Id
+          in: header
+          description: >-
+            Identificador del autor de la modificación, poblado por la capa de
+            autenticación. Entero positivo opcional; se inyecta en los registros
+            materializados.
+          required: false
+          type: integer
+          format: int64
+          minimum: 1
+        - name: body
+          in: body
+          description: Subárbol anidado del proveedor a reconciliar.
+          required: true
+          schema:
+            $ref: "#/definitions/ProveedorEscritura"
+      responses:
+        "200":
+          description: >-
+            Reconciliación completa sin avisos. `Data` incluye los
+            identificadores materializados; `MetaData` se omite.
+          schema:
+            $ref: "#/definitions/RespuestaProveedorEscritura"
+        "206":
+          description: >-
+            Materialización parcial tolerada: una relación no bloqueante falló
+            tras materializar otras. El recurso se conserva, `Data` incluye los
+            identificadores ya materializados y los avisos van en
+            `MetaData.Errors`.
+          schema:
+            $ref: "#/definitions/RespuestaProveedorEscrituraConAvisos"
+        "400":
+          description: >-
+            Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId`
+            ausente o no positivo, campo no escribible o inmutable (por ejemplo
+            cambiar `TerceroId`), o rama de detalle incoherente con el tipo de
+            registro. No se materializa nada.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "405":
+          description: Método HTTP no permitido; solo se admiten `POST` y `PATCH`.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "502":
+          description: >-
+            Fallo bloqueante de una relación bajo política de error estricta al
+            escribir en un CRUD dueño.
+          schema:
+            $ref: "#/definitions/RespuestaError"
+        "504":
+          description: >-
+            Tiempo de espera agotado durante un fallo bloqueante de escritura.
+          schema:
+            $ref: "#/definitions/RespuestaError"
 definitions:
   RespuestaProveedor:
     type: object
@@ -383,3 +528,256 @@ definitions:
         format: int64
       EsPrincipal:
         type: boolean
+  RespuestaProveedorEscritura:
+    type: object
+    description: >-
+      Envelope OAS plano para una escritura (`POST`/`PATCH`) exitosa sin avisos.
+      `Data` contiene los identificadores materializados del subárbol.
+    required:
+      - Success
+      - Status
+      - Message
+      - Data
+    properties:
+      Success:
+        type: boolean
+        example: true
+      Status:
+        type: string
+        example: "200"
+      Message:
+        type: string
+        example: Proveedor registrado correctamente
+      Data:
+        $ref: "#/definitions/ProveedorMaterializado"
+  RespuestaProveedorEscrituraConAvisos:
+    type: object
+    description: >-
+      Envelope OAS para una escritura con materialización parcial tolerada;
+      incluye el bloque `MetaData` con los avisos de relaciones no materializadas.
+    required:
+      - Success
+      - Status
+      - Message
+      - Data
+      - MetaData
+    properties:
+      Success:
+        type: boolean
+        example: true
+      Status:
+        type: string
+        example: "206"
+      Message:
+        type: string
+        example: Proveedor registrado con advertencias de materialización
+      Data:
+        $ref: "#/definitions/ProveedorMaterializado"
+      MetaData:
+        $ref: "#/definitions/MetaData"
+  ProveedorEscritura:
+    type: object
+    description: >-
+      Cuerpo anidado del subárbol del proveedor para escritura. Solo se admiten
+      los campos escribibles declarados por relación; cualquier otro campo
+      responde `400`. Las ramas `ProveedorNatural` y `ProveedorJuridico` son
+      mutuamente excluyentes: debe enviarse únicamente la que corresponda a
+      `TipoRegistroId`. Las entidades de catálogo (`TipoContribuyenteId`,
+      `PerfilDeclarado`, `EntidadBancariaId`, `TipoCuentaId`, ciudades) se
+      referencian solo por su `Id`.
+    required:
+      - TipoRegistroId
+      - Tercero
+    properties:
+      TerceroId:
+        type: integer
+        format: int64
+        description: >-
+          FK al tercero (`proveedor.tercero_id`). Clave natural del proveedor e
+          inmutable tras la creación; enviarlo en un `PATCH` que lo modifique
+          responde `400`. Puede omitirse: se resuelve propagando el `Id` del
+          `Tercero` materializado.
+        example: 25
+      TipoRegistroId:
+        type: integer
+        format: int64
+        description: >-
+          Tipo de contribuyente del proveedor. Determina qué rama de detalle
+          (`ProveedorNatural` o `ProveedorJuridico`) es válida.
+        example: 1
+      DescripcionPortafolio:
+        type: string
+      Tercero:
+        $ref: "#/definitions/TerceroEscritura"
+      ProveedorNatural:
+        $ref: "#/definitions/ProveedorNaturalEscritura"
+      ProveedorJuridico:
+        $ref: "#/definitions/ProveedorJuridicoEscritura"
+      Contacto:
+        type: array
+        description: >-
+          Medios de contacto (1-N). Un elemento sin `Id` se crea; con `Id` se
+          actualiza.
+        items:
+          $ref: "#/definitions/ContactoEscritura"
+      CuentaBancaria:
+        type: array
+        description: >-
+          Cuentas bancarias (1-N). Un elemento sin `Id` se crea; con `Id` se
+          actualiza.
+        items:
+          $ref: "#/definitions/CuentaBancariaEscritura"
+  TerceroEscritura:
+    type: object
+    description: >-
+      Datos de identidad del proveedor. Se crea o actualiza en el CRUD de
+      terceros pero nunca se elimina; su `Id` se propaga a `proveedor.TerceroId`.
+    properties:
+      NombreCompleto:
+        type: string
+      PrimerNombre:
+        type: string
+      SegundoNombre:
+        type: string
+      PrimerApellido:
+        type: string
+      SegundoApellido:
+        type: string
+      FechaNacimiento:
+        type: string
+        format: date
+      TipoContribuyenteId:
+        type: integer
+        format: int64
+        description: Referencia a catálogo por `Id`; no se crea ni modifica.
+      DatosIdentificacion:
+        type: array
+        description: >-
+          Documentos del tercero (1-N). Idempotencia por clave natural
+          `Numero`+`TipoDocumentoId`, ambos inmutables.
+        items:
+          $ref: "#/definitions/DatosIdentificacionEscritura"
+  DatosIdentificacionEscritura:
+    type: object
+    description: Documento de identificación del tercero.
+    properties:
+      Numero:
+        type: string
+        description: Parte de la clave natural; inmutable tras la creación.
+      TipoDocumentoId:
+        type: integer
+        format: int64
+        description: Parte de la clave natural; inmutable tras la creación.
+      DigitoVerificacion:
+        type: string
+      CiudadExpedicion:
+        type: integer
+        format: int64
+        description: ID de ciudad (CRUD de ubicaciones); referencia por `Id`.
+      FechaExpedicion:
+        type: string
+        format: date
+  ProveedorNaturalEscritura:
+    type: object
+    description: >-
+      Detalle de persona natural (PK compartida con `proveedor`). Válido solo
+      cuando `TipoRegistroId` corresponde a persona natural.
+    properties:
+      PerfilDeclarado:
+        type: integer
+        format: int64
+        description: Referencia al catálogo `perfil` por `Id`.
+      ExperienciaLaboralMeses:
+        type: integer
+        format: int64
+      ExperienciaProfesionalMeses:
+        type: integer
+        format: int64
+  ProveedorJuridicoEscritura:
+    type: object
+    description: >-
+      Detalle de persona jurídica (PK compartida con `proveedor`). Válido solo
+      cuando `TipoRegistroId` corresponde a persona jurídica.
+    properties:
+      NombreComercial:
+        type: string
+      MatriculaMercantil:
+        type: integer
+        format: int64
+      FechaConstitucion:
+        type: string
+        format: date
+      FechaRenovacion:
+        type: string
+        format: date
+      ReportaBeneficiosFinales:
+        type: boolean
+      CotizaBolsa:
+        type: boolean
+      RequiereRevisorFiscal:
+        type: boolean
+  ContactoEscritura:
+    type: object
+    description: Medio de contacto del proveedor (1-N por `proveedor_id`).
+    properties:
+      Id:
+        type: integer
+        format: int64
+        description: Si está presente, el elemento se actualiza; si se omite, se crea.
+      NombreContacto:
+        type: string
+      Finalidad:
+        type: string
+      TipoCanal:
+        type: string
+      ValorEspecifico:
+        type: string
+      Extension:
+        type: string
+      EsPrincipal:
+        type: boolean
+  CuentaBancariaEscritura:
+    type: object
+    description: Cuenta bancaria del proveedor (1-N por `proveedor_id`).
+    properties:
+      Id:
+        type: integer
+        format: int64
+        description: Si está presente, el elemento se actualiza; si se omite, se crea.
+      EntidadBancariaId:
+        type: integer
+        format: int64
+        description: Referencia a catálogo por `Id`.
+      TipoCuentaId:
+        type: integer
+        format: int64
+        description: Referencia a catálogo por `Id`.
+      NumeroCuenta:
+        type: string
+      NombreTitular:
+        type: string
+      CiudadAperturaId:
+        type: integer
+        format: int64
+        description: ID de ciudad (CRUD de ubicaciones); referencia por `Id`.
+      EsPrincipal:
+        type: boolean
+  ProveedorMaterializado:
+    type: object
+    description: >-
+      Identificadores materializados del subárbol tras una escritura. Incluye las
+      llaves del proveedor y de las entidades anidadas efectivamente creadas o
+      actualizadas.
+    properties:
+      Id:
+        type: integer
+        format: int64
+        example: 12
+      TerceroId:
+        type: integer
+        format: int64
+        example: 25
+      TipoRegistroId:
+        type: integer
+        format: int64
+        example: 1
