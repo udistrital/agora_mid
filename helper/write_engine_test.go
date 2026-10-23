@@ -21,10 +21,10 @@ type registroMaterializacion struct {
 // servicio y registra cada materialización. Puede forzar un error para un
 // servicio dado.
 type resolverFalso struct {
-	servicio   string
+	servicio    string
 	siguienteID float64
-	llamadas   *[]registroMaterializacion
-	fallarCon  error
+	llamadas    *[]registroMaterializacion
+	fallarCon   error
 }
 
 func (r *resolverFalso) Materialize(
@@ -76,11 +76,11 @@ func cfgEscritura() config.ServiceConfig {
 		},
 		Relations: []config.RelationConfig{
 			{
-				Name:         "Detalle",
+				Name:           "Detalle",
 				RelatedService: "detalle",
-				MappedName:   "Detalle",
-				RelatedField: "Id",
-				Cardinality:  config.CardinalityOne,
+				MappedName:     "Detalle",
+				RelatedField:   "Id",
+				Cardinality:    config.CardinalityOne,
 				Write: &config.WriteConfig{
 					WritableFields: []string{"Nota", "TipoContribuyenteId"},
 					KeyPropagation: config.KeyPropagationSharedPK,
@@ -88,11 +88,11 @@ func cfgEscritura() config.ServiceConfig {
 				},
 			},
 			{
-				Name:         "Hijo",
+				Name:           "Hijo",
 				RelatedService: "hijo",
-				MappedName:   "Hijo",
-				RelatedField: "PadreId",
-				Cardinality:  config.CardinalityMany,
+				MappedName:     "Hijo",
+				RelatedField:   "PadreId",
+				Cardinality:    config.CardinalityMany,
 				Write: &config.WriteConfig{
 					WritableFields: []string{"Valor"},
 					KeyPropagation: config.KeyPropagationFK,
@@ -122,7 +122,7 @@ func TestWritePropagacionLlave(t *testing.T) {
 		"TerceroId":   float64(25),
 		"Descripcion": "principal",
 		"Detalle": map[string]any{
-			"Nota":             "x",
+			"Nota":              "x",
 			"TipoContribuyente": map[string]any{"Id": float64(2)},
 		},
 		"Hijo": []any{
@@ -172,7 +172,7 @@ func TestWriteAplanadoParametroYClaveNatural(t *testing.T) {
 	body := map[string]any{
 		"TerceroId": float64(25),
 		"Detalle": map[string]any{
-			"Nota":             "x",
+			"Nota":              "x",
 			"TipoContribuyente": map[string]any{"Id": float64(2)},
 		},
 	}
@@ -212,7 +212,7 @@ func TestWriteRechazoCampoNoEscribible(t *testing.T) {
 	registry := registryFalso(&llamadas, nil)
 
 	body := map[string]any{
-		"TerceroId": float64(25),
+		"TerceroId":      float64(25),
 		"CampoProhibido": "x",
 	}
 
@@ -300,4 +300,90 @@ func TestWriteEstricto(t *testing.T) {
 
 func contieneTexto(s, sub string) bool {
 	return strings.Contains(s, sub)
+}
+
+// cfgEscrituraInbound construye una ServiceConfig cuya raíz referencia una
+// entidad por FK ascendente (fk_inbound): la raíz declara la relación Referida
+// con local_field RefId; la entidad referenciada es dueña de su propio Id y debe
+// materializarse antes que la raíz, propagando su Id a raiz.RefId.
+func cfgEscrituraInbound() config.ServiceConfig {
+	return config.ServiceConfig{
+		Service:         "raiz",
+		MaxDepth:        4,
+		OnRelationError: config.OnRelationErrorNotify,
+		MaxRelatedIDs:   100,
+		Write: &config.WriteConfig{
+			// RefId es la FK local que la raíz recibe de la entidad referida.
+			WritableFields: []string{"RefId", "Descripcion"},
+			Policy:         config.WriteVerbPolicy{Creatable: true, Updatable: true},
+		},
+		Relations: []config.RelationConfig{
+			{
+				Name:           "Referida",
+				RelatedService: "referida",
+				MappedName:     "Referida",
+				Direction:      config.DirectionLocalToRelated,
+				LocalField:     "RefId",
+				RelatedField:   "Id",
+				Cardinality:    config.CardinalityOne,
+				Write: &config.WriteConfig{
+					WritableFields: []string{"Nombre"},
+					KeyPropagation: config.KeyPropagationFKInbound,
+					Policy:         config.WriteVerbPolicy{Creatable: true, Updatable: true},
+				},
+			},
+		},
+	}
+}
+
+// Propagación fk_inbound: la entidad referenciada se materializa ANTES que la
+// raíz y su Id se propaga hacia arriba a la FK local de la raíz (RefId).
+func TestWriteFKInbound(t *testing.T) {
+	var llamadas []registroMaterializacion
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &llamadas}
+	esp := map[string]WriteResolver{
+		"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &llamadas},
+	}
+	registry := NewWriteResolverRegistry(raiz, esp)
+
+	body := map[string]any{
+		"Descripcion": "principal",
+		"Referida":    map[string]any{"Nombre": "Ana"},
+	}
+
+	res, err := Write(context.Background(), body, cfgEscrituraInbound(), registry, WriteOptions{Verb: WriteVerbCreate})
+	if err != nil {
+		t.Fatalf("Write con fk_inbound no debe fallar: %v", err)
+	}
+
+	// La entidad referenciada se materializa primero (antes que la raíz).
+	if len(llamadas) < 2 {
+		t.Fatalf("se esperaban al menos 2 materializaciones; llamadas=%+v", llamadas)
+	}
+	if llamadas[0].servicio != "referida" {
+		t.Errorf("la entidad fk_inbound debe materializarse ANTES que la raíz; orden=%v",
+			[]string{llamadas[0].servicio, llamadas[1].servicio})
+	}
+	if llamadas[1].servicio != "raiz" {
+		t.Errorf("la raíz debe materializarse después de la entidad referida; orden=%v",
+			[]string{llamadas[0].servicio, llamadas[1].servicio})
+	}
+
+	// La raíz recibe RefId = Id de la entidad referenciada (200).
+	if aCadena(res.Data["RefId"]) != "200" {
+		t.Errorf("la raíz debe recibir RefId=200 propagado hacia arriba; data=%+v", res.Data)
+	}
+	// La raíz materializó su propio Id (100), distinto del de la entidad referida.
+	if aCadena(res.Data["Id"]) != "100" {
+		t.Errorf("la raíz debe materializar su propio Id=100; data=%+v", res.Data)
+	}
+	// La entidad referenciada queda anidada con su Id materializado.
+	referida, _ := res.Data["Referida"].(map[string]any)
+	if referida == nil || aCadena(referida["Id"]) != "200" {
+		t.Errorf("la entidad referida debe quedar anidada con Id=200; referida=%+v", referida)
+	}
+	// La raíz, al materializarse, ya llevaba la FK resuelta en su payload.
+	if aCadena(llamadas[1].payload["RefId"]) != "200" {
+		t.Errorf("la raíz debe materializarse con RefId=200 ya resuelto; payload=%+v", llamadas[1].payload)
+	}
 }

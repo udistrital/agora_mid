@@ -35,7 +35,7 @@ func cfgProveedorWritePrueba() config.ServiceConfig {
 				Depth: 3, MappedName: "Tercero", Endpoint: "/v1/tercero", QueryTemplate: "Id:{ids}",
 				Write: &config.WriteConfig{
 					WritableFields: []string{"NombreCompleto", "TipoContribuyenteId"},
-					KeyPropagation: config.KeyPropagationSharedPK,
+					KeyPropagation: config.KeyPropagationFKInbound,
 					Policy:         config.WriteVerbPolicy{Creatable: true, Updatable: true},
 				},
 				NestedRelations: []config.RelationConfig{
@@ -108,14 +108,16 @@ func registroWriteNucleo(client clients.HTTPClient, urls config.ServiceURLs) hel
 	return helper.NewWriteResolverRegistry(raiz, hijos)
 }
 
-// Creación completa: el servicio materializa el proveedor, su tercero (PK
-// compartida), los datos de identificación (FK), la rama natural (PK compartida)
-// y los contactos (FK), devolviendo los identificadores materializados.
+// Creación completa: el servicio materializa el tercero (FK ascendente, dueño de
+// su propio Id) antes que el proveedor, propaga ese Id a proveedor.TerceroId,
+// materializa los datos de identificación (FK bajo el tercero), la rama natural
+// (PK compartida con el proveedor) y los contactos (FK bajo el proveedor),
+// devolviendo los identificadores materializados.
 func TestEscribirProveedorCreacionCompleta(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
 		"POST /v1/proveedor/":            `{"Data":{"Id":10}}`,
-		"POST /v1/tercero/":              `{"Data":{"Id":10}}`,
+		"POST /v1/tercero/":              `{"Data":{"Id":20}}`,
 		"POST /v1/datos_identificacion/": `{"Data":{"Id":50}}`,
 		"POST /v1/proveedor_natural/":    `{"Data":{"Id":10}}`,
 		"POST /v1/contacto/":             `{"Data":{"Id":70}}`,
@@ -150,21 +152,38 @@ func TestEscribirProveedorCreacionCompleta(t *testing.T) {
 	if idEntero(res.Data["Id"]) != 10 {
 		t.Errorf("el proveedor raíz debe materializar Id=10; data=%+v", res.Data)
 	}
-	// Tercero por PK compartida hereda el Id de la raíz.
+	// FK ascendente: el tercero es dueño de su propio Id (20), distinto del
+	// proveedor, y el proveedor lo referencia por su FK TerceroId=20.
 	tercero, _ := res.Data["Tercero"].(map[string]any)
-	if tercero == nil || idEntero(tercero["Id"]) != 10 {
-		t.Errorf("Tercero (shared_pk) debe heredar Id=10; tercero=%+v", tercero)
+	if tercero == nil || idEntero(tercero["Id"]) != 20 {
+		t.Errorf("Tercero (fk_inbound) debe materializar su propio Id=20; tercero=%+v", tercero)
 	}
-	// Datos de identificación materializados bajo el tercero con FK TerceroId=10.
+	if comoTexto(res.Data["TerceroId"]) != "20" {
+		t.Errorf("el proveedor debe referenciar al tercero por TerceroId=20; data=%+v", res.Data)
+	}
+	// El tercero se materializó ANTES que el proveedor (orden fk_inbound).
+	idxTercero, idxProveedor := -1, -1
+	for i, c := range capturas {
+		if c.metodo == http.MethodPost && c.path == "/v1/tercero/" && idxTercero < 0 {
+			idxTercero = i
+		}
+		if c.metodo == http.MethodPost && c.path == "/v1/proveedor/" && idxProveedor < 0 {
+			idxProveedor = i
+		}
+	}
+	if idxTercero < 0 || idxProveedor < 0 || idxTercero > idxProveedor {
+		t.Errorf("el tercero (fk_inbound) debe crearse antes que el proveedor; capturas=%+v", capturas)
+	}
+	// Datos de identificación materializados bajo el tercero con FK TerceroId=20.
 	di, _ := tercero["DatosIdentificacion"].([]any)
 	if len(di) != 1 {
 		t.Fatalf("se esperaba 1 datos_identificacion; di=%+v", di)
 	}
 	diM := di[0].(map[string]any)
-	if idEntero(diM["Id"]) != 50 || comoTexto(diM["TerceroId"]) != "10" {
-		t.Errorf("datos_identificacion debe tener Id=50 y TerceroId=10 (fk); di=%+v", diM)
+	if idEntero(diM["Id"]) != 50 || comoTexto(diM["TerceroId"]) != "20" {
+		t.Errorf("datos_identificacion debe tener Id=50 y TerceroId=20 (fk del tercero); di=%+v", diM)
 	}
-	// Rama natural por PK compartida.
+	// Rama natural por PK compartida con el proveedor.
 	pn, _ := res.Data["ProveedorNatural"].(map[string]any)
 	if pn == nil || idEntero(pn["Id"]) != 10 {
 		t.Errorf("ProveedorNatural (shared_pk) debe heredar Id=10; pn=%+v", pn)

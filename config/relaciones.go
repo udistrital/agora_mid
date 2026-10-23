@@ -21,6 +21,12 @@ const (
 	// KeyPropagationSharedPK propaga la llave del padre como la propia llave
 	// primaria del hijo (por ejemplo proveedor_natural.Id = proveedor.Id).
 	KeyPropagationSharedPK = "shared_pk"
+	// KeyPropagationFKInbound modela una FK ascendente: la entidad referenciada
+	// es dueña de su propio Id y el nodo que la declara la referencia por una FK
+	// local (por ejemplo proveedor.tercero_id = tercero.Id). El motor materializa
+	// la entidad referenciada ANTES que el nodo y propaga su Id hacia arriba, a la
+	// FK local del nodo (RelationConfig.LocalField).
+	KeyPropagationFKInbound = "fk_inbound"
 )
 
 // RelationConfig describe una relación declarada hacia otro CRUD. Las relaciones
@@ -81,8 +87,10 @@ type WriteConfig struct {
 	// en datos_identificacion). Vacío indica que la idempotencia se apoya en el Id
 	// del cuerpo. Deben estar contenidos en WritableFields.
 	NaturalKey []string `yaml:"natural_key"`
-	// KeyPropagation declara cómo se propaga la llave del padre al hijo:
-	// KeyPropagationFK (llave foránea) o KeyPropagationSharedPK (PK compartida).
+	// KeyPropagation declara cómo se propaga la llave entre el nodo y la relación:
+	// KeyPropagationFK (llave foránea del hijo), KeyPropagationSharedPK (PK
+	// compartida) o KeyPropagationFKInbound (FK ascendente: la entidad referenciada
+	// se materializa antes y su Id se propaga a la FK local del nodo).
 	// Obligatorio para toda relación escribible que no sea la raíz.
 	KeyPropagation string `yaml:"key_propagation"`
 	// Policy declara los verbos admitidos por la relación.

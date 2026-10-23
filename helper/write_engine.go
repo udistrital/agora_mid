@@ -198,6 +198,14 @@ func Write(
 		onRelError: onRelError,
 	}
 
+	// Pre-pass de FK ascendente (fk_inbound): materializar las entidades que el
+	// nodo raíz referencia por una FK local (por ejemplo tercero, referenciado por
+	// proveedor.TerceroId) ANTES de la raíz, y propagar su Id hacia arriba a la FK
+	// local de la raíz. Así la raíz se crea con su FK ya resuelta.
+	if err := me.materializarInbound(body, cfg.Relations, nil); err != nil {
+		return WriteResult{}, err
+	}
+
 	// Materializar la entidad raíz y luego su subárbol en orden topológico. Los
 	// campos materializados (en particular el Id) se fusionan en el cuerpo
 	// original, que conserva los valores de las relaciones hijas para el recorrido.
@@ -330,6 +338,11 @@ func (me *motorEscritura) materializarHijos(
 		if rel.Write == nil {
 			continue
 		}
+		// Las relaciones fk_inbound se materializan en el pre-pass (antes del
+		// nodo), no en el recorrido descendente padre->hijo.
+		if rel.Write.KeyPropagation == config.KeyPropagationFKInbound {
+			continue
+		}
 
 		valor, presente := padre[rel.MappedName]
 		if !presente || valor == nil {
@@ -348,6 +361,71 @@ func (me *motorEscritura) materializarHijos(
 		}
 
 		if err := me.materializarValorRelacion(valor, rel, res, padreID, rutaActual, rutaStr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// materializarInbound ejecuta el pre-pass de FK ascendente (fk_inbound): por cada
+// relación del nodo declarada fk_inbound y presente en el cuerpo, materializa la
+// entidad referenciada (y su propio subárbol) ANTES que el nodo y propaga su Id
+// hacia arriba, a la FK local del nodo (rel.LocalField). La entidad referenciada
+// materializada queda anidada en el nodo bajo su mapped_name para la respuesta.
+//
+// Solo aplica a relaciones de cardinalidad 1-1: una FK local del nodo apunta a un
+// único registro referenciado.
+func (me *motorEscritura) materializarInbound(
+	nodo map[string]any,
+	relaciones []config.RelationConfig,
+	rutaRama []string,
+) error {
+	for i := range relaciones {
+		rel := relaciones[i]
+		if rel.Write == nil || rel.Write.KeyPropagation != config.KeyPropagationFKInbound {
+			continue
+		}
+
+		valor, presente := nodo[rel.MappedName]
+		if !presente || valor == nil {
+			continue
+		}
+		referida, ok := valor.(map[string]any)
+		if !ok {
+			return &ErrorEscritura{
+				Path:   strings.Join(append(append([]string{}, rutaRama...), rel.MappedName), "."),
+				Motivo: "una relación fk_inbound debe ser un objeto único",
+			}
+		}
+
+		rutaActual := append(append([]string{}, rutaRama...), rel.MappedName)
+		rutaStr := strings.Join(rutaActual, ".")
+
+		res, ok := me.registry.resolverPara(rel)
+		if !ok {
+			if err := me.manejarErrorRelacion(rel, rutaStr); err != nil {
+				return err
+			}
+			continue
+		}
+
+		materializado, err := me.materializarEntidad(res, rel, referida, *rel.Write, rutaStr)
+		if err != nil {
+			return me.manejarErrorRelacion(rel, rutaStr)
+		}
+		for k, v := range materializado {
+			referida[k] = v
+		}
+
+		// Propagar hacia arriba: la FK local del nodo toma el Id de la entidad
+		// referenciada recién materializada.
+		if id, hay := referida["Id"]; hay && id != nil {
+			nodo[rel.LocalField] = aCadena(id)
+		}
+
+		// Materializar el subárbol propio de la entidad referenciada (por ejemplo
+		// los datos_identificacion del tercero).
+		if err := me.materializarHijos(referida, rel.NestedRelations, rutaActual); err != nil {
 			return err
 		}
 	}

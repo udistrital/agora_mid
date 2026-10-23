@@ -214,9 +214,10 @@ func validarWriteConfig(ruta, servicio, relacion string, wc WriteConfig, esRaiz 
 			))
 		}
 	} else {
-		if prop != KeyPropagationFK && prop != KeyPropagationSharedPK {
+		if prop != KeyPropagationFK && prop != KeyPropagationSharedPK && prop != KeyPropagationFKInbound {
 			return fallo(fmt.Sprintf(
-				"key_propagation debe ser %q o %q", KeyPropagationFK, KeyPropagationSharedPK,
+				"key_propagation debe ser %q, %q o %q",
+				KeyPropagationFK, KeyPropagationSharedPK, KeyPropagationFKInbound,
 			))
 		}
 	}

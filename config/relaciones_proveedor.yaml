@@ -65,9 +65,12 @@ relations:
       - Id
       - NombreCompleto
       - TipoContribuyenteId
-    # write: Tercero comparte PK con proveedor (tercero.id - proveedor.id). Se
-    # crea y actualiza en el CRUD de terceros pero nunca se elimina
-    # (deletable: false). TipoContribuyenteId referencia un catálogo por Id.
+    # write: Tercero es dueño de su propio Id; el proveedor lo referencia por la
+    # FK proveedor.tercero_id (proveedor.TerceroId -> tercero.Id). Por eso se
+    # materializa ANTES que el proveedor (key_propagation: fk_inbound) y su Id se
+    # propaga hacia arriba a proveedor.TerceroId. Se crea y actualiza en el CRUD de
+    # terceros pero nunca se elimina (deletable: false). TipoContribuyenteId
+    # referencia un catálogo por Id.
     write:
       writable_fields:
         - NombreCompleto
@@ -79,7 +82,7 @@ relations:
         - TipoContribuyenteId
       immutable_fields: []
       natural_key: []
-      key_propagation: shared_pk
+      key_propagation: fk_inbound
       policy:
         creatable: true
         updatable: true
