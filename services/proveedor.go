@@ -52,8 +52,14 @@ type ProveedorService struct {
 	TipoRegistroNatural int
 }
 
-type proveedorReadResponse struct {
-	Data []ProveedorRecord `json:"Data"`
+// ProveedorRecord es la vista mínima del proveedor base que el servicio de
+// lectura resuelve desde el CRUD de gestión de personas antes de expandir su
+// subárbol. Vive aquí porque el expansor del proveedor es su único consumidor.
+type ProveedorRecord struct {
+	Id             int  `json:"Id"`
+	TerceroId      int  `json:"TerceroId"`
+	TipoRegistroId int  `json:"TipoRegistroId"`
+	Activo         bool `json:"Activo"`
 }
 
 // LeerProveedor trae el proveedor base por id y devuelve el recurso expandido
