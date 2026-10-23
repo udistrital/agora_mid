@@ -116,3 +116,150 @@ func TestProveedorHandlerMetodoNoPermitido(t *testing.T) {
 		t.Errorf("Allow = %q; esperado GET", got)
 	}
 }
+
+// proveedorWriterStub simula el servicio de escritura y captura el verbo, el
+// cuerpo y el autor recibidos.
+type proveedorWriterStub struct {
+	resultado helper.WriteResult
+	err       error
+	verb      string
+	body      map[string]any
+	autor     int
+	autorOK   bool
+}
+
+func (s *proveedorWriterStub) EscribirProveedor(
+	ctx context.Context,
+	body map[string]any,
+	verb string,
+) (helper.WriteResult, error) {
+	s.verb = verb
+	s.body = body
+	s.autor, s.autorOK = services.AutorDeContexto(ctx)
+	return s.resultado, s.err
+}
+
+func TestProveedorHandlerEscribir(t *testing.T) {
+	timeoutErr := helper.NewErrorFatalEscritura(context.DeadlineExceeded)
+	fatalErr := helper.NewErrorFatalEscritura(errors.New("crud caído"))
+
+	tests := []struct {
+		name       string
+		metodo     string
+		cuerpo     string
+		resultado  helper.WriteResult
+		err        error
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:   "creación completa 200",
+			metodo: http.MethodPost,
+			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			resultado: helper.WriteResult{
+				Data: map[string]any{"Id": 10, "TerceroId": 25},
+			},
+			wantStatus: 200,
+			wantBody:   `"Status":"200"`,
+		},
+		{
+			name:   "materialización parcial 206",
+			metodo: http.MethodPatch,
+			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			resultado: helper.WriteResult{
+				Data: map[string]any{"Id": 10},
+				Warnings: []responses.RelationError{
+					{Path: "Contacto", Service: "contacto", Message: "no se pudo materializar", Kind: "relation"},
+				},
+			},
+			wantStatus: 206,
+			wantBody:   `"Errors"`,
+		},
+		{
+			name:       "cuerpo JSON inválido 400",
+			metodo:     http.MethodPost,
+			cuerpo:     `no-es-json`,
+			wantStatus: 400,
+			wantBody:   `"Status":"400"`,
+		},
+		{
+			name:       "campo inválido 400",
+			metodo:     http.MethodPost,
+			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			err:        &helper.ErrorEscritura{Path: "Foo", Motivo: "campo no escribible"},
+			wantStatus: 400,
+			wantBody:   `"Status":"400"`,
+		},
+		{
+			name:       "rama incoherente 400",
+			metodo:     http.MethodPost,
+			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			err:        services.ErrRamaDetalleIncoherente,
+			wantStatus: 400,
+			wantBody:   `"Status":"400"`,
+		},
+		{
+			name:       "fallo bloqueante 502",
+			metodo:     http.MethodPost,
+			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			err:        fatalErr,
+			wantStatus: 502,
+			wantBody:   `"Status":"502"`,
+		},
+		{
+			name:       "fallo bloqueante por timeout 504",
+			metodo:     http.MethodPost,
+			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			err:        timeoutErr,
+			wantStatus: 504,
+			wantBody:   `"Status":"504"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stub := &proveedorWriterStub{resultado: tt.resultado, err: tt.err}
+			handler := NewProveedorHandlerCompleto(&proveedorReaderStub{}, stub)
+			req := httptest.NewRequest(tt.metodo, "/v1/proveedor", strings.NewReader(tt.cuerpo))
+			req.Header.Set("X-Autor-Id", "9")
+			rec := httptest.NewRecorder()
+
+			handler.Escribir(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d; esperado %d. Body: %s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), tt.wantBody) {
+				t.Errorf("la respuesta no contiene %q: %s", tt.wantBody, rec.Body.String())
+			}
+			// En los casos que llegan al servicio, el autor viaja por el contexto.
+			if tt.err == nil && tt.wantStatus < 400 {
+				if !stub.autorOK || stub.autor != 9 {
+					t.Errorf("el autor 9 debe viajar por el contexto; autor=%d ok=%v", stub.autor, stub.autorOK)
+				}
+				wantVerb := helper.WriteVerbCreate
+				if tt.metodo == http.MethodPatch {
+					wantVerb = helper.WriteVerbUpdate
+				}
+				if stub.verb != wantVerb {
+					t.Errorf("verbo = %q; esperado %q", stub.verb, wantVerb)
+				}
+			}
+		})
+	}
+}
+
+func TestProveedorHandlerEscribirMetodoNoPermitido(t *testing.T) {
+	handler := NewProveedorHandlerCompleto(&proveedorReaderStub{}, &proveedorWriterStub{})
+	req := httptest.NewRequest(http.MethodDelete, "/v1/proveedor", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Escribir(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d; esperado %d", rec.Code, http.StatusMethodNotAllowed)
+	}
+	if got := rec.Header().Get("Allow"); !strings.Contains(got, http.MethodPost) || !strings.Contains(got, http.MethodPatch) {
+		t.Errorf("Allow = %q; esperado POST y PATCH", got)
+	}
+}

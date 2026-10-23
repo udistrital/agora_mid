@@ -15,15 +15,15 @@
 
 ## 3. Write-resolvers del núcleo (en services) e idempotencia
 
-- [ ] 3.1 Definir el write-resolver fino reutilizable (endpoint real + upsert por clave natural/`Id`) y el cableado del árbol escribible del proveedor en `services/`; verificar con `go build ./...`
-- [ ] 3.2 Implementar los write-resolvers del núcleo con su idempotencia (proveedor por `tercero_id`; datos_identificacion por `numero`+`tipo_documento_id`; detalle por PK compartida; colecciones por `Id` del cuerpo) e inyección del autor de modificación desde el contexto; verificar con pruebas por entidad
-- [ ] 3.3 Ubicar las reglas de negocio irreductibles en el servicio/write-resolver (consistencia natural/jurídico, inmutables) y no en el motor; verificar con `go test ./services/...`
+- [x] 3.1 Definir el write-resolver fino reutilizable (endpoint real + upsert por clave natural/`Id`) y el cableado del árbol escribible del proveedor en `services/`; verificar con `go build ./...`
+- [x] 3.2 Implementar los write-resolvers del núcleo con su idempotencia (proveedor por `tercero_id`; datos_identificacion por `numero`+`tipo_documento_id`; detalle por PK compartida; colecciones por `Id` del cuerpo) e inyección del autor de modificación desde el contexto; verificar con pruebas por entidad
+- [x] 3.3 Ubicar las reglas de negocio irreductibles en el servicio/write-resolver (consistencia natural/jurídico, inmutables) y no en el motor; verificar con `go test ./services/...`
 
 ## 4. ProveedorService de escritura y controlador POST/PATCH
 
-- [ ] 4.1 Implementar el servicio de escritura que arma el árbol desde el cuerpo anidado, invoca el `WriteEngine` con el registro de write-resolvers y devuelve los identificadores materializados; verificar con prueba de creación completa
-- [ ] 4.2 Implementar el controlador `POST`/`PATCH /v1/proveedor`: mapear resultado a `200` (éxito), `206` + `MetaData.Errors` (parcial), `400` (campo/estructura inválida) y `502/504` (fallo bloqueante); verificar con pruebas por situación
-- [ ] 4.3 Registrar las rutas de escritura de `/v1/proveedor` en `main.go`; verificar que el API arranca con el bloque `write` cargado y las rutas responden
+- [x] 4.1 Implementar el servicio de escritura que arma el árbol desde el cuerpo anidado, invoca el `WriteEngine` con el registro de write-resolvers y devuelve los identificadores materializados; verificar con prueba de creación completa
+- [x] 4.2 Implementar el controlador `POST`/`PATCH /v1/proveedor`: mapear resultado a `200` (éxito), `206` + `MetaData.Errors` (parcial), `400` (campo/estructura inválida) y `502/504` (fallo bloqueante); verificar con pruebas por situación
+- [x] 4.3 Registrar las rutas de escritura de `/v1/proveedor` en `main.go`; verificar que el API arranca con el bloque `write` cargado y las rutas responden
 
 ## 5. Retiro BREAKING de los flujos estáticos de persona
 

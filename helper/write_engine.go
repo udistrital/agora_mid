@@ -122,6 +122,13 @@ func EsErrorFatalEscritura(err error) bool {
 	return ok
 }
 
+// NewErrorFatalEscritura envuelve err como un fallo bloqueante de escritura que
+// el llamador debe mapear a 502/504. Conserva err en la cadena para que el
+// controlador distinga un tiempo de espera agotado (504) de otros fallos (502).
+func NewErrorFatalEscritura(err error) error {
+	return &errorFatalEscritura{path: "(raíz)", err: err}
+}
+
 // motorEscritura mantiene el estado de una escritura en cascada: resolvers,
 // verbo y política de error efectivos y avisos acumulados.
 type motorEscritura struct {

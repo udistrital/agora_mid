@@ -48,11 +48,22 @@ func main() {
 		tipoNatural,
 		nil,
 	)
-	proveedorHandler := controllers.NewProveedorHandler(proveedorService)
+	proveedorWriteService := services.NewProveedorWriteService(
+		clients.HTTPClient{},
+		urls,
+		proveedorConfig,
+		tipoNatural,
+	)
+	proveedorHandler := controllers.NewProveedorHandlerCompleto(
+		proveedorService,
+		proveedorWriteService,
+	)
 
+	// /v1/proveedor expone lectura (GET) y escritura (POST/PATCH) sobre el mismo
+	// recurso raíz; el enrutado por método delega en el handler correspondiente.
 	beego.Any(
 		"/v1/proveedor",
-		adaptarHandler(http.HandlerFunc(proveedorHandler.Leer)),
+		adaptarHandler(enrutarProveedor(proveedorHandler)),
 	)
 
 	// Publicar la definición OpenAPI estática en /swagger. El contrato vive en
@@ -73,4 +84,17 @@ func adaptarHandler(handler http.Handler) func(*beecontext.Context) {
 	return func(ctx *beecontext.Context) {
 		handler.ServeHTTP(ctx.ResponseWriter, ctx.Request)
 	}
+}
+
+// enrutarProveedor delega GET a la lectura del proveedor y POST/PATCH a su
+// escritura, sobre el mismo recurso raíz /v1/proveedor.
+func enrutarProveedor(h *controllers.ProveedorHandler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost, http.MethodPatch:
+			h.Escribir(w, r)
+		default:
+			h.Leer(w, r)
+		}
+	})
 }
