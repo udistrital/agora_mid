@@ -19,7 +19,6 @@ lastupdate.tmp
 
 # Swagger files
 swagger/**
-!swagger/swagger.json
 !swagger/swagger.yml
 
 # Agentes

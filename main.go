@@ -55,6 +55,15 @@ func main() {
 		adaptarHandler(http.HandlerFunc(proveedorHandler.Leer)),
 	)
 
+	// Publicar la definición OpenAPI estática en /swagger. El contrato vive en
+	// swagger/swagger.yml y queda accesible como GET /swagger/swagger.yml.
+	// swagger.json se deriva determinísticamente del YAML en cada arranque para
+	// que Swagger UI lo encuentre con su nombre por defecto.
+	if err := generarSwaggerJSON("swagger/swagger.yml", "swagger/swagger.json"); err != nil {
+		log.Fatalf("generando swagger.json: %v", err)
+	}
+	beego.SetStaticPath("/swagger", "swagger")
+
 	beego.ErrorController(&customerror.CustomErrorController{})
 	apiStatus.Init()
 	beego.Run()
