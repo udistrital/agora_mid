@@ -51,6 +51,17 @@ Ver proposal.md — Why. Estado actual relevante (verificado en el repo):
   `proveedor_id` o PK compartida) y reutiliza el transporte/decodificación.
   Alternativa descartada: implementar `Resolve` desde cero por entidad —
   duplicaría transporte, timeouts y manejo de envelope.
+- **Frontera `helper/` ↔ `services/` (solo primitivas reutilizables en helper)**:
+  `helper/` contiene exclusivamente componentes transversales reutilizables que
+  NO nombran entidades de dominio (`EntityResolver`, `NewEntityResolver`, el
+  expansor y la selección). El cableado específico del proveedor
+  (`NewResolversNucleo` y las constantes `ServicioX`/`endpointX`, que fijan qué
+  entidades del núcleo existen y su endpoint/campo de consulta) vive en
+  `services/`, no en `helper/`. Alinea con el lineamiento OATI (helpers =
+  reutilizable entre servicios; lo específico de un servicio en services) y con
+  el Goal de separación estricta de capas. Alternativa descartada: dejar el
+  cableado del núcleo en `helper/` — acopla una primitiva transversal a un
+  servicio concreto.
 - **`ProveedorService` como única capa de negocio**: trae el proveedor base por
   `id` de `gestion_personas_crud`, arma `ExpandOptions(fields)`, registra el
   mapeo e invoca el helper. La decisión de rama natural/jurídico (por
@@ -86,6 +97,10 @@ Ver proposal.md — Why. Estado actual relevante (verificado en el repo):
   `HTTPResolver`; política `on_relation_error` en la config del proveedor.
 - [Fuga de datos en avisos] → los resolvers no construyen mensajes con URLs ni
   credenciales; se mantiene la regla de solo ruta lógica.
+- [El cableado del núcleo quedó en `helper/` (`NewResolversNucleo`) violando la
+  frontera de capas] → reubicarlo en `services/` (tarea 8.1); invariante
+  verificable: `helper/` no referencia nombres de tablas/entidades de dominio ni
+  rutas `/v1/x` (comprobable por grep en revisión/CI).
 
 ## Migration Plan
 

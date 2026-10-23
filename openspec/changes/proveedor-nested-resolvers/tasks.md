@@ -41,7 +41,11 @@
 - [ ] 7.2 Eliminar los DTOs compuestos (`dto/registro_compuesto.go`, `dto/actualizar_compuesto.go`) y sus `UnmarshalJSON`, junto con sus tests asociados; verificar con `go build ./...` y que no queden referencias
 - [ ] 7.3 Actualizar o retirar los tests de servicios/controladores que dependían del contrato compuesto manual; verificar con `go test ./...`
 
-## 8. Verificación integral y documentación
+## 8. Reubicación del cableado del núcleo (helper -> services)
 
-- [ ] 8.1 Documentar el contrato público de `GET /v1/proveedor` (parámetros `id` y `fields`, forma de respuesta y `MetaData.Errors`) en Swagger; verificar que la definición refleja el contrato
-- [ ] 8.2 Ejecutar `go build ./...` y `go test ./...` en verde sobre todo el proyecto, cubriendo helper, resolvers, servicio, config y controlador
+- [ ] 8.1 Mover `NewResolversNucleo` y las constantes `ServicioX`/`endpointX` de `helper/entity_resolver.go` a `services/`; `helper/` conserva únicamente las primitivas reutilizables (`EntityResolver`, `NewEntityResolver`); verificar con `go build ./...`, `go test ./...` y un grep de que `helper/` no nombra entidades de dominio (tercero, proveedor, contacto, etc.) ni endpoints `/v1/x`
+
+## 9. Verificación integral y documentación
+
+- [ ] 9.1 Documentar el contrato público de `GET /v1/proveedor` (parámetros `id` y `fields`, forma de respuesta y `MetaData.Errors`) en Swagger; verificar que la definición refleja el contrato
+- [ ] 9.2 Ejecutar `go build ./...` y `go test ./...` en verde sobre todo el proyecto, cubriendo helper, resolvers, servicio, config y controlador
