@@ -42,6 +42,13 @@ propagación declarado.
 - **THEN** el motor crea el detalle usando como `Id` el del padre, sin esperar un
   identificador autogenerado distinto
 
+#### Scenario: Propagación por FK ascendente (entidad referenciada por el nodo)
+- **WHEN** un nodo referencia a otra entidad por una FK propia (por ejemplo
+  `proveedor` referencia a `tercero` por `TerceroId`) y la relación declara
+  propagación `fk_inbound`
+- **THEN** el motor materializa la entidad referenciada ANTES que el nodo y fija la
+  FK del nodo (`TerceroId`) con el `Id` de la entidad recién materializada
+
 ### Requirement: Aplanado de parámetros anidados a llave foránea
 El sistema SHALL aceptar relaciones de parámetro expresadas como objeto anidado
 con `Id` y aplanarlas a la llave foránea correspondiente al escribir, de forma

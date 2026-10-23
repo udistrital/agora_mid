@@ -12,12 +12,14 @@
 - [x] 2.2 Implementar el aplanado de parámetros anidados a FK (`{X:{Id:n}}` -> `XId:n`) y el rechazo `400` de campos no escribibles o inmutables sin materializar nada; verificar con pruebas de aplanado y de rechazo
 - [x] 2.3 Implementar el reporte tolerante/estricto espejo de lectura (bloqueante vs no bloqueante, conservar lo materializado, avisos sin datos sensibles); verificar con `go test ./helper/...`
 - [x] 2.4 Garantizar la frontera de capas: `WriteEngine` genérico en `helper/` sin nombrar entidades de dominio; verificar con grep de que `helper/` no referencia tablas ni rutas `/v1/x`
+- [ ] 2.5 Añadir al motor el modo de propagación `fk_inbound`: materializar la entidad referenciada por el nodo (p. ej. `tercero`) antes que el nodo y propagar su `Id` a la FK del nodo (`TerceroId`); ajustar el orden topológico para resolver las relaciones `fk_inbound` antes del nodo que las referencia; verificar con pruebas del nuevo modo
 
 ## 3. Write-resolvers del núcleo (en services) e idempotencia
 
 - [x] 3.1 Definir el write-resolver fino reutilizable (endpoint real + upsert por clave natural/`Id`) y el cableado del árbol escribible del proveedor en `services/`; verificar con `go build ./...`
 - [x] 3.2 Implementar los write-resolvers del núcleo con su idempotencia (proveedor por `tercero_id`; datos_identificacion por `numero`+`tipo_documento_id`; detalle por PK compartida; colecciones por `Id` del cuerpo) e inyección del autor de modificación desde el contexto; verificar con pruebas por entidad
 - [x] 3.3 Ubicar las reglas de negocio irreductibles en el servicio/write-resolver (consistencia natural/jurídico, inmutables) y no en el motor; verificar con `go test ./services/...`
+- [ ] 3.4 Corregir en `config/relaciones_proveedor.yaml` la propagación de `Tercero`: de `shared_pk` a `fk_inbound` (FK `proveedor.TerceroId → tercero.Id`), y actualizar el comentario que la describía como PK compartida; verificar con el loader de coherencia y `go build ./...`
 
 ## 4. ProveedorService de escritura y controlador POST/PATCH
 
@@ -38,6 +40,7 @@
 - [ ] 6.1 Añadir pruebas de integración locales en `/test` (router + CRUD simulados) para creación y reconciliación (`PATCH`) del subárbol, incluyendo el escenario de continuación tras creación parcial
 - [ ] 6.2 Añadir al menos una prueba e2e de un flujo completo de creación/actualización del subárbol del proveedor; centralizar fixtures/mocks compartidos
 - [ ] 6.3 Ejecutar `go build ./...` y `go test ./...` en verde sobre todo el proyecto
+- [ ] 6.4 Documentar la suite en `test/tests.md`: por cada prueba de integración y e2e, su propósito, actores (cliente del API, MID, CRUD dueños simulados), entradas dadas (verbo, cuerpo, estado precargado) y salidas esperadas (código, envoltorio, interacciones con los CRUD); verificar que cubre los flujos de creación, reconciliación y continuación tras creación parcial
 
 ## 7. Documentación pública del contrato de escritura
 

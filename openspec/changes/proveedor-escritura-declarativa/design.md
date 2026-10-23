@@ -17,7 +17,9 @@ modelo `agora_modelo_extendido.dbml`):
   idempotente (no duplicar proveedor por tercero), resolución de tipo por código
   del cliente ya no aplica (el cliente envía `Id`), inmutabilidad de
   numero/tipo documental, consistencia natural/jurídico.
-- Modelo (DBML): `proveedor.tercero_id` es UNIQUE; `proveedor_natural.id` y
+- Modelo (DBML): `proveedor.tercero_id` es UNIQUE y es una **FK** a `tercero.id`
+  (1-1; el `tercero` tiene su propio `Id` y el proveedor lo referencia, no
+  comparten PK); `proveedor_natural.id` y
   `proveedor_juridico.id` comparten PK con `proveedor` (Ref `-`);
   `contacto`/`cuenta_bancaria` cuelgan de `proveedor_id` (FK, 1-N);
   `datos_identificacion` cuelga de `tercero_id`; la unicidad real del tercero
@@ -70,10 +72,17 @@ modelo `agora_modelo_extendido.dbml`):
   `{Tercero:{TipoContribuyente:{Id:2}}}` se escribe como `TipoContribuyenteId: 2`.
   La lectura hace el camino inverso (FK -> objeto anidado). El MID nunca resuelve
   catálogos en escritura.
-- **Propagación de llave declarada: FK vs PK compartida**: `contacto`/`cuenta_
-  bancaria` propagan por FK (`proveedor_id = padre.Id`); `proveedor_natural`/
-  `proveedor_juridico` por PK compartida (`Id = proveedor.Id`). El modo se declara
-  por relación; no se infiere del modelo (que es ambiguo, ver Risks).
+- **Propagación de llave declarada: tres modos**: el modo se declara por relación
+  y no se infiere del modelo. (1) **FK descendente** (`fk`): el padre se
+  materializa primero y su `Id` fija la FK del hijo (`contacto`/`cuenta_bancaria`
+  por `proveedor_id = proveedor.Id`). (2) **PK compartida** (`shared_pk`): el hijo
+  usa como `Id` el del padre (`proveedor_natural`/`proveedor_juridico`,
+  `Id = proveedor.Id`). (3) **FK ascendente** (`fk_inbound`): el `tercero` es dueño
+  de su propio `Id` autogenerado y el proveedor raíz lo referencia por la FK
+  `TerceroId`; por tanto el `tercero` se materializa **antes** que la raíz y su
+  `Id` fluye hacia arriba a `proveedor.TerceroId`. Esto obliga a un orden
+  topológico en el que las relaciones `fk_inbound` del nodo se resuelven antes de
+  materializar el nodo que las referencia.
 - **Idempotencia por clave natural donde el esquema la garantiza; `Id` en cuerpo
   para el resto**: `proveedor` por `tercero_id` (unique); `datos_identificacion`
   por `numero + tipo_documento_id`; colecciones sin clave natural usan `Id` del
@@ -101,9 +110,12 @@ modelo `agora_modelo_extendido.dbml`):
   `datos_identificacion (numero + tipo_documento_id)`, igual que el flujo estático
   actual; a fijar en la implementación del write-resolver de tercero.
 - [Ambigüedad del modelo: `proveedor.tercero_id [unique]` (FK) vs `Ref tercero.id -
-  proveedor.id` (PK compartida)] → la propagación de llave se declara
-  explícitamente (FK) en vez de inferirse; se marca para validar con el equipo del
-  esquema.
+  proveedor.id` (PK compartida)] → **resuelto: es una FK**
+  (`proveedor.tercero_id → tercero.id`), no una PK compartida (el `Ref ... -` del
+  DBML está mal y debe ser `tercero.id < proveedor.tercero_id`). Se modela con
+  propagación `fk_inbound`: el `tercero` se crea primero y su `Id` se propaga a
+  `proveedor.TerceroId`. El DBML se reporta al equipo del esquema para corregir el
+  `Ref`.
 - [Colecciones sin clave natural duplican en reintento ciego] → se exige `Id` en el
   cuerpo para actualizar; sin `Id` siempre crea. Riesgo acotado y documentado.
 - [Fuga de datos en avisos] → los write-resolvers no construyen mensajes con URLs

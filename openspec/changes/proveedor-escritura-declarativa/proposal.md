@@ -73,6 +73,11 @@ configuración, no un servicio, cuando el modelo evolucione.
   propaga la llave del padre (FK o PK compartida), aplana la entrada anidada de
   parámetros a FK y delega cada entidad a un write-resolver, aplicando las
   políticas de escritura declaradas por configuración.
+- `test-documentation`: documentación legible de la suite de pruebas de
+  integración y e2e del subárbol del proveedor, que describe por prueba su
+  propósito, los actores (cliente del API, MID, CRUD dueños simulados), las
+  entradas dadas y las salidas esperadas, de modo que la intención de cada prueba
+  sea verificable sin leer el código.
 
 ### Modified Capabilities
 - `api-response-contract`: la respuesta de escritura deja de ser siempre "sin
@@ -104,7 +109,8 @@ configuración, no un servicio, cuando el modelo evolucione.
   idempotencia por clave natural y en los identificadores devueltos.
 - **Pruebas**: unitarias del motor, write-resolvers, servicio, loader y
   controlador; integración local (router + CRUD simulados) y e2e de flujo
-  completo.
+  completo. Se documenta la suite en `test/tests.md` (propósito, actores,
+  entradas y salidas esperadas por prueba).
 - **Documentación pública**: `swagger/swagger.yml` + `API.md` describen el
   contrato de escritura y reflejan la baja de `/v1/persona_*`; `README.md` queda
   intacto.
