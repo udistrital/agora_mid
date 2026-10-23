@@ -2,16 +2,16 @@
 
 ## 1. Configuración declarativa de escritura (bloque `write`)
 
-- [ ] 1.1 Extender el esquema de configuración de relaciones con un bloque `write` namespaced por relación (campos escribibles, inmutables, clave natural, modo de propagación de llave `fk`/`shared_pk`, políticas por verbo); verificar con `go build ./...`
-- [ ] 1.2 Declarar el bloque `write` del subárbol del proveedor en `config/relaciones_proveedor.yaml` (tercero, datos_identificacion, proveedor, proveedor_natural/juridico, contacto, cuenta_bancaria); tercero y datos_identificacion creatable/updatable y NO deletable; catálogos solo referencia por Id
-- [ ] 1.3 Validar en el loader la coherencia lectura/escritura (toda relación `write` existe en el árbol; propagación de llave válida) y abortar el arranque con mensaje que identifique archivo y relación; verificar con pruebas de config coherente e incoherente
+- [x] 1.1 Extender el esquema de configuración de relaciones con un bloque `write` namespaced por relación (campos escribibles, inmutables, clave natural, modo de propagación de llave `fk`/`shared_pk`, políticas por verbo); verificar con `go build ./...`
+- [x] 1.2 Declarar el bloque `write` del subárbol del proveedor en `config/relaciones_proveedor.yaml` (tercero, datos_identificacion, proveedor, proveedor_natural/juridico, contacto, cuenta_bancaria); tercero y datos_identificacion creatable/updatable y NO deletable; catálogos solo referencia por Id
+- [x] 1.3 Validar en el loader la coherencia lectura/escritura (toda relación `write` existe en el árbol; propagación de llave válida) y abortar el arranque con mensaje que identifique archivo y relación; verificar con pruebas de config coherente e incoherente
 
 ## 2. Motor de escritura declarativo (`WriteEngine` genérico en helper)
 
-- [ ] 2.1 Implementar el recorrido topológico del árbol (padres antes que hijos) y la propagación de llave del padre al hijo según el modo declarado (`fk` y `shared_pk`); verificar con pruebas de ambos modos
-- [ ] 2.2 Implementar el aplanado de parámetros anidados a FK (`{X:{Id:n}}` -> `XId:n`) y el rechazo `400` de campos no escribibles o inmutables sin materializar nada; verificar con pruebas de aplanado y de rechazo
-- [ ] 2.3 Implementar el reporte tolerante/estricto espejo de lectura (bloqueante vs no bloqueante, conservar lo materializado, avisos sin datos sensibles); verificar con `go test ./helper/...`
-- [ ] 2.4 Garantizar la frontera de capas: `WriteEngine` genérico en `helper/` sin nombrar entidades de dominio; verificar con grep de que `helper/` no referencia tablas ni rutas `/v1/x`
+- [x] 2.1 Implementar el recorrido topológico del árbol (padres antes que hijos) y la propagación de llave del padre al hijo según el modo declarado (`fk` y `shared_pk`); verificar con pruebas de ambos modos
+- [x] 2.2 Implementar el aplanado de parámetros anidados a FK (`{X:{Id:n}}` -> `XId:n`) y el rechazo `400` de campos no escribibles o inmutables sin materializar nada; verificar con pruebas de aplanado y de rechazo
+- [x] 2.3 Implementar el reporte tolerante/estricto espejo de lectura (bloqueante vs no bloqueante, conservar lo materializado, avisos sin datos sensibles); verificar con `go test ./helper/...`
+- [x] 2.4 Garantizar la frontera de capas: `WriteEngine` genérico en `helper/` sin nombrar entidades de dominio; verificar con grep de que `helper/` no referencia tablas ni rutas `/v1/x`
 
 ## 3. Write-resolvers del núcleo (en services) e idempotencia
 
