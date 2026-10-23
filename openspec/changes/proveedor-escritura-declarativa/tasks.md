@@ -37,10 +37,10 @@
 
 ## 6. Pruebas de integración y e2e
 
-- [ ] 6.1 Añadir pruebas de integración locales en `/test` (router + CRUD simulados) para creación y reconciliación (`PATCH`) del subárbol, incluyendo el escenario de continuación tras creación parcial
-- [ ] 6.2 Añadir al menos una prueba e2e de un flujo completo de creación/actualización del subárbol del proveedor; centralizar fixtures/mocks compartidos
-- [ ] 6.3 Ejecutar `go build ./...` y `go test ./...` en verde sobre todo el proyecto
-- [ ] 6.4 Documentar la suite en `test/tests.md`: por cada prueba de integración y e2e, su propósito, actores (cliente del API, MID, CRUD dueños simulados), entradas dadas (verbo, cuerpo, estado precargado) y salidas esperadas (código, envoltorio, interacciones con los CRUD); verificar que cubre los flujos de creación, reconciliación y continuación tras creación parcial
+- [x] 6.1 Añadir pruebas de integración locales en `/test` (router + CRUD simulados) para creación y reconciliación (`PATCH`) del subárbol, incluyendo el escenario de continuación tras creación parcial
+- [x] 6.2 Añadir al menos una prueba e2e de un flujo completo de creación/actualización del subárbol del proveedor; centralizar fixtures/mocks compartidos
+- [x] 6.3 Ejecutar `go build ./...` y `go test ./...` en verde sobre todo el proyecto
+- [x] 6.4 Documentar la suite en `test/tests.md`: por cada prueba de integración y e2e, su propósito, actores (cliente del API, MID, CRUD dueños simulados), entradas dadas (verbo, cuerpo, estado precargado) y salidas esperadas (código, envoltorio, interacciones con los CRUD); verificar que cubre los flujos de creación, reconciliación y continuación tras creación parcial
 
 ## 7. Documentación pública del contrato de escritura
 
