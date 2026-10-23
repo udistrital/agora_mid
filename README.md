@@ -37,6 +37,18 @@ git clone https://github.com/udistrital/agora_mid.git
 cd agora_mid
 ```
 
+#### Descargar swagger para consulta en navegador
+
+Se incluyen en el repositorio sólo `swagger/index.html` y `swagger/swagger.yml`. Para descargar la versión de Swagger UI que sirve la interfaz de documentación en `/swagger`, ejecutar:
+
+```shell
+SWAGGER_UI_VERSION=5.17.14
+wget -O swagger-ui.tar.gz "https://github.com/swagger-api/swagger-ui/archive/refs/tags/v${SWAGGER_UI_VERSION}.tar.gz"
+tar -xzf swagger-ui.tar.gz
+find "swagger-ui-${SWAGGER_UI_VERSION}/dist" -maxdepth 1 -mindepth 1 ! -name index.html -exec cp -t swagger {} +
+rm -rf swagger-ui.tar.gz "swagger-ui-${SWAGGER_UI_VERSION}"
+```
+
 #### Ejecución para Desarrollo
 
 ```shell

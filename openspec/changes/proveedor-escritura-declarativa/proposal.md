@@ -51,6 +51,11 @@ configuración, no un servicio, cuando el modelo evolucione.
   hay cliente productivo que dependa del contrato anterior.
 - Se añaden pruebas de integración locales (router + CRUD simulados) y al menos
   una prueba e2e de un flujo completo de creación/actualización del subárbol.
+- Se actualiza la documentación pública del contrato para describir los endpoints
+  de escritura: `swagger/swagger.yml` (y su `swagger/swagger.json` derivado) y
+  `API.md` ganan `POST`/`PATCH /v1/proveedor` (cuerpo anidado, respuestas `200`,
+  `206` con `MetaData.Errors`, `400`, `502/504`) y retiran el contrato de los
+  flujos `/v1/persona_*` eliminados. `README.md` no se modifica.
 
 ## Capabilities
 
@@ -71,6 +76,9 @@ configuración, no un servicio, cuando el modelo evolucione.
   tolerada responde `Status: "206"` e incluye `MetaData.Errors` con los avisos,
   igual que la lectura. Una escritura completamente exitosa sigue usando el
   envoltorio plano sin `MetaData`.
+- `openapi-publication`: el contrato publicado (YAML fuente + `API.md`) describe
+  los endpoints de escritura `POST`/`PATCH /v1/proveedor` y permanece coherente
+  con el comportamiento implementado.
 
 ## Impact
 
@@ -90,6 +98,9 @@ configuración, no un servicio, cuando el modelo evolucione.
 - **Pruebas**: unitarias del motor, write-resolvers, servicio, loader y
   controlador; integración local (router + CRUD simulados) y e2e de flujo
   completo.
+- **Documentación pública**: `swagger/swagger.yml` + `API.md` describen el
+  contrato de escritura y reflejan la baja de `/v1/persona_*`; `README.md` queda
+  intacto.
 - **Alcance**: Corte B (incluye `tercero`/`datos_identificacion`). `DELETE` y su
   estrategia de baja quedan diferidos. Fase 2 (ya visible en el modelo):
   `perfil_financiero`, `actividad_economica_proveedor`, `representacion`,

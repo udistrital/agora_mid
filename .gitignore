@@ -20,6 +20,7 @@ lastupdate.tmp
 # Swagger files
 swagger/**
 !swagger/swagger.yml
+!swagger/index.html
 
 # Agentes
 .agents/

@@ -41,4 +41,11 @@
 
 - [ ] 7.1 Validar con el equipo la estrategia de baja (probable soft-delete `activo=false`, alcance de la cascada, tratamiento de `tercero`); registrar la decisión en design.md antes de implementar
 - [ ] 7.2 Implementar `DELETE /v1/proveedor` según la estrategia acordada, con su política de cascada y reporte; verificar con pruebas de baja total y parcial
-- [ ] 7.3 Documentar en Swagger el contrato público de escritura (`POST`/`PATCH`/`DELETE /v1/proveedor`, cuerpo anidado, respuesta y `MetaData.Errors`); verificar que la definición refleja el contrato
+- [ ] 7.3 Ampliar la documentación pública con `DELETE /v1/proveedor` una vez acordada su estrategia (en `swagger/swagger.yml` y `API.md`); verificar que la definición refleja el contrato de baja
+
+## 8. Documentación pública del contrato de escritura
+
+- [ ] 8.1 Actualizar `swagger/swagger.yml` con `POST`/`PATCH /v1/proveedor`: cuerpo anidado del subárbol, respuestas `200`, `206` con `MetaData.Errors`, `400` y `502/504`; verificar que `swagger/swagger.json` se deriva sin error
+- [ ] 8.2 Actualizar `API.md` con los endpoints de escritura `POST`/`PATCH /v1/proveedor` (parámetros, cuerpo, códigos de respuesta y reglas) y retirar el contrato de las rutas `/v1/persona_*`; no modificar `README.md`
+- [ ] 8.3 Verificar la coherencia del contrato publicado con el comportamiento implementado (endpoints de escritura presentes, `/v1/persona_*` ausentes)
+- [x] 8.4 Corregir `swagger/index.html` para que la interfaz de `/swagger` cargue `./swagger.json` (contrato local) en vez del contrato de demostración `petstore`, y añadir la excepción `!swagger/index.html` en `.gitignore` para versionar el arreglo; `README.md` no se modifica
