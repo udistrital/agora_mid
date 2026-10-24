@@ -194,8 +194,8 @@ registros.
 
 | Código | Significado |
 |---|---|
-| `200` | Creación/actualización completa sin avisos. `Data` incluye los identificadores materializados; `MetaData` se omite. |
-| `206` | Materialización parcial tolerada: una relación no bloqueante falló tras materializar otras. El recurso se conserva, `Data` incluye los identificadores ya materializados y los avisos van en `MetaData.Errors`. |
+| `200` | Creación/actualización completa sin avisos. `Data` devuelve el subárbol materializado (el cuerpo enviado enriquecido con el `Id` de cada entidad, las llaves foráneas propagadas como enteros y `AutorModificacionId`); `MetaData` se omite. |
+| `206` | Materialización parcial tolerada: una relación no bloqueante falló tras materializar otras. El recurso se conserva, `Data` incluye el subárbol ya materializado y los avisos van en `MetaData.Errors`. |
 | `400` | Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId` ausente o no positivo, campo no escribible o inmutable, o rama de detalle incoherente con el tipo de registro. No se materializa nada. |
 | `405` | Método HTTP no permitido; solo se admiten `POST` y `PATCH` (además de `GET`). |
 | `502` | Fallo bloqueante de una relación bajo política de error estricta al escribir en un CRUD dueño. |
@@ -203,6 +203,9 @@ registros.
 
 Las respuestas usan el mismo envelope plano `Success`/`Status`/`Message`/`Data`
 del proyecto. `MetaData.Errors` reporta las relaciones que no pudieron
-materializarse sin exponer URLs ni datos sensibles.
+materializarse sin exponer URLs ni datos sensibles. Las llaves foráneas
+propagadas en cascada (`TerceroId` del proveedor, `TerceroId` de
+`DatosIdentificacion`, `ProveedorId` de `Contacto`/`CuentaBancaria`) se devuelven
+como enteros, coherentes con el contrato de los CRUD dueños.
 
 La definición OpenAPI de estos endpoints está en `swagger/swagger.yml`.

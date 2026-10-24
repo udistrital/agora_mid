@@ -92,6 +92,10 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 	if id, _ := tercero["Id"].(float64); int(id) != 201 {
 		t.Errorf("Tercero (fk_inbound) debe materializar su propio Id=201; tercero=%+v", tercero)
 	}
+	if autorModificacion, _ := tercero["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
+		t.Errorf("Tercero debe heredar AutorModificacionId=9 del proveedor; tercero=%+v", tercero)
+	}
+
 	// La FK ascendente se propaga preservando su tipo numérico (no texto).
 	terceroIDRef, ok := env.Data["TerceroId"].(float64)
 	if !ok {
@@ -108,6 +112,9 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 	}
 	if id, _ := proveedorNatural["Id"].(float64); int(id) != 101 {
 		t.Errorf("ProveedorNatural debe heredar Id=101 del proveedor; proveedor_natural=%+v", proveedorNatural)
+	}
+	if autorModificacion, _ := proveedorNatural["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
+		t.Errorf("ProveedorNatural debe heredar AutorModificacionId=9 del proveedor; proveedor_natural=%+v", proveedorNatural)
 	}
 
 	// FK descendiente: los contactos son dueños de su propio Id (rango 600+), destinto
@@ -130,6 +137,9 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 			t.Errorf("Contacto.ProveedorId debe ser numérico, no %T; contacto=%+v", c["ProveedorId"], c)
 		} else if int(provIDRef) != 101 {
 			t.Errorf("Los contactos deben referenciar al proveedor por ProveedorId=101; contacto=%+v", contacto)
+		}
+		if autorModificacion, _ := c["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
+			t.Errorf("Contacto debe heredar AutorModificacionId=9 del proveedor; contacto=%+v", c)
 		}
 	}
 

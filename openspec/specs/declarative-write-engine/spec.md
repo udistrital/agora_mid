@@ -28,7 +28,8 @@ endpoints, tablas o rutas provistos por el cliente.
 ### Requirement: Orden topológico y propagación de llave
 El sistema SHALL recorrer el árbol en orden topológico, materializando cada padre
 antes que sus hijos y propagando la llave del padre al hijo según el modo de
-propagación declarado.
+propagación declarado, preservando el tipo del identificador propagado sin
+coaccionarlo a texto.
 
 #### Scenario: Propagación por llave foránea
 - **WHEN** una relación declara propagación por FK (por ejemplo `contacto` por
@@ -48,6 +49,14 @@ propagación declarado.
   propagación `fk_inbound`
 - **THEN** el motor materializa la entidad referenciada ANTES que el nodo y fija la
   FK del nodo (`TerceroId`) con el `Id` de la entidad recién materializada
+
+#### Scenario: La llave propagada conserva su tipo numérico
+- **WHEN** el `Id` del padre materializado es un valor numérico y el motor lo
+  propaga a la FK del hijo, al `Id` del detalle con PK compartida o a la FK local
+  del nodo en una propagación `fk_inbound`
+- **THEN** el valor propagado conserva su tipo numérico tanto en la petición
+  enviada al CRUD dueño como en el subárbol devuelto, y nunca se convierte a una
+  cadena de texto
 
 ### Requirement: Aplanado de parámetros anidados a llave foránea
 El sistema SHALL aceptar relaciones de parámetro expresadas como objeto anidado

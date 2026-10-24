@@ -35,19 +35,19 @@
 
 ## 3. Documentación del contrato público (swagger) fiel al comportamiento
 
-- [ ] 3.1 En `swagger/swagger.yml`, redefinir `ProveedorMaterializado` como el
+- [x] 3.1 En `swagger/swagger.yml`, redefinir `ProveedorMaterializado` como el
   subárbol materializado real: entidades anidadas (`Tercero`,
   `DatosIdentificacion`, rama de detalle, `Contacto`, `CuentaBancaria`) con sus
   `Id`, las FK (`TerceroId`, `ProveedorId`) como `type: integer` y el campo
   `AutorModificacionId`. Verificar que el YAML es válido (p. ej.
   `python3 -c "import yaml,sys; yaml.safe_load(open('swagger/swagger.yml'))"`).
-- [ ] 3.2 Ajustar en `swagger/swagger.yml` cualquier otra referencia a las FK de
+- [x] 3.2 Ajustar en `swagger/swagger.yml` cualquier otra referencia a las FK de
   escritura para que su tipo sea entero, coherente con el comportamiento. Verificar
   revisando que no queden FK de escritura documentadas como `type: string`.
-- [ ] 3.3 Actualizar `API.md` si describe la forma del `Data` de escritura, para
+- [x] 3.3 Actualizar `API.md` si describe la forma del `Data` de escritura, para
   que coincida con el subárbol materializado y los tipos numéricos. Verificar por
   lectura que `API.md` y el YAML describen el mismo `Data`.
-- [ ] 3.4 Confirmar que el JSON derivado del contrato queda coherente con el YAML
+- [x] 3.4 Confirmar que el JSON derivado del contrato queda coherente con el YAML
   (la regeneración ocurre al arranque del API según `openapi-publication`).
   Verificar con `go build ./...` y, si aplica, ejecutando la generación
   (`go test ./... -run Swagger` o el arranque) para comprobar que no hay divergencia.
@@ -60,7 +60,7 @@
 
 ## 5. Verificación integral
 
-- [ ] 5.1 Ejecutar `go build ./...` y `go test ./...` y confirmar que todo el
+- [x] 5.1 Ejecutar `go build ./...` y `go test ./...` y confirmar que todo el
   proyecto compila y la suite completa pasa en verde.
-- [ ] 5.2 Validar el cambio con `openspec validate "propagacion-llave-preserva-tipo"`
+- [x] 5.2 Validar el cambio con `openspec validate "propagacion-llave-preserva-tipo"`
   y confirmar que es válido.

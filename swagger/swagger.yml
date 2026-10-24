@@ -765,19 +765,218 @@ definitions:
   ProveedorMaterializado:
     type: object
     description: >-
-      Identificadores materializados del subárbol tras una escritura. Incluye las
-      llaves del proveedor y de las entidades anidadas efectivamente creadas o
-      actualizadas.
+      Subárbol materializado del proveedor tras una escritura. El servicio no
+      devuelve solo los identificadores: reenvía el subárbol enviado, enriquecido
+      con el `Id` materializado de cada entidad creada o actualizada, las llaves
+      foráneas propagadas en cascada y el campo de auditoría `AutorModificacionId`
+      inyectado desde la cabecera `X-Autor-Id`. Las llaves foráneas propagadas
+      (`TerceroId` del proveedor, `TerceroId` de `DatosIdentificacion`,
+      `ProveedorId` de `Contacto`/`CuentaBancaria`) se devuelven como enteros,
+      coherentes con el contrato de los CRUD dueños. Solo aparece la rama de
+      detalle coherente con `TipoRegistroId` (`ProveedorNatural` o
+      `ProveedorJuridico`); la otra se poda.
     properties:
       Id:
         type: integer
         format: int64
-        example: 12
+        description: Id materializado del proveedor raíz.
+        example: 101
       TerceroId:
         type: integer
         format: int64
-        example: 25
+        description: FK al tercero propagada en cascada desde el `Id` del tercero.
+        example: 201
       TipoRegistroId:
         type: integer
         format: int64
         example: 1
+      DescripcionPortafolio:
+        type: string
+        example: Servicios de consultoría
+      AutorModificacionId:
+        type: integer
+        format: int64
+        description: >-
+          Autor de la modificación inyectado desde la cabecera `X-Autor-Id`.
+        example: 9
+      Tercero:
+        $ref: "#/definitions/TerceroMaterializado"
+      ProveedorNatural:
+        $ref: "#/definitions/ProveedorNaturalMaterializado"
+      ProveedorJuridico:
+        $ref: "#/definitions/ProveedorJuridicoMaterializado"
+      Contacto:
+        type: array
+        description: Contactos materializados (1-N).
+        items:
+          $ref: "#/definitions/ContactoMaterializado"
+      CuentaBancaria:
+        type: array
+        description: Cuentas bancarias materializadas (1-N).
+        items:
+          $ref: "#/definitions/CuentaBancariaMaterializada"
+  TerceroMaterializado:
+    type: object
+    description: >-
+      Tercero materializado, con su `Id` propio y el `AutorModificacionId`
+      inyectado. Sus `DatosIdentificacion` propagan la FK `TerceroId` como entero.
+    properties:
+      Id:
+        type: integer
+        format: int64
+        example: 201
+      NombreCompleto:
+        type: string
+        example: Ana Pérez
+      TipoContribuyenteId:
+        type: integer
+        format: int64
+        example: 2
+      AutorModificacionId:
+        type: integer
+        format: int64
+        example: 9
+      DatosIdentificacion:
+        type: array
+        items:
+          $ref: "#/definitions/DatosIdentificacionMaterializado"
+  DatosIdentificacionMaterializado:
+    type: object
+    description: >-
+      Documento de identificación materializado. La FK `TerceroId` se propaga en
+      cascada como entero.
+    properties:
+      Id:
+        type: integer
+        format: int64
+        example: 301
+      Numero:
+        type: string
+        example: "123456"
+      TipoDocumentoId:
+        type: integer
+        format: int64
+        example: 1
+      TerceroId:
+        type: integer
+        format: int64
+        description: FK al tercero propagada en cascada.
+        example: 201
+      CiudadExpedicion:
+        type: integer
+        format: int64
+        example: 11001
+      AutorModificacionId:
+        type: integer
+        format: int64
+        example: 9
+  ProveedorNaturalMaterializado:
+    type: object
+    description: >-
+      Detalle de persona natural materializado. Hereda el `Id` del proveedor (PK
+      compartida, como entero) y recibe el `AutorModificacionId` inyectado.
+    properties:
+      Id:
+        type: integer
+        format: int64
+        description: Igual al `Id` del proveedor (PK compartida).
+        example: 101
+      PerfilDeclarado:
+        type: integer
+        format: int64
+        example: 3
+      ExperienciaLaboralMeses:
+        type: integer
+        format: int64
+      ExperienciaProfesionalMeses:
+        type: integer
+        format: int64
+      AutorModificacionId:
+        type: integer
+        format: int64
+        example: 9
+  ProveedorJuridicoMaterializado:
+    type: object
+    description: >-
+      Detalle de persona jurídica materializado. Hereda el `Id` del proveedor (PK
+      compartida, como entero) y recibe el `AutorModificacionId` inyectado. Solo
+      aparece cuando `TipoRegistroId` corresponde a persona jurídica.
+    properties:
+      Id:
+        type: integer
+        format: int64
+        description: Igual al `Id` del proveedor (PK compartida).
+      NombreComercial:
+        type: string
+      MatriculaMercantil:
+        type: integer
+        format: int64
+      FechaConstitucion:
+        type: string
+        format: date
+      AutorModificacionId:
+        type: integer
+        format: int64
+        example: 9
+  ContactoMaterializado:
+    type: object
+    description: >-
+      Contacto materializado, con su `Id` propio. La FK `ProveedorId` se propaga
+      en cascada como entero y recibe el `AutorModificacionId` inyectado.
+    properties:
+      Id:
+        type: integer
+        format: int64
+        example: 601
+      ProveedorId:
+        type: integer
+        format: int64
+        description: FK al proveedor propagada en cascada.
+        example: 101
+      Finalidad:
+        type: string
+        example: notificaciones
+      TipoCanal:
+        type: string
+        example: correo
+      ValorEspecifico:
+        type: string
+        example: ana@correo.co
+      EsPrincipal:
+        type: boolean
+      AutorModificacionId:
+        type: integer
+        format: int64
+        example: 9
+  CuentaBancariaMaterializada:
+    type: object
+    description: >-
+      Cuenta bancaria materializada, con su `Id` propio. La FK `ProveedorId` se
+      propaga en cascada como entero y recibe el `AutorModificacionId` inyectado.
+    properties:
+      Id:
+        type: integer
+        format: int64
+      ProveedorId:
+        type: integer
+        format: int64
+        description: FK al proveedor propagada en cascada.
+      EntidadBancariaId:
+        type: integer
+        format: int64
+      TipoCuentaId:
+        type: integer
+        format: int64
+      NumeroCuenta:
+        type: string
+      NombreTitular:
+        type: string
+      CiudadAperturaId:
+        type: integer
+        format: int64
+      EsPrincipal:
+        type: boolean
+      AutorModificacionId:
+        type: integer
+        format: int64
+        example: 9
