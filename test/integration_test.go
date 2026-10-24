@@ -92,8 +92,45 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 	if id, _ := tercero["Id"].(float64); int(id) != 201 {
 		t.Errorf("Tercero (fk_inbound) debe materializar su propio Id=201; tercero=%+v", tercero)
 	}
-	if got := comoTexto(env.Data["TerceroId"]); got != "201" {
+	// La FK ascendente se propaga preservando su tipo numérico (no texto).
+	terceroIDRef, ok := env.Data["TerceroId"].(float64)
+	if !ok {
+		t.Errorf("TerceroId debe ser numérico, no %T; data=%+v", env.Data["TerceroId"], env.Data)
+	} else if int(terceroIDRef) != 201 {
 		t.Errorf("el proveedor debe referenciar al tercero por TerceroId=201; data=%+v", env.Data)
+	}
+
+	// FK compartida: el proveedor_natural no tiene un Id propio, sino que hereda el del
+	// proveedor (rango 100-). El proveedor_natural.Id = proveedor.Id = 101.
+	proveedorNatural, _ := env.Data["ProveedorNatural"].(map[string]any)
+	if proveedorNatural == nil {
+		t.Fatalf("falta el ProveedorNatural materializado; data=%+v", env.Data)
+	}
+	if id, _ := proveedorNatural["Id"].(float64); int(id) != 101 {
+		t.Errorf("ProveedorNatural debe heredar Id=101 del proveedor; proveedor_natural=%+v", proveedorNatural)
+	}
+
+	// FK descendiente: los contactos son dueños de su propio Id (rango 600+), destinto
+	// del proveedor y referencian al proveedor por su FK ProveedorId.
+	contacto, _ := env.Data["Contacto"].([]any)
+	if contacto == nil {
+		t.Fatalf("falta el Contacto materializado; data=%+v", env.Data)
+	}
+	for _, c := range contacto {
+		c, _ := c.(map[string]any)
+		if c == nil {
+			t.Fatalf("Algún contacto no es un objeto; contacto=%+v", contacto)
+		}
+		if id, _ := c["Id"].(float64); int(id) < 601 || int(id) > 699 {
+			t.Errorf("Los contactos deben materializar su propio Id=601; contacto=%+v", contacto)
+		}
+		// La FK descendente ProveedorId se propaga preservando su tipo numérico.
+		provIDRef, ok := c["ProveedorId"].(float64)
+		if !ok {
+			t.Errorf("Contacto.ProveedorId debe ser numérico, no %T; contacto=%+v", c["ProveedorId"], c)
+		} else if int(provIDRef) != 101 {
+			t.Errorf("Los contactos deben referenciar al proveedor por ProveedorId=101; contacto=%+v", contacto)
+		}
 	}
 
 	// El tercero se materializó ANTES que el proveedor (orden fk_inbound).

@@ -328,9 +328,11 @@ func (me *motorEscritura) materializarHijos(
 	rutaRama []string,
 ) error {
 	// El padre ya fue materializado: su Id es la llave que se propaga a cada hijo.
-	padreID := ""
+	// Se propaga con su tipo nativo (ya normalizado a entero por el resolver), sin
+	// coaccionarlo a texto. padreID nil indica que no hay llave que propagar.
+	var padreID any
 	if v, ok := padre["Id"]; ok && v != nil {
-		padreID = aCadena(v)
+		padreID = v
 	}
 
 	for i := range relaciones {
@@ -418,9 +420,10 @@ func (me *motorEscritura) materializarInbound(
 		}
 
 		// Propagar hacia arriba: la FK local del nodo toma el Id de la entidad
-		// referenciada recién materializada.
+		// referenciada recién materializada, con su tipo nativo (entero resuelto
+		// por el resolver), sin coaccionarlo a texto.
 		if id, hay := referida["Id"]; hay && id != nil {
-			nodo[rel.LocalField] = aCadena(id)
+			nodo[rel.LocalField] = id
 		}
 
 		// Materializar el subárbol propio de la entidad referenciada (por ejemplo
@@ -439,7 +442,7 @@ func (me *motorEscritura) materializarValorRelacion(
 	valor any,
 	rel config.RelationConfig,
 	res WriteResolver,
-	padreID string,
+	padreID any,
 	rutaActual []string,
 	rutaStr string,
 ) error {
@@ -497,8 +500,14 @@ func (me *motorEscritura) materializarEntidad(
 // propagarLlave fija en el hijo la llave del padre según el modo declarado:
 //   - fk: fija la llave foránea del hijo (related_field) con el Id del padre.
 //   - shared_pk: fija el propio Id del hijo con el Id del padre.
-func propagarLlave(hijo map[string]any, rel config.RelationConfig, padreID string) {
-	if padreID == "" {
+//
+// El Id del padre se propaga con su tipo nativo (como any), sin coaccionarlo a
+// texto: al comunicarnos por JSON, el valor numérico materializado por el
+// resolver (frontera con el CRUD dueño) debe conservar su tipo tanto en la
+// petición enviada como en el subárbol devuelto. padreID nil señala la ausencia
+// de un padre que propagar.
+func propagarLlave(hijo map[string]any, rel config.RelationConfig, padreID any) {
+	if padreID == nil {
 		return
 	}
 	switch rel.Write.KeyPropagation {

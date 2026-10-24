@@ -14,7 +14,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -296,17 +295,3 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 	}
 }
 
-// comoTexto normaliza a string un valor de Id/llave que puede venir como número
-// (decodificación JSON) o como string, para comparar identificadores propagados.
-func comoTexto(v any) string {
-	switch t := v.(type) {
-	case string:
-		return t
-	case float64:
-		return strconv.Itoa(int(t))
-	case int:
-		return strconv.Itoa(t)
-	default:
-		return ""
-	}
-}

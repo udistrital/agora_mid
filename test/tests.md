@@ -49,7 +49,13 @@ write-resolvers** contra CRUD dueños simulados, sin red real ni base de datos.
   - `200` con envoltorio `Success: true`, `Status: "200"`.
   - El proveedor raíz materializa `Id=101`.
   - El tercero (FK ascendente) materializa su propio `Id=201`, distinto del
-    proveedor, y el proveedor lo referencia por `TerceroId=201`.
+    proveedor, y el proveedor lo referencia por `TerceroId=201` como **valor
+    numérico** (no cadena de texto).
+  - El `ProveedorNatural` (PK compartida) no tiene Id propio: hereda el del
+    proveedor como **valor numérico** (`ProveedorNatural.Id == 101`).
+  - Cada `Contacto` (FK descendente) materializa su propio `Id` (rango 600) y
+    referencia al proveedor por `ProveedorId=101` como **valor numérico** (no
+    cadena de texto).
   - El tercero se crea **antes** que el proveedor (orden `fk_inbound`).
   - Un único `POST /v1/proveedor/`.
   - La rama jurídica, podada para un proveedor natural, nunca se materializa.
@@ -94,8 +100,8 @@ write-resolvers** contra CRUD dueños simulados, sin red real ni base de datos.
     diID)` con los Ids devueltos por la fase 1.
 - **Salidas esperadas**:
   - Fase 1: `200`; el proveedor y el tercero materializan Ids propios distintos;
-    `proveedor.TerceroId == tercero.Id` (FK ascendente); datos_identificacion
-    materializa su Id.
+    `proveedor.TerceroId == tercero.Id` (FK ascendente) como **valor numérico**
+    (no cadena de texto); datos_identificacion materializa su Id.
   - Fase 2: `200`; opera sobre el mismo proveedor (`Data.Id == provID`).
   - Conteos a lo largo de las dos fases, por entidad con Id estable: proveedor,
     tercero y datos_identificacion con exactamente 1 `POST` (crear) y 1 `PATCH`

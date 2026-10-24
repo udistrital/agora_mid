@@ -41,8 +41,13 @@ func TestE2EProveedorCreacionYActualizacion(t *testing.T) {
 	if terceroID <= 0 || terceroID == provID {
 		t.Fatalf("creación: el tercero (fk_inbound) debe tener su propio Id distinto del proveedor; tercero=%+v prov=%d", tercero, provID)
 	}
-	// El proveedor referencia al tercero por su FK ascendente.
-	if comoTexto(envCrear.Data["TerceroId"]) != comoTexto(tercero["Id"]) {
+	// El proveedor referencia al tercero por su FK ascendente, propagada con su
+	// tipo numérico (no texto) e igual al Id del tercero materializado.
+	terceroIDRef, ok := envCrear.Data["TerceroId"].(float64)
+	if !ok {
+		t.Errorf("creación: proveedor.TerceroId debe ser numérico, no %T; data=%+v",
+			envCrear.Data["TerceroId"], envCrear.Data)
+	} else if int(terceroIDRef) != enteroDe(tercero["Id"]) {
 		t.Errorf("creación: proveedor.TerceroId debe igualar tercero.Id; data=%+v", envCrear.Data)
 	}
 	di := primerElemento(tercero["DatosIdentificacion"])

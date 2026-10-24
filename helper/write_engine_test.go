@@ -141,23 +141,37 @@ func TestWritePropagacionLlave(t *testing.T) {
 		t.Fatalf("la raíz debe materializarse primero; llamadas=%+v", llamadas)
 	}
 
-	// shared_pk: el detalle recibe el Id de la raíz (100) como su propio Id.
+	// shared_pk: el detalle recibe el Id de la raíz (100) como su propio Id,
+	// preservando su tipo numérico (no una cadena de texto).
 	detalle, _ := res.Data["Detalle"].(map[string]any)
-	if detalle == nil || aCadena(detalle["Id"]) != "100" {
+	if detalle == nil {
+		t.Fatalf("falta el Detalle materializado; data=%+v", res.Data)
+	}
+	idDetalle, ok := detalle["Id"].(float64)
+	if !ok {
+		t.Errorf("Detalle.Id (shared_pk) debe ser numérico, no %T; detalle=%+v", detalle["Id"], detalle)
+	} else if idDetalle != 100 {
 		t.Errorf("Detalle (shared_pk) debe heredar el Id de la raíz 100; detalle=%+v", detalle)
 	}
 
-	// fk: cada hijo recibe PadreId = Id de la raíz (100).
+	// fk: cada hijo recibe PadreId = Id de la raíz (100), preservando el tipo
+	// numérico; su propio Id materializado (300) también es numérico.
 	hijos, _ := res.Data["Hijo"].([]any)
 	if len(hijos) != 2 {
 		t.Fatalf("se esperaban 2 hijos materializados; recibidos=%d", len(hijos))
 	}
 	for i, h := range hijos {
 		hm, _ := h.(map[string]any)
-		if aCadena(hm["PadreId"]) != "100" {
+		padreID, ok := hm["PadreId"].(float64)
+		if !ok {
+			t.Errorf("hijo %d: PadreId (fk) debe ser numérico, no %T; hijo=%+v", i, hm["PadreId"], hm)
+		} else if padreID != 100 {
 			t.Errorf("hijo %d debe tener PadreId=100 (fk); hijo=%+v", i, hm)
 		}
-		if aCadena(hm["Id"]) != "300" {
+		idHijo, ok := hm["Id"].(float64)
+		if !ok {
+			t.Errorf("hijo %d: Id debe ser numérico, no %T; hijo=%+v", i, hm["Id"], hm)
+		} else if idHijo != 300 {
 			t.Errorf("hijo %d debe tener Id materializado 300; hijo=%+v", i, hm)
 		}
 	}
@@ -369,8 +383,12 @@ func TestWriteFKInbound(t *testing.T) {
 			[]string{llamadas[0].servicio, llamadas[1].servicio})
 	}
 
-	// La raíz recibe RefId = Id de la entidad referenciada (200).
-	if aCadena(res.Data["RefId"]) != "200" {
+	// La raíz recibe RefId = Id de la entidad referenciada (200), preservando el
+	// tipo numérico (no una cadena de texto).
+	refID, ok := res.Data["RefId"].(float64)
+	if !ok {
+		t.Errorf("RefId (fk_inbound) debe ser numérico, no %T; data=%+v", res.Data["RefId"], res.Data)
+	} else if refID != 200 {
 		t.Errorf("la raíz debe recibir RefId=200 propagado hacia arriba; data=%+v", res.Data)
 	}
 	// La raíz materializó su propio Id (100), distinto del de la entidad referida.
@@ -382,8 +400,13 @@ func TestWriteFKInbound(t *testing.T) {
 	if referida == nil || aCadena(referida["Id"]) != "200" {
 		t.Errorf("la entidad referida debe quedar anidada con Id=200; referida=%+v", referida)
 	}
-	// La raíz, al materializarse, ya llevaba la FK resuelta en su payload.
-	if aCadena(llamadas[1].payload["RefId"]) != "200" {
+	// La raíz, al materializarse, ya llevaba la FK resuelta en su payload, con su
+	// tipo numérico.
+	payloadRef, ok := llamadas[1].payload["RefId"].(float64)
+	if !ok {
+		t.Errorf("RefId en el payload de la raíz debe ser numérico, no %T; payload=%+v",
+			llamadas[1].payload["RefId"], llamadas[1].payload)
+	} else if payloadRef != 200 {
 		t.Errorf("la raíz debe materializarse con RefId=200 ya resuelto; payload=%+v", llamadas[1].payload)
 	}
 }
