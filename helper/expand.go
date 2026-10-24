@@ -35,6 +35,11 @@ type ExpandOptions struct {
 	// OnRelationError es la política de error de relación: notify o fail. Vacío
 	// toma la de la ServiceConfig.
 	OnRelationError string
+	// Seleccion es un árbol de selección ya parseado y validado por el llamador.
+	// Cuando no es nil, Expand lo usa directamente y no vuelve a parsear Fields,
+	// de modo que la validación de fields tiene una única fuente de verdad. Si es
+	// nil, Expand parsea Fields contra la configuración recibida.
+	Seleccion *NodoSeleccion
 }
 
 // ExpandResult es el resultado de una expansión: los datos expandidos y los
@@ -147,9 +152,14 @@ func Expand(
 	}
 
 	// Construir el árbol de selección a partir de fields (puede ser nil si no se
-	// solicitaron fields: expansión completa).
+	// solicitaron fields: expansión completa). Si el llamador ya proveyó un árbol
+	// parseado (options.Seleccion), se reutiliza para no parsear dos veces y
+	// mantener una única fuente de verdad en la validación de fields.
 	var seleccion *NodoSeleccion
-	if len(options.Fields) > 0 {
+	switch {
+	case options.Seleccion != nil:
+		seleccion = options.Seleccion
+	case len(options.Fields) > 0:
 		arbol, err := ParsearFields(options.Fields, cfg.Relations, allowedTopLevel(cfg))
 		if err != nil {
 			return ExpandResult{}, err

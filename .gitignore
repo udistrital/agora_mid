@@ -19,11 +19,11 @@ lastupdate.tmp
 
 # Swagger files
 swagger/**
-!swagger/swagger.json
 !swagger/swagger.yml
+!swagger/index.html
 
 # Agentes
-.agent/
+.agents/
 .kiro/
 .opencode/
 .github/

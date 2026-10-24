@@ -27,14 +27,6 @@ func (s TercerosService) ResolverTipoContribuyente(
 	return s.resolverCatalogo(ctx, "/v1/tipo_contribuyente", codigo)
 }
 
-// ResolverTipoDocumento resuelve CC, NIT u otro tipo documental por código.
-func (s TercerosService) ResolverTipoDocumento(
-	ctx context.Context,
-	codigo string,
-) (int, error) {
-	return s.resolverCatalogo(ctx, "/v1/tipo_documento", codigo)
-}
-
 func (s TercerosService) resolverCatalogo(
 	ctx context.Context,
 	recurso string,

@@ -94,6 +94,13 @@ func validarServiceConfig(ruta string, sc ServiceConfig, urls ServiceURLs) error
 		return fmt.Errorf("configuración de relaciones inválida en %q: max_related_ids debe ser positivo", ruta)
 	}
 
+	// El bloque write de la raíz, si se declara, no propaga llave de un padre.
+	if sc.Write != nil {
+		if err := validarWriteConfig(ruta, sc.Service, "(raíz)", *sc.Write, true); err != nil {
+			return err
+		}
+	}
+
 	// mapped_name único por servicio (en el nivel superior de relaciones).
 	vistos := make(map[string]struct{}, len(sc.Relations))
 	for i := range sc.Relations {
@@ -157,6 +164,14 @@ func validarRelacion(ruta, servicio string, rel RelationConfig, urls ServiceURLs
 		return fallo(fmt.Sprintf("related_api %q no existe en la configuración de URLs", rel.RelatedAPI))
 	}
 
+	// Coherencia del bloque write de la relación, si se declara. Una relación
+	// escribible no raíz debe propagar la llave del padre (fk o shared_pk).
+	if rel.Write != nil {
+		if err := validarWriteConfig(ruta, servicio, id, *rel.Write, false); err != nil {
+			return err
+		}
+	}
+
 	// mapped_name único entre las relaciones hermanas anidadas.
 	vistos := make(map[string]struct{}, len(rel.NestedRelations))
 	for i := range rel.NestedRelations {
@@ -171,6 +186,60 @@ func validarRelacion(ruta, servicio string, rel RelationConfig, urls ServiceURLs
 			)
 		}
 		vistos[hija.MappedName] = struct{}{}
+	}
+
+	return nil
+}
+
+// validarWriteConfig valida la coherencia de un bloque write. esRaiz indica si
+// la configuración corresponde a la entidad raíz del servicio, que no propaga la
+// llave de un padre (su key_propagation debe quedar vacío); una relación hija
+// escribible debe declarar un modo de propagación válido (fk o shared_pk).
+// Verifica además que los campos inmutables y de clave natural estén contenidos
+// en los campos escribibles. Aborta con un mensaje que identifica el archivo, el
+// servicio y la relación afectada.
+func validarWriteConfig(ruta, servicio, relacion string, wc WriteConfig, esRaiz bool) error {
+	fallo := func(detalle string) error {
+		return fmt.Errorf(
+			"configuración de relaciones inválida en %q (servicio %q, relación %q): write %s",
+			ruta, servicio, relacion, detalle,
+		)
+	}
+
+	prop := strings.TrimSpace(wc.KeyPropagation)
+	if esRaiz {
+		if prop != "" {
+			return fallo(fmt.Sprintf(
+				"la entidad raíz no propaga llave de un padre; key_propagation debe quedar vacío, no %q", prop,
+			))
+		}
+	} else {
+		if prop != KeyPropagationFK && prop != KeyPropagationSharedPK && prop != KeyPropagationFKInbound {
+			return fallo(fmt.Sprintf(
+				"key_propagation debe ser %q, %q o %q",
+				KeyPropagationFK, KeyPropagationSharedPK, KeyPropagationFKInbound,
+			))
+		}
+	}
+
+	escribibles := make(map[string]struct{}, len(wc.WritableFields))
+	for _, campo := range wc.WritableFields {
+		if strings.TrimSpace(campo) == "" {
+			return fallo("writable_fields contiene un campo vacío")
+		}
+		escribibles[campo] = struct{}{}
+	}
+
+	for _, campo := range wc.ImmutableFields {
+		if _, ok := escribibles[campo]; !ok {
+			return fallo(fmt.Sprintf("immutable_fields contiene %q que no está en writable_fields", campo))
+		}
+	}
+
+	for _, campo := range wc.NaturalKey {
+		if _, ok := escribibles[campo]; !ok {
+			return fallo(fmt.Sprintf("natural_key contiene %q que no está en writable_fields", campo))
+		}
 	}
 
 	return nil

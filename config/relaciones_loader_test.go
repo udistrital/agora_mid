@@ -217,3 +217,153 @@ func TestLoadRelacionesSinArchivos(t *testing.T) {
 		t.Errorf("se esperaba mapa vacío; recibido: %+v", configs)
 	}
 }
+
+// relacionesConWrite declara un servicio coherente que incluye bloques write en
+// la raíz y en una relación hija, para ejercitar la validación de coherencia
+// lectura/escritura del loader.
+const relacionesConWrite = `service: proveedor
+max_depth: 2
+on_relation_error: notify
+max_related_ids: 100
+write:
+  writable_fields:
+    - TerceroId
+    - TipoRegistroId
+  immutable_fields:
+    - TerceroId
+  natural_key:
+    - TerceroId
+  policy:
+    creatable: true
+    updatable: true
+    deletable: false
+relations:
+  - name: Tercero
+    related_service: tercero
+    related_api: terceros
+    related_table: tercero
+    direction: local_to_related
+    local_field: TerceroId
+    related_field: Id
+    cardinality: one
+    depth: 1
+    mapped_name: Tercero
+    endpoint: /v1/tercero
+    query_template: "Id:{ids}"
+    allowed_fields:
+      - Id
+      - NombreCompleto
+    write:
+      writable_fields:
+        - NombreCompleto
+        - TipoContribuyenteId
+      immutable_fields: []
+      natural_key: []
+      key_propagation: shared_pk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+`
+
+// Un archivo con bloques write coherentes (raíz sin key_propagation, hija con
+// shared_pk, inmutables y clave natural contenidos en writable_fields) se carga
+// sin error y conserva la configuración de escritura.
+func TestLoadRelacionesWriteCoherente(t *testing.T) {
+	dir := escribirRelaciones(t, "proveedor", relacionesConWrite)
+
+	configs, err := LoadRelaciones(dir, urlsPrueba())
+	if err != nil {
+		t.Fatalf("configuración write coherente debe cargar sin error: %v", err)
+	}
+	sc := configs["proveedor"]
+	if sc.Write == nil || sc.Write.KeyPropagation != "" {
+		t.Errorf("la raíz debe tener write sin key_propagation; write=%+v", sc.Write)
+	}
+	if len(sc.Relations) == 0 || sc.Relations[0].Write == nil {
+		t.Fatalf("la relación Tercero debe conservar su bloque write")
+	}
+	if sc.Relations[0].Write.KeyPropagation != KeyPropagationSharedPK {
+		t.Errorf("Tercero debe propagar por shared_pk; recibido %q", sc.Relations[0].Write.KeyPropagation)
+	}
+}
+
+// Configuraciones write incoherentes abortan con un mensaje que identifica el
+// archivo y la relación afectada.
+func TestLoadRelacionesWriteIncoherente(t *testing.T) {
+	casos := []struct {
+		nombre       string
+		contenido    string
+		debeContener []string
+	}{
+		{
+			nombre: "raíz con key_propagation",
+			contenido: strings.Replace(
+				relacionesConWrite,
+				"max_related_ids: 100\nwrite:\n  writable_fields:",
+				"max_related_ids: 100\nwrite:\n  key_propagation: fk\n  writable_fields:",
+				1,
+			),
+			debeContener: []string{"relaciones_proveedor.yaml", "write", "key_propagation"},
+		},
+		{
+			nombre: "hija sin key_propagation",
+			contenido: strings.Replace(
+				relacionesConWrite,
+				"      key_propagation: shared_pk\n",
+				"",
+				1,
+			),
+			debeContener: []string{"relaciones_proveedor.yaml", "Tercero", "key_propagation"},
+		},
+		{
+			nombre: "hija con key_propagation inválido",
+			contenido: strings.Replace(
+				relacionesConWrite,
+				"key_propagation: shared_pk",
+				"key_propagation: magia",
+				1,
+			),
+			debeContener: []string{"relaciones_proveedor.yaml", "Tercero", "key_propagation"},
+		},
+		{
+			nombre: "inmutable fuera de writable_fields",
+			contenido: strings.Replace(
+				relacionesConWrite,
+				"  immutable_fields:\n    - TerceroId",
+				"  immutable_fields:\n    - CampoFantasma",
+				1,
+			),
+			debeContener: []string{"relaciones_proveedor.yaml", "immutable_fields", "CampoFantasma"},
+		},
+		{
+			nombre: "natural_key fuera de writable_fields",
+			contenido: strings.Replace(
+				relacionesConWrite,
+				"  natural_key:\n    - TerceroId",
+				"  natural_key:\n    - CampoFantasma",
+				1,
+			),
+			debeContener: []string{"relaciones_proveedor.yaml", "natural_key", "CampoFantasma"},
+		},
+	}
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			if c.contenido == relacionesConWrite {
+				t.Fatalf("el caso %q no modificó la configuración base", c.nombre)
+			}
+			dir := escribirRelaciones(t, "proveedor", c.contenido)
+			_, err := LoadRelaciones(dir, urlsPrueba())
+			if err == nil {
+				t.Fatalf("se esperaba error de validación write")
+			}
+			msg := err.Error()
+			for _, frag := range c.debeContener {
+				if !strings.Contains(msg, frag) {
+					t.Errorf("el mensaje debe contener %q; mensaje: %s", frag, msg)
+				}
+			}
+		})
+	}
+}
