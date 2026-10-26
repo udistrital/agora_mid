@@ -189,27 +189,40 @@ func TestWriteAplanadoParametroYClaveNatural(t *testing.T) {
 			"Nota":              "x",
 			"TipoContribuyente": map[string]any{"Id": float64(2)},
 		},
+		"Hijo": []any{map[string]any{"Valor": "a"}},
 	}
 
-	if _, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{}); err != nil {
+	res, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{})
+	if err != nil {
 		t.Fatalf("Write no debe fallar: %v", err)
+	}
+	padreId := res.Data["Id"].(float64)
+	if padreId == 0 {
+		t.Fatalf("la raíz debe materializar su Id; data=%+v", res.Data)
 	}
 
 	// Llamada de la raíz: clave natural TerceroId=25.
-	var raiz, detalle *registroMaterializacion
+	var raiz, detalle, hijo *registroMaterializacion
 	for i := range llamadas {
 		switch llamadas[i].servicio {
 		case "raiz":
 			raiz = &llamadas[i]
 		case "detalle":
 			detalle = &llamadas[i]
+		case "hijo":
+			hijo = &llamadas[i]
 		}
 	}
 	if raiz == nil || len(raiz.keys) != 1 || raiz.keys[0] != "25" {
 		t.Errorf("la raíz debe recibir la clave natural [25]; raiz=%+v", raiz)
 	}
+
 	if detalle == nil {
 		t.Fatalf("el detalle debe materializarse")
+	}
+	// El detalle recibe el Id de la raíz (shared_pk).
+	if aCadena(detalle.payload["Id"]) != aCadena(padreId) {
+		t.Errorf("el detalle debe heredar el Id de la raíz (shared_pk); payload=%+v", detalle.payload)
 	}
 	// El parámetro anidado se aplanó a TipoContribuyenteId=2.
 	if aCadena(detalle.payload["TipoContribuyenteId"]) != "2" {
@@ -217,6 +230,14 @@ func TestWriteAplanadoParametroYClaveNatural(t *testing.T) {
 	}
 	if _, sigueAnidado := detalle.payload["TipoContribuyente"]; sigueAnidado {
 		t.Errorf("el objeto anidado no debe pasar al resolver; payload=%+v", detalle.payload)
+	}
+
+	if hijo == nil {
+		t.Fatalf("el hijo debe materializarse")
+	}
+	// El hijo recibe PadreId=raíz.Id (fk).
+	if aCadena(hijo.payload["PadreId"]) != aCadena(padreId) {
+		t.Errorf("el hijo debe recibir PadreId=raíz.Id (fk); payload=%+v", hijo.payload)
 	}
 }
 
