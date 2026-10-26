@@ -18,9 +18,9 @@
 
 ## 4. Carga y validación de la lista negra al arranque
 
-- [ ] 4.1 Añadir en `config/` el tipo y el cargador de `config/global_blacklist.yaml` (estructura `global_blacklist: related_api -> related_table -> [field]`, palabra reservada `ANY`), tolerando archivo ausente o vacío como "sin supresión"; verificar con una prueba en `config/` que un archivo de ejemplo parsea a la estructura esperada y que la ausencia del archivo no es error
-- [ ] 4.2 Implementar la validación de arranque de la lista negra: un componente exacto (sin `ANY`) debe existir en el modelo conocido (unión de `related_api`/`related_table`/`allowed_fields` + `Id` + `related_field` de las `ServiceConfig` cargadas); `ANY` no se verifica; `ANY/ANY/ANY` se rechaza; verificar con pruebas en `config/` que un componente exacto inexistente aborta, que `ANY/ANY/ANY` aborta y que una entrada con `ANY` en un nivel no falla por inexistencia
-- [ ] 4.3 Crear `config/global_blacklist.yaml` con contenido inicial (comentarios explicativos y, si aplica, entradas de ejemplo o archivo sin entradas) coherente con el modelo del proveedor; verificar con `go build ./...` y el arranque/validación de 4.2 que el archivo carga sin abortar
+- [x] 4.1 Añadir en `config/` el tipo y el cargador de `config/global_blacklist.yaml` (estructura `global_blacklist: related_api -> related_table -> [field]`, palabra reservada `ANY`), tolerando archivo ausente o vacío como "sin supresión"; verificar con una prueba en `config/` que un archivo de ejemplo parsea a la estructura esperada y que la ausencia del archivo no es error
+- [x] 4.2 Implementar la validación de arranque de la lista negra: un componente exacto (sin `ANY`) debe existir en el modelo conocido (unión de `related_api`/`related_table`/`allowed_fields` + `Id` + `related_field` de las `ServiceConfig` cargadas); `ANY` no se verifica; `ANY/ANY/ANY` se rechaza; verificar con pruebas en `config/` que un componente exacto inexistente aborta, que `ANY/ANY/ANY` aborta y que una entrada con `ANY` en un nivel no falla por inexistencia
+- [x] 4.3 Crear `config/global_blacklist.yaml` con contenido inicial (comentarios explicativos y, si aplica, entradas de ejemplo o archivo sin entradas) coherente con el modelo del proveedor; verificar con `go build ./...` y el arranque/validación de 4.2 que el archivo carga sin abortar
 
 ## 5. Recorte por lista negra sobre la salida de todo resolver
 

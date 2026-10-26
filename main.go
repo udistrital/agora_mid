@@ -23,6 +23,14 @@ func main() {
 	urls := cfg.URLs()
 	relaciones := config.MustLoadRelaciones("config", urls)
 
+	// Cargar y validar la lista negra global de campos de expansión. Aborta el
+	// arranque si el archivo es inválido o contiene una entrada inconsistente
+	// (por ejemplo ANY/ANY/ANY). Aún no se inyecta en el motor de expansión: esa
+	// conexión llega con el recorte por lista negra. Validarla aquí deja el
+	// arranque como el punto único donde una configuración incoherente falla
+	// temprano.
+	config.MustLoadBlacklist("config/global_blacklist.yaml", relaciones)
+
 	proveedorConfig, ok := relaciones["proveedor"]
 	if !ok {
 		log.Fatal("no existe la configuración de relaciones del servicio proveedor")
