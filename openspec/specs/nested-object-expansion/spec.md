@@ -45,15 +45,7 @@ El sistema SHALL aceptar un parámetro `fields` con rutas separadas por comas (p
 ejemplo `Id,Tercero.Id,Tercero.NombreCompleto`) y resolver cada ruta según su
 último segmento: una ruta que termina en una relación entrega esa relación
 completa (su subárbol expandido por configuración hasta la profundidad efectiva);
-una ruta que termina en un campo escalar entrega solo ese escalar. Los segmentos
-intermedios se materializan únicamente como contenedores (esqueleto) del camino
-solicitado, sin sus demás escalares ni sus relaciones no solicitadas. El sistema
-SHALL recortar de cada entidad los campos y relaciones no alcanzados por ninguna
-ruta. Cuando varias rutas alcanzan la misma relación, la precedencia es **por
-relación**: si alguna ruta la nombra como hoja, esa relación se entrega completa
-y las demás rutas sobre ella quedan subsumidas; la precedencia de una relación no
-afecta a sus relaciones hermanas, que conservan su propio tratamiento (completo o
-parcial).
+una ruta que termina en un campo escalar entrega solo ese escalar.
 
 #### Scenario: Selección de campos base y anidados
 - **WHEN** la solicitud incluye `fields=Id,Tercero.Id,Tercero.NombreCompleto`
@@ -124,6 +116,40 @@ parcial).
   ruta vacía o duplicada
 - **THEN** el sistema responde `400 Bad Request`, no inicia la expansión e
   identifica la ruta inválida
+
+### Requirement: Materialización de segmentos intermedios como esqueleto
+El sistema SHALL materializar los segmentos intermedios de una ruta de `fields`
+únicamente como contenedores (esqueleto) del camino solicitado, sin sus demás
+escalares ni sus relaciones no solicitadas, incluyendo automáticamente los padres
+necesarios para alcanzar el descendiente pedido.
+
+#### Scenario: El camino intermedio se materializa sin sus demás campos
+- **WHEN** `fields` alcanza un descendiente a través de uno o más segmentos
+  intermedios que no se nombran como hoja
+- **THEN** cada segmento intermedio se entrega solo como contenedor del camino,
+  sin sus otros escalares ni sus relaciones no solicitadas
+
+### Requirement: Recorte de campos y relaciones no alcanzados
+El sistema SHALL recortar de cada entidad los campos y las relaciones que ninguna
+ruta de `fields` alcanza, dejando en la respuesta únicamente lo que las rutas
+seleccionaron.
+
+#### Scenario: Lo no alcanzado por una ruta se recorta
+- **WHEN** una entidad tiene campos o relaciones que ninguna ruta de `fields`
+  nombra ni atraviesa
+- **THEN** esos campos y relaciones se recortan de la respuesta y no se consultan
+
+### Requirement: Precedencia por relación en la selección de campos
+El sistema SHALL resolver la coincidencia de varias rutas sobre una misma
+relación con precedencia **por relación**: si alguna ruta la nombra como hoja, esa
+relación se entrega completa y las demás rutas sobre ella quedan subsumidas, sin
+que esa precedencia afecte el tratamiento de sus relaciones hermanas.
+
+#### Scenario: La ruta hoja subsume a las descendientes de su relación
+- **WHEN** `fields` nombra una relación como hoja y, a la vez, escalares o
+  descendientes de esa misma relación
+- **THEN** la relación se entrega completa y esas rutas más específicas quedan
+  subsumidas, mientras las relaciones hermanas conservan su propio tratamiento
 
 ### Requirement: Id implícito en las entidades expandidas
 El sistema SHALL conservar el `Id` de toda entidad expandida de forma implícita,

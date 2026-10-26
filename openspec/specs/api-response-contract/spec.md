@@ -30,7 +30,10 @@ El sistema SHALL responder con un envoltorio OAS plano que incluya `Success` (bo
 - **THEN** ambos usan la misma raíz plana `Success/Status/Message/Data` con `Status` como cadena
 
 ### Requirement: Extensión MetaData para avisos y total de listas
-El sistema SHALL incluir un bloque `MetaData` opcional que puede llevar una colección opcional `Errors` con los avisos de expansión y normalización, y un campo opcional `Length` con el total de valores posibles de un `Data` de tipo lista. Cada campo del bloque es opcional y se incluye únicamente cuando aplica; `MetaData` se omite cuando no aporta ningún dato. Cada aviso de `Errors` SHALL declarar su origen mediante un `Kind` respaldado por una constante de tipo de aviso declarada en el código; el conjunto de valores de `Kind` no se fija de forma cerrada en el contrato, sino que se extiende declarando una nueva constante por cada nuevo origen de aviso, de modo que toda respuesta de aviso posible esté asociada a una constante `Kind`.
+El sistema SHALL incluir un bloque `MetaData` opcional cuyo campo opcional
+`Length` lleva el total de valores posibles de un `Data` de tipo lista. Cada campo
+del bloque es opcional y se incluye únicamente cuando aplica; `MetaData` se omite
+cuando no aporta ningún dato.
 
 #### Scenario: Expansión parcial con relación tolerada
 - **WHEN** una expansión en modo `notify` sufre un error de relación tolerado
@@ -75,3 +78,24 @@ El sistema SHALL incluir un bloque `MetaData` opcional que puede llevar una cole
 #### Scenario: La lista negra no introduce un tipo de aviso
 - **WHEN** la lista negra global suprime un campo de la respuesta de expansión
 - **THEN** no se agrega ninguna entrada a `MetaData.Errors` ni se introduce un nuevo valor de `Kind`
+
+### Requirement: Colección Errors de avisos en MetaData
+El sistema SHALL exponer en `MetaData` una colección opcional `Errors` que lleva
+los avisos de expansión y de normalización cuando existen; `Errors` se omite
+cuando la respuesta no genera ningún aviso.
+
+#### Scenario: Errors lleva los avisos generados
+- **WHEN** una respuesta genera uno o más avisos de expansión o de normalización
+- **THEN** `MetaData.Errors` incluye una entrada por cada aviso, y se omite cuando
+  no hay ningún aviso
+
+### Requirement: Tipo de aviso Kind respaldado por constante declarada
+El sistema SHALL exigir que cada aviso de `Errors` declare su origen mediante un
+`Kind` respaldado por una constante de tipo de aviso declarada en el código; el
+conjunto de valores de `Kind` es abierto y se extiende declarando una nueva
+constante por cada nuevo origen de aviso.
+
+#### Scenario: Todo Kind emitido tiene su constante
+- **WHEN** el sistema emite un aviso con un `Kind`
+- **THEN** ese `Kind` corresponde a una constante declarada en el código y no
+  existe ningún `Kind` emitido sin una constante que lo respalde
