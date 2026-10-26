@@ -97,6 +97,39 @@ type WriteConfig struct {
 	Policy WriteVerbPolicy `yaml:"policy"`
 }
 
+// CampoDerivado identifica de forma determinista el nombre del campo relacional
+// derivado por la relación según su modo de propagación de llave, y si la
+// relación tiene uno. El campo derivado es la columna que el motor de escritura
+// completa o canoniza con la llave autoritativa del padre (o de la entidad
+// referenciada en fk_inbound), aunque no pertenezca a writable_fields:
+//
+//   - fk:         related_field del hijo (la FK descendente, por ejemplo ProveedorId);
+//   - shared_pk:  "Id" del detalle (la PK compartida con el padre);
+//   - fk_inbound: local_field del nodo (la FK ascendente, por ejemplo TerceroId).
+//
+// Devuelve ("", false) para una relación sin bloque write, sin modo de
+// propagación o con un modo no reconocido: en esos casos no hay campo derivado
+// que reconocer ni comparar.
+//
+// Es la única fuente de verdad del nombre del campo derivado, compartida por la
+// validación de configuración y por el motor de escritura, para que ambos
+// coincidan sin reimplementar la regla.
+func (rc RelationConfig) CampoDerivado() (string, bool) {
+	if rc.Write == nil {
+		return "", false
+	}
+	switch rc.Write.KeyPropagation {
+	case KeyPropagationFK:
+		return rc.RelatedField, rc.RelatedField != ""
+	case KeyPropagationSharedPK:
+		return "Id", true
+	case KeyPropagationFKInbound:
+		return rc.LocalField, rc.LocalField != ""
+	default:
+		return "", false
+	}
+}
+
 // ServiceConfig es la configuración de relaciones de un servicio, cargada desde
 // config/relaciones_<servicio>.yaml. BaseURL se resuelve al cargar contra las
 // URLs de conf/app.conf y no se declara en el archivo YAML.

@@ -165,10 +165,21 @@ func validarRelacion(ruta, servicio string, rel RelationConfig, urls ServiceURLs
 	}
 
 	// Coherencia del bloque write de la relación, si se declara. Una relación
-	// escribible no raíz debe propagar la llave del padre (fk o shared_pk).
+	// escribible no raíz debe propagar la llave del padre (fk, shared_pk o
+	// fk_inbound) y, en consecuencia, debe identificar de forma determinista su
+	// campo relacional derivado. Un modo cuyo campo derivado no puede resolverse
+	// (por ejemplo fk sin related_field o fk_inbound sin local_field) es una
+	// relación incoherente que se rechaza al cargar.
 	if rel.Write != nil {
 		if err := validarWriteConfig(ruta, servicio, id, *rel.Write, false); err != nil {
 			return err
+		}
+		if _, ok := rel.CampoDerivado(); !ok {
+			return fallo(fmt.Sprintf(
+				"write key_propagation %q no identifica un campo derivado determinista "+
+					"(fk requiere related_field, fk_inbound requiere local_field)",
+				strings.TrimSpace(rel.Write.KeyPropagation),
+			))
 		}
 	}
 

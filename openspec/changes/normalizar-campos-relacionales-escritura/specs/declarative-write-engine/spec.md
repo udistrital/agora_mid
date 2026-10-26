@@ -10,12 +10,16 @@ El sistema SHALL ejecutar la escritura en cascada únicamente a partir de la con
 - **THEN** el motor usa el árbol de relaciones y las políticas de escritura declaradas en configuración para decidir qué entidades materializar y en qué CRUD, sin aceptar destinos del cliente
 
 #### Scenario: Campo de escritura no permitido se rechaza
-- **WHEN** el cuerpo incluye un campo fuera de los campos escribibles declarados para una relación, o intenta modificar un campo inmutable
+- **WHEN** el cuerpo incluye un campo fuera de los campos escribibles declarados para una relación, o intenta cambiar el valor de un campo inmutable que no es un campo derivado reenviado
 - **THEN** el sistema responde `400 Bad Request` identificando el campo inválido y no materializa ninguna escritura
 
 #### Scenario: Campo derivado relacional reenviado se reconoce
 - **WHEN** el cuerpo incluye un campo derivado por `fk`, `shared_pk` o `fk_inbound` que corresponde a una relación declarada
 - **THEN** el motor no lo rechaza como campo desconocido y lo valida contra la llave autoritativa de la relación
+
+#### Scenario: Campo inmutable derivado reenviado coincidente
+- **WHEN** el cuerpo reenvía un campo que es a la vez inmutable y derivado de una relación, con el valor que coincide con la llave autoritativa
+- **THEN** el sistema no lo rechaza por inmutable y lo concilia como campo derivado, sin materializar un cambio prohibido
 
 ### Requirement: Orden topológico y propagación de llave
 El sistema SHALL recorrer el árbol en orden topológico, materializando cada padre antes que sus hijos y propagando la llave del padre al hijo según el modo declarado. La llave autoritativa prevalece sobre un valor derivado reenviado y conserva su tipo numérico.

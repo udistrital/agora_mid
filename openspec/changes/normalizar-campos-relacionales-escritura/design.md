@@ -97,6 +97,17 @@ realiza antes de la llamada externa correspondiente. Cuando el padre necesita
 materialización, la comparación se realiza inmediatamente después de obtener su
 Id y antes de enviar el payload del hijo.
 
+**Inmutabilidad y campos derivados.** La regla de inmutabilidad protege contra el
+*cambio* de un campo tras la creación, no contra su mera presencia. Cuando un
+campo inmutable es además un campo derivado de una relación (por ejemplo una FK
+que es a la vez `immutable_field` y `local_field` de un `fk_inbound`), reenviarlo
+con el valor que coincide con la llave autoritativa no constituye una
+modificación y no se rechaza: la pre-validación no lo rechaza por inmutable y la
+conciliación posterior decide según la matriz (coincide conserva; difiere en
+entidad existente es conflicto `400`; difiere en entidad nueva canoniza). Un campo
+inmutable **no derivado** conserva el rechazo `400` al enviarse con un valor en
+una actualización.
+
 ### Canonización sin GET previo
 
 No se añadirá un GET genérico para cada entidad con `Id`. El caso de reenvío
@@ -115,8 +126,9 @@ dueño sería una capacidad futura independiente.
 
 ### Conservación del payload interno
 
-Después de `propagarLlave`, el aplanado recibirá o derivará explícitamente los
-campos internos permitidos por la relación. Conservará únicamente:
+Tras conciliar la llave del padre con el campo derivado del hijo (comparándola,
+no solo propagándola), el aplanado conservará explícitamente los campos internos
+permitidos por la relación. Conservará únicamente:
 
 - campos propios aceptados;
 - `Id`;
@@ -132,9 +144,21 @@ Se añadirá el `Kind: field_normalization` para distinguir una corrección de c
 derivado de `Kind: relation`, que seguirá reservado para fallos remotos tolerados.
 El aviso incluirá ruta y servicio, pero no valores sensibles ni detalles del CRUD.
 Una normalización exitosa produce `206`; una coincidencia produce `200` sin
-aviso. `field_normalization` es un nuevo origen de aviso y, por el invariante
-abierto de `api-response-contract`, se declara como una constante de tipo de aviso
-más junto a las existentes.
+aviso. `field_normalization` es un nuevo origen de aviso y, por el invariante abierto de
+`api-response-contract`, se registra como una constante de tipo de aviso más. Las
+constantes de `Kind` y el motor que las emite se mantienen en un catálogo único
+que es la fuente de verdad del conjunto; la lista de tipos declarados se deriva de
+ese catálogo en lugar de mantenerse en paralelo, de modo que toda constante
+registrada queda asociada a su origen por construcción. El invariante "toda
+constante declarada tiene una ruta de emisión que la respalda" se verifica de
+forma repartida por motor (expansión y escritura), no enumerando un conjunto
+cerrado.
+
+Alternativa descartada: que los emisores recuperen el `Kind` a emitir desde el
+catálogo. Cada punto de emisión referencia su constante directamente para que el
+compilador garantice el símbolo y se conserve el amarre uno a uno entre sitio de
+emisión y constante; el catálogo sirve para validar y enumerar, no para decidir
+qué se emite.
 
 ### `fk_inbound`, `shared_pk` y `fk`
 

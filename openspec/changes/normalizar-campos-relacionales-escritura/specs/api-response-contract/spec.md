@@ -63,3 +63,11 @@ El sistema SHALL incluir un bloque `MetaData` opcional que puede llevar una cole
 #### Scenario: Distinción entre normalización y fallo remoto
 - **WHEN** una respuesta contiene avisos por normalización y por fallo remoto tolerado
 - **THEN** cada entrada identifica su origen mediante un `Kind` distinto, sin exponer URLs, credenciales ni cuerpos remotos
+
+#### Scenario: Todo tipo de aviso emitido tiene una constante declarada
+- **WHEN** el sistema emite un aviso con un `Kind`
+- **THEN** ese `Kind` corresponde a una constante de tipo de aviso declarada en el código y no existe ningún `Kind` emitido sin una constante que lo respalde
+
+#### Scenario: La lista negra no introduce un tipo de aviso
+- **WHEN** la lista negra global suprime un campo de la respuesta de expansión
+- **THEN** no se agrega ninguna entrada a `MetaData.Errors` ni se introduce un nuevo valor de `Kind`

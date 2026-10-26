@@ -254,31 +254,91 @@ func TestEscribirProveedorRamaIncoherente(t *testing.T) {
 	}
 }
 
-// El inmutable declarado se rechaza con 400 en una actualización, y la regla la
-// aplica el servicio a través del motor sin materializar nada.
-func TestEscribirProveedorInmutableEnUpdate(t *testing.T) {
+// Reenvío de la FK inmutable derivada (TerceroId) que coincide con la llave
+// autoritativa en una actualización: no se rechaza por inmutable, porque
+// TerceroId es el campo derivado fk_inbound del proveedor y la inmutabilidad
+// protege contra el cambio de valor, no contra el reenvío. El servicio materializa
+// el subárbol en lugar de devolver un error de cuerpo inválido.
+func TestEscribirProveedorReenvioFKInmutableCoincide(t *testing.T) {
 	var capturas []peticionCapturada
-	server := crudSimulado(t, nil, &capturas)
+	server := crudSimulado(t, map[string]string{
+		// El tercero existente conserva su Id 20 al actualizarse por PATCH.
+		"PATCH /v1/tercero/20":           `{"Data":{"Id":20}}`,
+		"PATCH /v1/proveedor/10":         `{"Data":{"Id":10}}`,
+		"PATCH /v1/proveedor_natural/10": `{"Data":{"Id":10}}`,
+	}, &capturas)
 	defer server.Close()
 
 	svc := servicioWritePrueba(urlsDe(server), clients.HTTPClient{Client: server.Client()})
 
-	// TerceroId es inmutable: enviarlo en un PATCH se rechaza. Se usa un
-	// TipoRegistroId natural coherente para aislar el rechazo al inmutable.
+	// El proveedor y el tercero traen su Id; la FK ascendente reenviada (TerceroId)
+	// coincide con el Id autoritativo del tercero (20). Reenvía el Data materializado.
 	body := map[string]any{
 		"Id":             float64(10),
-		"TerceroId":      float64(25),
+		"TerceroId":      float64(20),
 		"TipoRegistroId": float64(tipoRegistroNaturalPrueba),
+		"Tercero": map[string]any{
+			"Id":             float64(20),
+			"NombreCompleto": "Ana",
+		},
+		"ProveedorNatural": map[string]any{"Id": float64(10), "PerfilDeclarado": float64(3)},
+	}
+
+	res, err := svc.EscribirProveedor(context.Background(), body, helper.WriteVerbUpdate)
+	if err != nil {
+		t.Fatalf("el reenvío coincidente de una FK inmutable derivada no debe fallar: %v", err)
+	}
+	if idEntero(res.Data["Id"]) != 10 {
+		t.Errorf("debe operar sobre el proveedor 10; data=%+v", res.Data)
+	}
+	// La FK ascendente coincidente se conserva, sin aviso de normalización.
+	for _, w := range res.Warnings {
+		if w.Kind == helper.KindFieldNormalization {
+			t.Errorf("un reenvío coincidente no debe producir aviso de normalización; warnings=%+v", res.Warnings)
+		}
+	}
+}
+
+// Comportamiento contrario del reenvío coincidente: una FK inmutable derivada
+// (TerceroId) que DIFIERE del Id autoritativo del tercero, en un proveedor con Id
+// propio (entidad existente), es un conflicto fk_inbound. Se rechaza con
+// *helper.ErrorEscritura sin materializar la operación incompatible, de modo que
+// aceptar el reenvío coincidente no habilita reasignar silenciosamente la
+// entidad a otro tercero.
+func TestEscribirProveedorReenvioFKInmutableDifiereExistente(t *testing.T) {
+	var capturas []peticionCapturada
+	server := crudSimulado(t, map[string]string{
+		"PATCH /v1/tercero/20": `{"Data":{"Id":20}}`,
+	}, &capturas)
+	defer server.Close()
+
+	svc := servicioWritePrueba(urlsDe(server), clients.HTTPClient{Client: server.Client()})
+
+	// El tercero referenciado es Id=20, pero la FK local reenviada difiere (99) en
+	// un proveedor existente (Id=10): conflicto, no reasignación.
+	body := map[string]any{
+		"Id":             float64(10),
+		"TerceroId":      float64(99),
+		"TipoRegistroId": float64(tipoRegistroNaturalPrueba),
+		"Tercero": map[string]any{
+			"Id":             float64(20),
+			"NombreCompleto": "Ana",
+		},
+		"ProveedorNatural": map[string]any{"Id": float64(10), "PerfilDeclarado": float64(3)},
 	}
 
 	_, err := svc.EscribirProveedor(context.Background(), body, helper.WriteVerbUpdate)
 	var ee *helper.ErrorEscritura
 	if !errors.As(err, &ee) {
-		t.Fatalf("se esperaba *helper.ErrorEscritura por inmutable; err=%v", err)
+		t.Fatalf("se esperaba *helper.ErrorEscritura por conflicto de FK ascendente en entidad existente; err=%v", err)
 	}
+	// No debe materializarse el proveedor en conflicto (ni POST ni PATCH).
 	for _, c := range capturas {
-		if c.metodo == http.MethodPost || c.metodo == http.MethodPatch {
-			t.Errorf("no debe materializar nada ante un inmutable; capturas=%+v", capturas)
+		if (c.metodo == http.MethodPost || c.metodo == http.MethodPatch) && c.path == "/v1/proveedor/10" {
+			t.Errorf("no debe materializarse el proveedor en conflicto; capturas=%+v", capturas)
+		}
+		if c.metodo == http.MethodPost && c.path == "/v1/proveedor/" {
+			t.Errorf("no debe crearse un proveedor ante el conflicto; capturas=%+v", capturas)
 		}
 	}
 }

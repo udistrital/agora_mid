@@ -187,7 +187,7 @@ func Write(
 
 	// Validación y aplanado de todo el árbol antes de materializar. Un cuerpo
 	// inválido se rechaza con *ErrorEscritura sin ninguna escritura.
-	if err := validarNivel(body, *cfg.Write, cfg.Relations, verb, ""); err != nil {
+	if err := validarNivel(body, *cfg.Write, cfg.Relations, verb, "", nil); err != nil {
 		return WriteResult{}, err
 	}
 
@@ -210,7 +210,7 @@ func Write(
 	// campos materializados (en particular el Id) se fusionan en el cuerpo
 	// original, que conserva los valores de las relaciones hijas para el recorrido.
 	materializado, err := me.materializarEntidad(
-		registry.resolverRaiz(), config.RelationConfig{}, body, *cfg.Write, "(raíz)",
+		registry.resolverRaiz(), config.RelationConfig{}, body, *cfg.Write, "(raíz)", cfg.Relations,
 	)
 	if err != nil {
 		return WriteResult{}, &errorFatalEscritura{path: "(raíz)", servicio: cfg.Service, err: err}
@@ -230,29 +230,69 @@ func Write(
 // configuración de escritura de la entidad y las relaciones hijas, sin
 // materializar. Rechaza con *ErrorEscritura un campo no escribible, un intento de
 // modificar un inmutable en actualización y una relación no declarada escribible.
+//
+// Además de los campos escribibles declarados, reconoce los campos relacionales
+// derivados permitidos en este nivel sin exigir que estén en writable_fields:
+//   - derivadosInyectados: campos que el padre aporta al validar una relación
+//     descendente (fk -> related_field del hijo; shared_pk -> Id, ya aceptado);
+//   - derivados propios de este nivel: por cada relación fk_inbound declarada en
+//     este nivel, su local_field es un campo derivado del propio nodo.
+//
+// Un campo derivado con valor null se trata como ausente (el motor lo completará
+// con la llave autoritativa) y no se valida como campo escribible.
 func validarNivel(
 	entidad map[string]any,
 	wc config.WriteConfig,
 	relaciones []config.RelationConfig,
 	verb string,
 	ruta string,
+	derivadosInyectados map[string]struct{},
 ) error {
 	escribibles := conjunto(wc.WritableFields)
 	inmutables := conjunto(wc.ImmutableFields)
 	porMapped := indexarPorMapped(relaciones)
 
+	// Campos derivados reconocibles en este nivel: los inyectados por el padre más
+	// los propios de las relaciones fk_inbound declaradas aquí (su local_field es
+	// una FK ascendente del propio nodo).
+	derivados := make(map[string]struct{}, len(derivadosInyectados)+len(relaciones))
+	for d := range derivadosInyectados {
+		derivados[d] = struct{}{}
+	}
+	for i := range relaciones {
+		rel := relaciones[i]
+		if rel.Write != nil && rel.Write.KeyPropagation == config.KeyPropagationFKInbound {
+			if campo, ok := rel.CampoDerivado(); ok {
+				derivados[campo] = struct{}{}
+			}
+		}
+	}
+
 	for clave, valor := range entidad {
 		rutaCampo := unirRuta(ruta, clave)
 
 		// Un campo que corresponde a una relación hija escribible se valida como
-		// subárbol, no como campo propio.
+		// subárbol, no como campo propio. La relación aporta el campo derivado de
+		// sus hijos (fk -> related_field).
 		if rel, esRel := porMapped[clave]; esRel {
 			if rel.Write == nil {
 				return &ErrorEscritura{Path: rutaCampo, Motivo: "la relación no admite escritura"}
 			}
-			if err := validarRelacionAnidada(valor, *rel.Write, rel.NestedRelations, verb, rutaCampo); err != nil {
+			if err := validarRelacionAnidada(valor, rel, verb, rutaCampo); err != nil {
 				return err
 			}
+			continue
+		}
+
+		// Un campo derivado relacional reconocido no se rechaza como desconocido;
+		// null equivale a ausencia (el motor lo completará con la llave
+		// autoritativa). La inmutabilidad no aplica aquí: protege contra el cambio
+		// de valor, y reenviar un campo derivado no modifica por sí mismo. La
+		// conciliación posterior decide según la matriz —coincide conserva; difiere
+		// en entidad existente es conflicto (400); difiere en entidad nueva
+		// canoniza—, de modo que un reenvío coincidente de una FK inmutable derivada
+		// se acepta.
+		if contiene(derivados, clave) {
 			continue
 		}
 
@@ -286,18 +326,37 @@ func validarNivel(
 	return nil
 }
 
+// derivadosDescendentes devuelve el conjunto de campos derivados que una relación
+// descendente (fk o shared_pk) aporta a cada entidad hija: la FK del hijo
+// (related_field) en fk; el Id en shared_pk (que ya se acepta como identificador,
+// pero se incluye por completitud). fk_inbound no inyecta nada hacia abajo: su
+// campo derivado pertenece al nodo que la declara, no a la entidad referenciada.
+func derivadosDescendentes(rel config.RelationConfig) map[string]struct{} {
+	if rel.Write == nil || rel.Write.KeyPropagation == config.KeyPropagationFKInbound {
+		return nil
+	}
+	campo, ok := rel.CampoDerivado()
+	if !ok {
+		return nil
+	}
+	return map[string]struct{}{campo: {}}
+}
+
 // validarRelacionAnidada valida el valor de una relación hija, que puede ser un
-// objeto único (cardinalidad 1-1) o una lista (cardinalidad 1-N).
+// objeto único (cardinalidad 1-1) o una lista (cardinalidad 1-N). Inyecta en la
+// validación del hijo el campo derivado descendente que aporta la relación.
 func validarRelacionAnidada(
 	valor any,
-	wc config.WriteConfig,
-	nested []config.RelationConfig,
+	rel config.RelationConfig,
 	verb string,
 	ruta string,
 ) error {
+	wc := *rel.Write
+	nested := rel.NestedRelations
+	inyectados := derivadosDescendentes(rel)
 	switch v := valor.(type) {
 	case map[string]any:
-		return validarNivel(v, wc, nested, verb, ruta)
+		return validarNivel(v, wc, nested, verb, ruta, inyectados)
 	case []any:
 		for i := range v {
 			elem, ok := v[i].(map[string]any)
@@ -307,7 +366,7 @@ func validarRelacionAnidada(
 					Motivo: "cada elemento de la colección debe ser un objeto",
 				}
 			}
-			if err := validarNivel(elem, wc, nested, verb, fmt.Sprintf("%s[%d]", ruta, i)); err != nil {
+			if err := validarNivel(elem, wc, nested, verb, fmt.Sprintf("%s[%d]", ruta, i), inyectados); err != nil {
 				return err
 			}
 		}
@@ -411,7 +470,7 @@ func (me *motorEscritura) materializarInbound(
 			continue
 		}
 
-		materializado, err := me.materializarEntidad(res, rel, referida, *rel.Write, rutaStr)
+		materializado, err := me.materializarEntidad(res, rel, referida, *rel.Write, rutaStr, rel.NestedRelations)
 		if err != nil {
 			return me.manejarErrorRelacion(rel, rutaStr)
 		}
@@ -419,11 +478,16 @@ func (me *motorEscritura) materializarInbound(
 			referida[k] = v
 		}
 
-		// Propagar hacia arriba: la FK local del nodo toma el Id de la entidad
-		// referenciada recién materializada, con su tipo nativo (entero resuelto
-		// por el resolver), sin coaccionarlo a texto.
+		// Conciliar hacia arriba: la FK local del nodo (rel.LocalField) debe tomar
+		// el Id de la entidad referenciada recién materializada. Se aplica la misma
+		// matriz: ausente/null se completa, coincide se conserva, difiere en un nodo
+		// existente (con Id propio) es conflicto (*ErrorEscritura) y difiere en un
+		// nodo nuevo canoniza con aviso. El disparador del conflicto es el Id del
+		// propio nodo, no el de la entidad referenciada.
 		if id, hay := referida["Id"]; hay && id != nil {
-			nodo[rel.LocalField] = id
+			if err := me.conciliarCampoDerivado(nodo, rel.LocalField, id, rel.RelatedService, rutaStr); err != nil {
+				return err
+			}
 		}
 
 		// Materializar el subárbol propio de la entidad referenciada (por ejemplo
@@ -447,8 +511,13 @@ func (me *motorEscritura) materializarValorRelacion(
 	rutaStr string,
 ) error {
 	procesar := func(elem map[string]any, ruta string) error {
-		propagarLlave(elem, rel, padreID)
-		materializado, err := me.materializarEntidad(res, rel, elem, *rel.Write, ruta)
+		// Conciliar la llave del padre con el campo derivado del hijo ANTES de
+		// materializar: un conflicto de entidad existente aborta con *ErrorEscritura
+		// sin enviar la operación incompatible.
+		if err := me.llaveDescendente(elem, rel, padreID, ruta); err != nil {
+			return err
+		}
+		materializado, err := me.materializarEntidad(res, rel, elem, *rel.Write, ruta, rel.NestedRelations)
 		if err != nil {
 			return me.manejarErrorRelacion(rel, ruta)
 		}
@@ -482,40 +551,138 @@ func (me *motorEscritura) materializarValorRelacion(
 // materializarEntidad aplana los parámetros anidados del payload y delega la
 // materialización en el resolver, pasando los valores de la clave natural
 // declarada para el upsert idempotente.
+//
+// relNivel son las relaciones declaradas en este nivel (las hijas de la entidad):
+// de ellas se derivan los campos fk_inbound (local_field) que pertenecen al
+// propio nodo y deben conservarse en el payload aunque no sean escribibles por el
+// cliente. rel es la relación que produjo esta entidad (vacía para la raíz): si
+// es descendente (fk/shared_pk), su campo derivado también vive en esta entidad y
+// debe conservarse.
 func (me *motorEscritura) materializarEntidad(
 	res WriteResolver,
 	rel config.RelationConfig,
 	payload map[string]any,
 	wc config.WriteConfig,
 	ruta string,
+	relNivel []config.RelationConfig,
 ) (map[string]any, error) {
 	if res == nil {
 		return nil, fmt.Errorf("write: no hay resolver para %q", ruta)
 	}
-	plano := aplanarParametros(payload, wc.WritableFields, rel.NestedRelations)
+	plano := aplanarParametros(payload, wc.WritableFields, relNivel, camposDerivadosInternos(rel, relNivel))
 	keys := valoresClaveNatural(plano, wc.NaturalKey)
 	return res.Materialize(me.ctx, rel, plano, keys)
 }
 
-// propagarLlave fija en el hijo la llave del padre según el modo declarado:
-//   - fk: fija la llave foránea del hijo (related_field) con el Id del padre.
-//   - shared_pk: fija el propio Id del hijo con el Id del padre.
+// camposDerivadosInternos devuelve el conjunto de campos derivados internos que
+// viven en una entidad y deben conservarse en su payload aplanado aunque no sean
+// escribibles por el cliente:
+//   - el campo derivado descendente de la relación que la produjo (fk ->
+//     related_field; shared_pk -> Id), que ya quedó validado o canonizado;
+//   - la FK local (local_field) de cada relación fk_inbound declarada en este
+//     nivel, que el pre-pass ascendente completó o canonizó.
+func camposDerivadosInternos(relProductora config.RelationConfig, relNivel []config.RelationConfig) map[string]struct{} {
+	campos := make(map[string]struct{})
+	if relProductora.Write != nil && relProductora.Write.KeyPropagation != config.KeyPropagationFKInbound {
+		if campo, ok := relProductora.CampoDerivado(); ok {
+			campos[campo] = struct{}{}
+		}
+	}
+	for i := range relNivel {
+		r := relNivel[i]
+		if r.Write != nil && r.Write.KeyPropagation == config.KeyPropagationFKInbound {
+			if campo, ok := r.CampoDerivado(); ok {
+				campos[campo] = struct{}{}
+			}
+		}
+	}
+	return campos
+}
+
+// conciliarCampoDerivado concilia el valor reenviado de un campo derivado de una
+// relación (campoDerivado, dentro de entidad) contra la llave autoritativa
+// calculada por el motor, aplicando esta matriz común a fk, shared_pk y
+// fk_inbound:
 //
-// El Id del padre se propaga con su tipo nativo (como any), sin coaccionarlo a
-// texto: al comunicarnos por JSON, el valor numérico materializado por el
-// resolver (frontera con el CRUD dueño) debe conservar su tipo tanto en la
-// petición enviada como en el subárbol devuelto. padreID nil señala la ausencia
-// de un padre que propagar.
-func propagarLlave(hijo map[string]any, rel config.RelationConfig, padreID any) {
+//	ausente o null       -> completar con la llave autoritativa, sin aviso
+//	igual                -> conservar, sin aviso
+//	diferente + sin Id   -> sobrescribir con la llave autoritativa y registrar un aviso
+//	diferente + con Id   -> devolver *ErrorEscritura, sin reasignar la entidad
+//
+// Un Id propio no nulo en entidad indica una entidad existente, único caso en que
+// una diferencia es un conflicto; sin Id la diferencia se canoniza. servicio y
+// ruta identifican el aviso y el error sin exponer valores ni detalles del CRUD.
+//
+// Efectos: muta entidad[campoDerivado] con el valor autoritativo (conservando su
+// tipo nativo) y, en una canonización, añade un aviso con Kind
+// KindFieldNormalization. Si llaveAutoritativa es nil o campoDerivado es vacío no
+// hace nada. Devuelve *ErrorEscritura ante un conflicto de entidad existente y nil
+// en cualquier otro caso.
+func (me *motorEscritura) conciliarCampoDerivado(
+	entidad map[string]any,
+	campoDerivado string,
+	llaveAutoritativa any,
+	servicio string,
+	ruta string,
+) error {
+	if llaveAutoritativa == nil || campoDerivado == "" {
+		return nil
+	}
+
+	reenviado, presente := entidad[campoDerivado]
+
+	// Ausente o null: completar con la llave autoritativa, sin aviso.
+	if !presente || reenviado == nil {
+		entidad[campoDerivado] = llaveAutoritativa
+		return nil
+	}
+
+	// Coincide con la llave autoritativa: conservar, sin aviso.
+	if aCadena(reenviado) == aCadena(llaveAutoritativa) {
+		entidad[campoDerivado] = llaveAutoritativa
+		return nil
+	}
+
+	// Difiere: el disparador del conflicto es un Id propio (entidad existente).
+	if id, hay := entidad["Id"]; hay && id != nil {
+		return &ErrorEscritura{
+			Path: ruta,
+			Motivo: "la llave relacional reenviada difiere de la autoritativa en una " +
+				"entidad existente; no se reasigna de forma implícita",
+		}
+	}
+
+	// Entidad nueva con llave desactualizada: canonizar y avisar (sin exponer
+	// valores ni detalles del CRUD).
+	entidad[campoDerivado] = llaveAutoritativa
+	me.agregarAviso(responses.RelationError{
+		Path:    ruta,
+		Service: servicio,
+		Message: "se normalizó un campo relacional derivado con la llave autoritativa",
+		Kind:    KindFieldNormalization,
+	})
+	return nil
+}
+
+// llaveDescendente concilia la llave del padre (padreID) con el campo derivado
+// del hijo para los modos descendentes fk y shared_pk, delegando la matriz de
+// comparación en conciliarCampoDerivado. padreID nil, un modo sin campo derivado
+// o fk_inbound no producen cambios. Devuelve *ErrorEscritura ante un conflicto de
+// entidad existente y nil en otro caso.
+func (me *motorEscritura) llaveDescendente(
+	hijo map[string]any,
+	rel config.RelationConfig,
+	padreID any,
+	ruta string,
+) error {
 	if padreID == nil {
-		return
+		return nil
 	}
-	switch rel.Write.KeyPropagation {
-	case config.KeyPropagationFK:
-		hijo[rel.RelatedField] = padreID
-	case config.KeyPropagationSharedPK:
-		hijo["Id"] = padreID
+	campo, ok := rel.CampoDerivado()
+	if !ok {
+		return nil
 	}
+	return me.conciliarCampoDerivado(hijo, campo, padreID, rel.RelatedService, ruta)
 }
 
 // manejarErrorRelacion aplica la política de error de relación. En modo fail
@@ -547,12 +714,16 @@ func (me *motorEscritura) agregarAviso(aviso responses.RelationError) {
 
 // aplanarParametros devuelve una copia del payload con los objetos de parámetro
 // anidados ({X:{Id:n}}) aplanados a su llave foránea (XId:n) y sin las claves de
-// relaciones hijas (que se materializan por separado). Solo conserva los campos
-// escribibles declarados, el Id y las FK aplanadas.
+// relaciones hijas (que se materializan por separado). Conserva los campos
+// escribibles declarados, el Id, las FK aplanadas y los campos derivados internos
+// (derivadosInternos) que el motor validó o generó —por ejemplo la FK propagada
+// por el padre— aunque no sean escribibles por el cliente, para que lleguen al
+// CRUD dueño con su tipo nativo.
 func aplanarParametros(
 	payload map[string]any,
 	writable []string,
 	nested []config.RelationConfig,
+	derivadosInternos map[string]struct{},
 ) map[string]any {
 	escribibles := conjunto(writable)
 	porMapped := indexarPorMapped(nested)
@@ -568,6 +739,12 @@ func aplanarParametros(
 			if contiene(escribibles, campoFK) {
 				salida[campoFK] = idDeParametro(valor)
 			}
+			continue
+		}
+		// Un campo derivado interno validado o generado se conserva con su tipo
+		// nativo, aunque no sea escribible por el cliente.
+		if contiene(derivadosInternos, clave) {
+			salida[clave] = valor
 			continue
 		}
 		if clave == "Id" || contiene(escribibles, clave) {

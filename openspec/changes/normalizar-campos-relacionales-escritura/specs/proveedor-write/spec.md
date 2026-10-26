@@ -28,6 +28,10 @@ El sistema SHALL exponer `PATCH /v1/proveedor` que reconcilia el subárbol: crea
 - **WHEN** se reenvía un `Data` completo con sus llaves relacionales y los valores coinciden con las relaciones autoritativas
 - **THEN** el MID acepta el cuerpo, reutiliza o actualiza las entidades por `Id` o clave natural y no genera avisos por esos campos
 
+#### Scenario: Reenvío de una FK inmutable que coincide
+- **WHEN** un `PATCH` reenvía la FK ascendente del proveedor (`TerceroId`), declarada inmutable, con el mismo valor que la relación autoritativa
+- **THEN** el MID lo acepta sin tratarlo como una modificación prohibida y responde sin avisos por ese campo
+
 #### Scenario: Campo relacional nulo reenviado
 - **WHEN** una respuesta reenviada contiene `null` en un campo relacional derivado
 - **THEN** el MID lo trata como ausente, calcula la llave correcta y continúa la reconciliación

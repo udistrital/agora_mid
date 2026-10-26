@@ -9,9 +9,10 @@ import (
 	"github.com/udistrital/agora_mid/responses"
 )
 
-// Tipos de aviso de expansión serializados en MetaData.Errors. Todo Kind emitido
-// por el motor de expansión corresponde a una de estas constantes; no debe
-// emitirse ningún Kind fuera de este conjunto.
+// Tipos de aviso serializados en MetaData.Errors. Cada constante se registra en
+// catalogoKinds junto con el motor que la emite; ese catálogo es la fuente de
+// verdad del conjunto de Kinds y de KindsDeAviso. No debe emitirse ningún Kind
+// sin una constante registrada que lo respalde.
 const (
 	// KindRelation marca un error de relación tolerado en modo notify.
 	KindRelation = "relation"
@@ -22,15 +23,62 @@ const (
 	// KindGenericResolver marca una relación resuelta por el resolver genérico,
 	// cuyo Data se entrega sin transformar.
 	KindGenericResolver = "generic_resolver"
+	// KindFieldNormalization marca la canonización de un campo derivado de una
+	// relación (fk, shared_pk o fk_inbound) reenviado desactualizado en una
+	// entidad nueva: el motor de escritura reemplaza el valor por la llave
+	// autoritativa y lo reporta sin exponer datos remotos. Es distinto de
+	// KindRelation, reservado a fallos remotos tolerados.
+	KindFieldNormalization = "field_normalization"
 )
 
-// KindsDeAviso enumera el conjunto completo de tipos de aviso declarados. El
-// invariante del motor es que todo Kind emitido pertenece a este conjunto.
-var KindsDeAviso = []string{
-	KindRelation,
-	KindDepth,
-	KindCycle,
-	KindGenericResolver,
+// KindOrigen identifica el subsistema que emite un tipo de aviso. Distinguir el
+// origen permite verificar, por cada motor, que toda constante declarada tiene
+// una ruta de emisión real que la respalde.
+type KindOrigen string
+
+const (
+	// KindOrigenExpansion marca los avisos emitidos por el motor de expansión.
+	KindOrigenExpansion KindOrigen = "expansion"
+	// KindOrigenEscritura marca los avisos emitidos por el motor de escritura.
+	KindOrigenEscritura KindOrigen = "escritura"
+)
+
+// catalogoKinds es la única fuente de verdad de los tipos de aviso: asocia cada
+// constante Kind con el motor que la emite. Toda constante de aviso del sistema
+// se declara aquí; el conjunto es abierto y se extiende registrando una entrada
+// nueva por cada origen de aviso. Declarar un Kind sin registrarlo en este
+// catálogo deja su aviso sin respaldo, por lo que agregar un tipo de aviso obliga
+// a nombrar su origen en este mismo punto.
+//
+// Los consumidores NO deben recuperar el Kind a emitir desde este catálogo: cada
+// punto de emisión referencia su constante directamente (por ejemplo
+// KindFieldNormalization), de modo que el compilador garantice el símbolo y se
+// conserve el amarre uno a uno entre sitio de emisión y constante. El catálogo
+// sirve para validar y enumerar, no para decidir qué se emite.
+var catalogoKinds = map[string]KindOrigen{
+	KindRelation:           KindOrigenExpansion,
+	KindDepth:              KindOrigenExpansion,
+	KindCycle:              KindOrigenExpansion,
+	KindGenericResolver:    KindOrigenExpansion,
+	KindFieldNormalization: KindOrigenEscritura,
+}
+
+// KindsDeAviso devuelve las constantes de tipo de aviso declaradas, derivadas del
+// catálogo (no se mantiene una lista en paralelo). El orden no es significativo.
+func KindsDeAviso() []string {
+	kinds := make([]string, 0, len(catalogoKinds))
+	for k := range catalogoKinds {
+		kinds = append(kinds, k)
+	}
+	return kinds
+}
+
+// OrigenDeKind devuelve el origen registrado para un Kind y si está declarado en
+// el catálogo. Sirve para validar y documentar los tipos de aviso, no para elegir
+// qué emitir.
+func OrigenDeKind(kind string) (KindOrigen, bool) {
+	origen, ok := catalogoKinds[kind]
+	return origen, ok
 }
 
 // ExpandOptions son las opciones de expansión que arma el controlador. El helper

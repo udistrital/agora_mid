@@ -437,35 +437,47 @@ func contieneAviso(avisos []responses.RelationError, kind string) bool {
 }
 
 // TestInvarianteKindsDeAviso afirma el invariante "todo Kind emitido tiene una
-// constante declarada": el conjunto declarado KindsDeAviso es exactamente
-// {relation, depth, cycle, generic_resolver}, cada ruta de emisión produce un
-// Kind dentro de ese conjunto y cada constante declarada se emite por alguna
-// ruta (no hay constante muerta ni Kind fuera del conjunto).
+// constante declarada" y, recíprocamente, "toda constante declarada tiene una
+// ruta de emisión que la respalda". El invariante es ABIERTO: el conjunto de Kind
+// no se fija de forma cerrada, sino que se extiende declarando una constante por
+// cada origen de aviso. El control no se relaja al abrirlo; se reparte por motor.
+// Aquí se verifica que (1) cada constante declarada es distinta y no vacía, (2)
+// para todo Kind emitido por el motor de expansión está respaldado por una constante
+// declarada, (3) cada constante declarada tiene un origen asignado y cada origen
+// asignado corresponde a una constante declarada, y (4) las constantes de origen
+// expansión se emiten por rutas de expansión reales. La emisión de las constantes
+// de origen escritura la respalda TestInvarianteKindEscritura, de modo que entre
+// ambos tests ninguna constante queda declarada sin emisor.
 func TestInvarianteKindsDeAviso(t *testing.T) {
-	// 1. El conjunto declarado coincide exactamente con los cuatro canónicos.
-	declarados := make(map[string]struct{}, len(KindsDeAviso))
-	for _, k := range KindsDeAviso {
+	// 1. Cada constante declarada (derivada del catálogo) es distinta, no vacía y
+	// tiene un origen registrado. Que toda constante tenga origen es cierto por
+	// construcción —KindsDeAviso se deriva del catálogo— pero se reafirma aquí para
+	// detectar una entrada vacía o duplicada.
+	declarados := make(map[string]struct{})
+	for _, k := range KindsDeAviso() {
+		if strings.TrimSpace(k) == "" {
+			t.Errorf("el catálogo de Kinds contiene una constante vacía")
+		}
 		if _, dup := declarados[k]; dup {
-			t.Errorf("KindsDeAviso contiene un duplicado: %q", k)
+			t.Errorf("el catálogo de Kinds contiene un duplicado: %q", k)
+		}
+		if _, tieneOrigen := OrigenDeKind(k); !tieneOrigen {
+			t.Errorf("la constante %q no tiene origen registrado en el catálogo", k)
 		}
 		declarados[k] = struct{}{}
 	}
-	canonicos := map[string]struct{}{
-		KindRelation:        {},
-		KindDepth:           {},
-		KindCycle:           {},
-		KindGenericResolver: {},
+
+	// field_normalization es un origen declarado y distinto de relation (reservado
+	// a fallos remotos tolerados).
+	if _, ok := declarados[KindFieldNormalization]; !ok {
+		t.Errorf("la constante %q debe estar declarada en el catálogo", KindFieldNormalization)
 	}
-	if len(declarados) != len(canonicos) {
-		t.Fatalf("KindsDeAviso = %v; esperado exactamente %d constantes", KindsDeAviso, len(canonicos))
-	}
-	for k := range canonicos {
-		if _, ok := declarados[k]; !ok {
-			t.Errorf("la constante canónica %q no está en KindsDeAviso", k)
-		}
+	if KindFieldNormalization == KindRelation {
+		t.Errorf("field_normalization no debe coincidir con relation; ambos valen %q", KindFieldNormalization)
 	}
 
-	// 2. Ejercer cada ruta de emisión y recolectar los Kind producidos.
+	// 2. Ejercer cada ruta de emisión del motor de expansión y recolectar los Kind
+	// producidos; todos deben estar respaldados por una constante declarada.
 	emitidos := make(map[string]struct{})
 	recolectar := func(avisos []responses.RelationError) {
 		for _, a := range avisos {
@@ -556,10 +568,17 @@ func TestInvarianteKindsDeAviso(t *testing.T) {
 		recolectar(out.Warnings)
 	}
 
-	// 3. Cada constante declarada se emitió por alguna ruta (no hay constante muerta).
-	for k := range declarados {
+	// 3. Cada constante cuyo origen registrado es expansión debe emitirse por
+	// alguna ruta de expansión real (no hay constante de expansión muerta). El
+	// origen se lee del catálogo de producción, no de una lista paralela en el
+	// test. Las constantes de origen escritura las respalda TestInvarianteKindEscritura.
+	for _, k := range KindsDeAviso() {
+		origen, _ := OrigenDeKind(k)
+		if origen != KindOrigenExpansion {
+			continue
+		}
 		if _, ok := emitidos[k]; !ok {
-			t.Errorf("la constante declarada %q no fue emitida por ninguna ruta de expansión", k)
+			t.Errorf("la constante de expansión %q no fue emitida por ninguna ruta de expansión", k)
 		}
 	}
 }
