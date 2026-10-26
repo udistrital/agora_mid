@@ -26,7 +26,7 @@ El sistema SHALL responder con un envoltorio OAS plano que incluya `Success` (bo
 - **THEN** ambos usan la misma raíz plana `Success/Status/Message/Data` con `Status` como cadena
 
 ### Requirement: Extensión MetaData para avisos y total de listas
-El sistema SHALL incluir un bloque `MetaData` opcional que puede llevar una colección opcional `Errors` con los avisos de expansión y un campo opcional `Length` con el total de valores posibles de un `Data` de tipo lista. Cada campo del bloque es opcional y se incluye únicamente cuando aplica; `MetaData` se omite cuando no aporta ningún dato. El bloque `Errors` se incluye solo cuando existe al menos un aviso de expansión (error de relación tolerado, reducción de profundidad, ciclo o uso del resolver genérico).
+El sistema SHALL incluir un bloque `MetaData` opcional que puede llevar una colección opcional `Errors` con los avisos de expansión y un campo opcional `Length` con el total de valores posibles de un `Data` de tipo lista. Cada campo del bloque es opcional y se incluye únicamente cuando aplica; `MetaData` se omite cuando no aporta ningún dato. El bloque `Errors` se incluye solo cuando existe al menos un aviso de expansión (error de relación tolerado, reducción de profundidad, ciclo o uso del resolver genérico). La supresión de un campo por la lista negra global no genera ningún aviso.
 
 #### Scenario: Expansión parcial con relación tolerada
 - **WHEN** una expansión en modo `notify` sufre un error de relación tolerado
@@ -50,4 +50,12 @@ El sistema SHALL incluir un bloque `MetaData` opcional que puede llevar una cole
 
 #### Scenario: Distinción de tipos de aviso
 - **WHEN** se registran avisos de distinto origen
-- **THEN** cada entrada de `MetaData.Errors` identifica su `Kind` entre `relation`, `depth`, `cycle` o `generic_resolver`
+- **THEN** cada entrada de `MetaData.Errors` identifica su `Kind` exactamente entre `relation`, `depth`, `cycle` o `generic_resolver`
+
+#### Scenario: Todo tipo de aviso emitido tiene una constante declarada
+- **WHEN** el sistema emite un aviso de expansión con un `Kind`
+- **THEN** ese `Kind` corresponde a una constante de tipo de aviso declarada, incluido `generic_resolver`, y no existe un `Kind` emitido sin constante
+
+#### Scenario: La lista negra no introduce un tipo de aviso
+- **WHEN** la lista negra global suprime un campo de la respuesta de expansión
+- **THEN** no se agrega ninguna entrada a `MetaData.Errors` ni se introduce un nuevo valor de `Kind`
