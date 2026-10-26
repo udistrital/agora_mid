@@ -77,31 +77,40 @@ paths:
             $ref: "#/definitions/RespuestaProveedorConAvisos"
         "400":
           description: >-
-            Parámetros inválidos: `id` ausente o no positivo, o `fields`
-            inválido (ruta vacía, segmento vacío, duplicado o ruta no
-            declarada). No se consulta el CRUD dueño.
+            Parámetros inválidos. No se consulta el CRUD dueño. `Message` es uno
+            de: `El parámetro id es obligatorio` (sin `id`); `id debe ser un
+            entero positivo` (`id` no numérico o no positivo); `El parámetro
+            fields no puede estar vacío` (`fields` presente pero vacío); `El
+            parámetro fields contiene un campo vacío` (un segmento vacío); o el
+            mensaje de ruta inválida de `fields` (campo no declarado, no canónico
+            o duplicado), p. ej. `el campo "NoExiste" no está permitido`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorValidacionLectura"
         "404":
-          description: No existe un proveedor con el `id` solicitado.
+          description: >-
+            No existe un proveedor con el `id` solicitado. `Message`: `No existe
+            un proveedor con el id solicitado`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorNoEncontrado"
         "405":
-          description: Método HTTP no permitido; solo se admite `GET`.
+          description: >-
+            Método HTTP no permitido; solo se admite `GET`. `Message`: `Método no
+            permitido`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorMetodo"
         "502":
           description: >-
             Error de dependencia o fallo fatal de expansión al consultar un CRUD
-            relacionado bajo la política de error `fail`.
+            relacionado bajo la política de error `fail`. `Message`: `Bad Gateway`
+            (no expone detalles internos del CRUD).
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
         "504":
           description: >-
             Tiempo de espera agotado durante un fallo fatal de expansión de una
-            relación.
+            relación. `Message`: `Gateway Timeout`. `Message`: `Gateway Timeout`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
     post:
       tags:
         - proveedor
@@ -148,35 +157,49 @@ paths:
             $ref: "#/definitions/RespuestaProveedorEscritura"
         "206":
           description: >-
-            Materialización parcial tolerada: una relación no bloqueante falló
-            tras materializar otras. El recurso se conserva, `Data` incluye los
-            identificadores ya materializados y los avisos van en
-            `MetaData.Errors`.
+            Respuesta parcial con avisos en `MetaData.Errors`. Se produce por dos
+            orígenes: (1) una entidad nueva canonizó una llave relacional derivada
+            reenviada desactualizada con la llave autoritativa (aviso con
+            `kind: field_normalization` y `path` = `mapped_name` del nodo
+            canonizado, p. ej. `Tercero`); (2) una relación no bloqueante falló
+            tras materializar otras (aviso con `kind: relation` y `path` que
+            incluye el índice en colecciones, p. ej. `Contacto[0]`). En ambos
+            casos el recurso se conserva y `Data` incluye el subárbol con los
+            identificadores ya materializados.
           schema:
             $ref: "#/definitions/RespuestaProveedorEscrituraConAvisos"
         "400":
           description: >-
-            Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId`
-            ausente o no positivo, campo no escribible o inmutable, o rama de
-            detalle (`ProveedorNatural`/`ProveedorJuridico`) incoherente con el
-            tipo de registro. No se materializa nada.
+            Cuerpo o campo inválido: cuerpo no es un objeto JSON, campo no
+            escribible, conflicto de una llave relacional derivada en una entidad
+            existente, o rama de detalle (`ProveedorNatural`/`ProveedorJuridico`)
+            incoherente con `TipoRegistroId`. No se materializa nada; `Data` es
+            `null`. `Message` es uno de: `El cuerpo debe ser un objeto JSON
+            válido`; el mensaje de cuerpo inválido que cita la ruta lógica, p. ej.
+            `cuerpo de escritura inválido en "Tercero.NombreCompleto": campo no
+            escribible`; o el mensaje de rama de detalle incoherente. No expone
+            valores ni detalles del CRUD.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorValidacionEscritura"
         "405":
-          description: Método HTTP no permitido; solo se admiten `POST` y `PATCH`.
+          description: >-
+            Método HTTP no permitido; solo se admiten `POST` y `PATCH`. `Message`:
+            `Método no permitido`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorMetodo"
         "502":
           description: >-
             Fallo bloqueante de una relación bajo política de error estricta al
-            escribir en un CRUD dueño.
+            escribir en un CRUD dueño. `Message`: `Bad Gateway` (no expone
+            detalles internos del CRUD).
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
         "504":
           description: >-
             Tiempo de espera agotado durante un fallo bloqueante de escritura.
+            `Message`: `Gateway Timeout`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
     patch:
       tags:
         - proveedor
@@ -189,8 +212,10 @@ paths:
         `DatosIdentificacion` por `Numero`+`TipoDocumentoId`) o por el `Id` del
         cuerpo en las colecciones (`Contacto`, `CuentaBancaria`). Permite
         continuar un `POST`/`PATCH` previo que dejó el subárbol parcialmente
-        creado sin duplicar registros. Los campos inmutables (por ejemplo
-        `TerceroId`) enviados en una actualización responden `400`.
+        creado sin duplicar registros. Las llaves relacionales derivadas (por
+        ejemplo `TerceroId`) pueden reenviarse: si coinciden con la llave
+        autoritativa se aceptan; si difieren en una entidad existente responden
+        `400` sin reasignar.
       operationId: reconciliarProveedor
       parameters:
         - name: X-Autor-Id
@@ -218,35 +243,52 @@ paths:
             $ref: "#/definitions/RespuestaProveedorEscritura"
         "206":
           description: >-
-            Materialización parcial tolerada: una relación no bloqueante falló
-            tras materializar otras. El recurso se conserva, `Data` incluye los
-            identificadores ya materializados y los avisos van en
-            `MetaData.Errors`.
+            Respuesta parcial con avisos en `MetaData.Errors`. Se produce por dos
+            orígenes: (1) una entidad nueva canonizó una llave relacional derivada
+            reenviada desactualizada con la llave autoritativa (aviso con
+            `kind: field_normalization` y `path` = `mapped_name` del nodo
+            canonizado, p. ej. `Tercero`); (2) una relación no bloqueante falló
+            tras materializar otras (aviso con `kind: relation` y `path` que
+            incluye el índice en colecciones, p. ej. `Contacto[0]`). En ambos
+            casos el recurso se conserva y `Data` incluye el subárbol con los
+            identificadores ya materializados.
           schema:
             $ref: "#/definitions/RespuestaProveedorEscrituraConAvisos"
         "400":
           description: >-
             Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId`
-            ausente o no positivo, campo no escribible o inmutable (por ejemplo
-            cambiar `TerceroId`), o rama de detalle incoherente con el tipo de
-            registro. No se materializa nada.
+            ausente o no positivo, campo no escribible, conflicto de una llave
+            relacional derivada en una entidad existente (una FK reenviada que
+            difiere de la autoritativa, p. ej. `TerceroId` que reasignaría el
+            proveedor a otro tercero), o rama de detalle incoherente con el tipo
+            de registro. No se materializa nada; `Data` es `null`. `Message` es
+            uno de: `El cuerpo debe ser un objeto JSON válido`; el mensaje de
+            cuerpo inválido que cita la ruta lógica, p. ej. `cuerpo de escritura
+            inválido en "Tercero": la llave relacional reenviada difiere de la
+            autoritativa en una entidad existente; no se reasigna de forma
+            implícita`; o el mensaje de rama de detalle incoherente con
+            `TipoRegistroId`. No expone valores ni detalles del CRUD.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorValidacionEscritura"
         "405":
-          description: Método HTTP no permitido; solo se admiten `POST` y `PATCH`.
+          description: >-
+            Método HTTP no permitido; solo se admiten `POST` y `PATCH`. `Message`:
+            `Método no permitido`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorMetodo"
         "502":
           description: >-
             Fallo bloqueante de una relación bajo política de error estricta al
-            escribir en un CRUD dueño.
+            escribir en un CRUD dueño. `Message`: `Bad Gateway` (no expone
+            detalles internos del CRUD).
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
         "504":
           description: >-
             Tiempo de espera agotado durante un fallo bloqueante de escritura.
+            `Message`: `Gateway Timeout`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
   /proveedor/consulta:
     post:
       tags:
@@ -286,31 +328,39 @@ paths:
             $ref: "#/definitions/RespuestaProveedorConAvisos"
         "400":
           description: >-
-            Cuerpo inválido: no es un objeto JSON, `id` ausente o no positivo, o
-            `fields` inválido (ruta vacía, segmento vacío, duplicado o ruta no
-            declarada). No se consulta el CRUD dueño.
+            Cuerpo inválido. No se consulta el CRUD dueño. `Message` es uno de:
+            `El cuerpo debe ser un objeto JSON válido` (cuerpo malformado o
+            vacío); `id debe ser un entero positivo` (`id` ausente o no positivo);
+            `El parámetro fields contiene un campo vacío` (un segmento vacío); o
+            el mensaje de ruta inválida de `fields` (campo no declarado, no
+            canónico o duplicado), p. ej. `el campo "NoExiste" no está permitido`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorValidacionLectura"
         "404":
-          description: No existe un proveedor con el `id` solicitado.
+          description: >-
+            No existe un proveedor con el `id` solicitado. `Message`: `No existe
+            un proveedor con el id solicitado`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorNoEncontrado"
         "405":
-          description: Método HTTP no permitido; solo se admite `POST`.
+          description: >-
+            Método HTTP no permitido; solo se admite `POST`. `Message`: `Método no
+            permitido`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorMetodo"
         "502":
           description: >-
             Error de dependencia o fallo fatal de expansión al consultar un CRUD
-            relacionado bajo la política de error `fail`.
+            relacionado bajo la política de error `fail`. `Message`: `Bad Gateway`
+            (no expone detalles internos del CRUD).
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
         "504":
           description: >-
             Tiempo de espera agotado durante un fallo fatal de expansión de una
-            relación.
+            relación. `Message`: `Gateway Timeout`.
           schema:
-            $ref: "#/definitions/RespuestaError"
+            $ref: "#/definitions/RespuestaErrorDependencia"
 definitions:
   ConsultaProveedor:
     type: object
@@ -386,9 +436,11 @@ definitions:
         $ref: "#/definitions/Proveedor"
       MetaData:
         $ref: "#/definitions/MetaData"
-  RespuestaError:
+  RespuestaErrorValidacionLectura:
     type: object
-    description: Envelope OAS plano para una respuesta de error; `MetaData` se omite.
+    description: >-
+      Error de validación de parámetros de lectura (`400`). `Message` varía según
+      la causa; ver la descripción de la respuesta `400` del endpoint.
     required:
       - Success
       - Status
@@ -403,6 +455,91 @@ definitions:
       Message:
         type: string
         example: id debe ser un entero positivo
+      Data:
+        type: object
+        x-nullable: true
+  RespuestaErrorValidacionEscritura:
+    type: object
+    description: >-
+      Error de validación del cuerpo de escritura (`400`). `Message` cita la ruta
+      lógica inválida sin exponer valores; ver la descripción de la respuesta
+      `400` del endpoint.
+    required:
+      - Success
+      - Status
+      - Message
+    properties:
+      Success:
+        type: boolean
+        example: false
+      Status:
+        type: string
+        example: "400"
+      Message:
+        type: string
+        example: 'cuerpo de escritura inválido en "Tercero.NombreCompleto": campo no escribible'
+      Data:
+        type: object
+        x-nullable: true
+  RespuestaErrorNoEncontrado:
+    type: object
+    description: Proveedor no encontrado (`404`).
+    required:
+      - Success
+      - Status
+      - Message
+    properties:
+      Success:
+        type: boolean
+        example: false
+      Status:
+        type: string
+        example: "404"
+      Message:
+        type: string
+        example: No existe un proveedor con el id solicitado
+      Data:
+        type: object
+        x-nullable: true
+  RespuestaErrorMetodo:
+    type: object
+    description: Método HTTP no permitido (`405`).
+    required:
+      - Success
+      - Status
+      - Message
+    properties:
+      Success:
+        type: boolean
+        example: false
+      Status:
+        type: string
+        example: "405"
+      Message:
+        type: string
+        example: Método no permitido
+      Data:
+        type: object
+        x-nullable: true
+  RespuestaErrorDependencia:
+    type: object
+    description: >-
+      Fallo bloqueante al consultar o escribir en un CRUD dueño (`502`/`504`). El
+      `Message` es el texto HTTP estándar y no expone detalles internos del CRUD.
+    required:
+      - Success
+      - Status
+      - Message
+    properties:
+      Success:
+        type: boolean
+        example: false
+      Status:
+        type: string
+        example: "502"
+      Message:
+        type: string
+        example: Bad Gateway
       Data:
         type: object
         x-nullable: true
@@ -441,7 +578,18 @@ definitions:
       kind:
         type: string
         description: >-
-          Tipo de aviso: `relation`, `depth`, `cycle` o `generic_resolver`.
+          Tipo de aviso respaldado por una constante declarada. Avisos de
+          expansión: `relation`, `depth`, `cycle`, `generic_resolver`. Aviso de
+          escritura: `field_normalization` (una entidad nueva canonizó una llave
+          relacional derivada reenviada desactualizada con la llave autoritativa).
+          El conjunto es abierto: se extiende con una constante por cada nuevo
+          origen de aviso.
+        enum:
+          - relation
+          - depth
+          - cycle
+          - generic_resolver
+          - field_normalization
         example: relation
   Proveedor:
     type: object
@@ -686,10 +834,15 @@ definitions:
         type: integer
         format: int64
         description: >-
-          FK al tercero (`proveedor.tercero_id`). Clave natural del proveedor e
-          inmutable tras la creación; enviarlo en un `PATCH` que lo modifique
-          responde `400`. Puede omitirse: se resuelve propagando el `Id` del
-          `Tercero` materializado.
+          FK al tercero (`proveedor.tercero_id`), campo relacional derivado y
+          reenviable. Es la clave natural del proveedor e inmutable, pero la
+          inmutabilidad protege contra el cambio de valor, no contra el reenvío.
+          Comportamiento al reenviar el `Data` materializado: ausente o `null` se
+          completa con la llave autoritativa (`200`); igual a la llave autoritativa
+          se conserva (`200` sin aviso); distinta en una entidad nueva (sin `Id`)
+          se canoniza (`206` con `field_normalization`); distinta en una entidad
+          existente (con `Id`) es conflicto y responde `400` sin reasignar. El
+          valor devuelto conserva su tipo entero.
         example: 25
       TipoRegistroId:
         type: integer

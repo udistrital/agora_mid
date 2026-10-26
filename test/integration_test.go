@@ -67,28 +67,36 @@ func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, patch, 
 	return
 }
 
-// Creación completa vía POST: el router materializa el subárbol en cascada a
-// través de los CRUD simulados y devuelve 200 con los identificadores
-// materializados de la raíz y de cada entidad anidada.
+// Creación completa vía POST con una FK ascendente desactualizada: el fixture
+// reenvía TerceroId=25 en un proveedor NUEVO, mientras el tercero se materializa
+// con su propio Id autoritativo. El motor canoniza esa diferencia en la entidad
+// nueva y responde 206 con un aviso field_normalization, conservando en Data el
+// subárbol materializado con las llaves autoritativas y su tipo numérico.
 func TestIntegracionCreacionCompleta(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, nil)
 	router := routerProveedor(t, crud)
 
 	rec, env := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpoProveedorNatural()))
 
-	// TODO(grupo 3, tasks 3.2/3.3): desbloqueo temporal. Tras la normalización de
-	// campos relacionales (grupo 2), este fixture reenvía TerceroId=25 en un
-	// proveedor NUEVO mientras el tercero se materializa con Id=201; esa diferencia
-	// en una entidad nueva ahora se canoniza y produce 206 + MetaData.Errors con
-	// Kind field_normalization (comportamiento correcto). La reescritura definitiva
-	// de esta prueba y su fixture (cuerpo que coincide/ausente -> 200, y un caso
-	// aparte de diferencia -> 206) pertenece al grupo 3. Por ahora solo se relaja la
-	// aserción de estado para no bloquear la suite.
-	if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
-		t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
+	// La FK ascendente reenviada (TerceroId=25) difiere del Id autoritativo del
+	// tercero recién materializado: una entidad nueva canoniza y avisa (206).
+	if rec.Code != http.StatusPartialContent {
+		t.Fatalf("status = %d; esperado 206 por canonización de la FK ascendente. body=%s", rec.Code, rec.Body.String())
 	}
-	if (env.Status != "200" && env.Status != "206") || !env.Success {
+	if env.Status != "206" || !env.Success {
 		t.Errorf("envoltorio inesperado: %+v", env)
+	}
+	if env.MetaData == nil || len(env.MetaData.Errors) == 0 {
+		t.Fatalf("se esperaba MetaData.Errors con el aviso de normalización; env=%+v", env)
+	}
+	var vioNormalizacion bool
+	for _, e := range env.MetaData.Errors {
+		if kind, _ := e["kind"].(string); kind == "field_normalization" {
+			vioNormalizacion = true
+		}
+	}
+	if !vioNormalizacion {
+		t.Errorf("se esperaba un aviso con Kind field_normalization; errors=%+v", env.MetaData.Errors)
 	}
 	// La raíz materializó su Id (rango proveedor = 100+).
 	if id, _ := env.Data["Id"].(float64); int(id) != 101 {
@@ -342,5 +350,181 @@ func TestIntegracionFieldVetadoSeRechazaComoNoPermitido(t *testing.T) {
 		if recursoDePath(c.Path) == "proveedor" {
 			t.Errorf("un fields vetado no debe consultar el CRUD; captura=%+v", c)
 		}
+	}
+}
+
+// --- Grupo 3.2: reenvío de Data completo con la FK ascendente ausente, null o
+// coincidente -> 200 sin aviso de normalización ---
+
+// Con la FK ascendente (TerceroId) AUSENTE en un proveedor nuevo, el motor la
+// completa con el Id autoritativo del tercero y responde 200 sin aviso.
+func TestIntegracionFKAscendenteAusente200(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, nil)
+	router := routerProveedor(t, crud)
+
+	rec, env := ejecutar(t, router, http.MethodPost,
+		comoJSON(t, cuerpoProveedorNaturalConTerceroID(nil, false)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; esperado 200 (FK ausente se completa sin aviso). body=%s", rec.Code, rec.Body.String())
+	}
+	if env.MetaData != nil && len(env.MetaData.Errors) > 0 {
+		t.Errorf("no debe haber avisos al completar una FK ausente; errors=%+v", env.MetaData.Errors)
+	}
+	// La FK quedó completada con el Id autoritativo del tercero, con tipo numérico.
+	tercero, _ := env.Data["Tercero"].(map[string]any)
+	if tercero == nil {
+		t.Fatalf("falta el Tercero materializado; data=%+v", env.Data)
+	}
+	refID, ok := env.Data["TerceroId"].(float64)
+	if !ok || int(refID) != enteroDe(tercero["Id"]) {
+		t.Errorf("TerceroId debe completarse numérico con el Id del tercero; data=%+v", env.Data)
+	}
+}
+
+// Con la FK ascendente (TerceroId) en NULL, el motor la trata como ausente, la
+// completa con el Id autoritativo y responde 200 sin aviso.
+func TestIntegracionFKAscendenteNull200(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, nil)
+	router := routerProveedor(t, crud)
+
+	rec, env := ejecutar(t, router, http.MethodPost,
+		comoJSON(t, cuerpoProveedorNaturalConTerceroID(nil, true)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; esperado 200 (FK null se completa sin aviso). body=%s", rec.Code, rec.Body.String())
+	}
+	if env.MetaData != nil && len(env.MetaData.Errors) > 0 {
+		t.Errorf("no debe haber avisos al tratar null como ausencia; errors=%+v", env.MetaData.Errors)
+	}
+	tercero, _ := env.Data["Tercero"].(map[string]any)
+	if tercero == nil {
+		t.Fatalf("falta el Tercero materializado; data=%+v", env.Data)
+	}
+	if refID, ok := env.Data["TerceroId"].(float64); !ok || int(refID) != enteroDe(tercero["Id"]) {
+		t.Errorf("TerceroId null debe completarse numérico con el Id del tercero; data=%+v", env.Data)
+	}
+}
+
+// Reenvío idempotente del Data completo: tras un POST, el Data materializado se
+// reenvía por PATCH con todas sus llaves relacionales; como la FK ascendente
+// coincide con el Id autoritativo, la operación responde 200 sin aviso y reutiliza
+// las entidades por Id sin duplicarlas.
+func TestIntegracionReenvioDataCoincide200(t *testing.T) {
+	// El proveedor ya existe por su TerceroId para que el reenvío lo reutilice por
+	// PATCH en lugar de crear uno nuevo.
+	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
+		"GET /v1/proveedor": {{"Id": float64(101), "TerceroId": float64(201)}},
+	})
+	router := routerProveedor(t, crud)
+
+	// Cuerpo que reenvía el Data materializado: proveedor y tercero con Id propio y
+	// la FK ascendente coincidente (TerceroId == tercero.Id == 201).
+	cuerpo := map[string]any{
+		"Id":                    float64(101),
+		"TerceroId":             float64(201),
+		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"DescripcionPortafolio": "Servicios de consultoría",
+		"Tercero": map[string]any{
+			"Id":             float64(201),
+			"NombreCompleto": "Ana Pérez",
+		},
+		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+	}
+
+	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; esperado 200 (FK coincidente, sin aviso). body=%s", rec.Code, rec.Body.String())
+	}
+	if env.MetaData != nil && len(env.MetaData.Errors) > 0 {
+		t.Errorf("un reenvío coincidente no debe producir avisos; errors=%+v", env.MetaData.Errors)
+	}
+	if refID, ok := env.Data["TerceroId"].(float64); !ok || int(refID) != 201 {
+		t.Errorf("TerceroId coincidente debe conservarse numérico 201; data=%+v", env.Data)
+	}
+	// Idempotencia: no se crea un segundo proveedor; se reutiliza por PATCH.
+	post, patch, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	if post != 0 || patch != 1 {
+		t.Errorf("proveedor: se esperaba 0 POST / 1 PATCH; POST=%d PATCH=%d", post, patch)
+	}
+}
+
+// --- Grupo 3.3: conflicto de entidad existente -> 400; fallo de relación
+// tolerada (notify) -> 206 con Kind relation ---
+
+// Un proveedor EXISTENTE (con Id propio) cuya FK ascendente reenviada difiere del
+// Id del tercero referenciado es un conflicto fk_inbound: se rechaza con 400 sin
+// reasignar ni materializar la operación incompatible.
+func TestIntegracionConflictoFKAscendenteExistente400(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
+		"GET /v1/proveedor": {{"Id": float64(101), "TerceroId": float64(201)}},
+	})
+	router := routerProveedor(t, crud)
+
+	// El tercero referenciado se materializa con su propio Id autoritativo; la FK
+	// local reenviada (TerceroId=999) diverge en un nodo con Id propio -> conflicto.
+	cuerpo := map[string]any{
+		"Id":                    float64(101),
+		"TerceroId":             float64(999),
+		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"DescripcionPortafolio": "Servicios de consultoría",
+		"Tercero": map[string]any{
+			"Id":             float64(201),
+			"NombreCompleto": "Ana Pérez",
+		},
+		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+	}
+
+	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; esperado 400 por conflicto fk_inbound existente. body=%s", rec.Code, rec.Body.String())
+	}
+	if env.Status != "400" || env.Success {
+		t.Errorf("envoltorio inesperado para un conflicto: %+v", env)
+	}
+	// No debe materializarse el proveedor en conflicto (ni POST ni PATCH).
+	post, patch, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	if post != 0 || patch != 0 {
+		t.Errorf("no debe materializarse el proveedor en conflicto; POST=%d PATCH=%d capturas=%+v", post, patch, crud.Capturas())
+	}
+}
+
+// Fallo de una relación tolerada (notify): con la FK ascendente ausente (para
+// aislar el aviso), el CRUD de contacto responde 503; el motor conserva lo ya
+// materializado y responde 206 con un aviso Kind relation, sin exponer el error
+// interno del CRUD.
+func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, nil)
+	crud.FallarPostDe("contacto", http.StatusServiceUnavailable)
+	router := routerProveedor(t, crud)
+
+	rec, env := ejecutar(t, router, http.MethodPost,
+		comoJSON(t, cuerpoProveedorNaturalConTerceroID(nil, false)))
+
+	if rec.Code != http.StatusPartialContent {
+		t.Fatalf("status = %d; esperado 206 por fallo tolerado de contacto. body=%s", rec.Code, rec.Body.String())
+	}
+	if env.MetaData == nil || len(env.MetaData.Errors) == 0 {
+		t.Fatalf("se esperaba MetaData.Errors con el aviso de relación; env=%+v", env)
+	}
+	var vioRelation bool
+	for _, e := range env.MetaData.Errors {
+		if kind, _ := e["kind"].(string); kind == "relation" {
+			vioRelation = true
+		}
+		// El aviso no debe exponer el cuerpo interno del CRUD.
+		if msg, _ := e["message"].(string); strings.Contains(msg, "servicio no disponible") {
+			t.Errorf("el aviso no debe exponer el error interno del CRUD; aviso=%+v", e)
+		}
+	}
+	if !vioRelation {
+		t.Errorf("se esperaba un aviso con Kind relation; errors=%+v", env.MetaData.Errors)
+	}
+	// El proveedor sí se materializó pese al fallo del contacto (creación parcial).
+	post, _, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	if post != 1 {
+		t.Errorf("el proveedor debe materializarse pese al fallo tolerado; POST=%d", post)
 	}
 }

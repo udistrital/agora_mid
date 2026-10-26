@@ -21,18 +21,14 @@ func TestE2EProveedorCreacionYActualizacion(t *testing.T) {
 	// --- Fase 1: creación (POST) del subárbol completo ---
 	recCrear, envCrear := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpoProveedorNatural()))
 
-	// TODO(grupo 3, tasks 3.2/3.3): desbloqueo temporal. Con la normalización de
-	// campos relacionales (grupo 2), este fixture reenvía TerceroId=25 en un
-	// proveedor NUEVO mientras el tercero se materializa con otro Id; esa diferencia
-	// en una entidad nueva ahora se canoniza y produce 206 + MetaData.Errors con
-	// Kind field_normalization (comportamiento correcto). La reescritura definitiva
-	// del e2e y su fixture (coincide/ausente -> 200, diferencia -> 206) pertenece al
-	// grupo 3. Por ahora solo se relaja la aserción de estado para no bloquear la
-	// suite.
-	if recCrear.Code != http.StatusOK && recCrear.Code != http.StatusPartialContent {
-		t.Fatalf("creación: status = %d; esperado 200 o 206. body=%s", recCrear.Code, recCrear.Body.String())
+	// El fixture reenvía TerceroId=25 en un proveedor NUEVO; el tercero se
+	// materializa con su propio Id autoritativo, por lo que la FK ascendente se
+	// canoniza y la creación responde 206 con un aviso field_normalization,
+	// conservando el subárbol materializado en Data para continuar.
+	if recCrear.Code != http.StatusPartialContent {
+		t.Fatalf("creación: status = %d; esperado 206 por canonización. body=%s", recCrear.Code, recCrear.Body.String())
 	}
-	if (envCrear.Status != "200" && envCrear.Status != "206") || !envCrear.Success {
+	if envCrear.Status != "206" || !envCrear.Success {
 		t.Fatalf("creación: envoltorio inesperado: %+v", envCrear)
 	}
 

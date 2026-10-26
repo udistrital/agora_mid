@@ -56,6 +56,20 @@ type CRUDSimulado struct {
 	capturas   []PeticionCRUD
 	siguiente  map[string]int              // recurso -> próximo Id a asignar
 	existentes map[string][]map[string]any // "GET /v1/<recurso>" -> registros
+	fallarPost map[string]int              // recurso -> status HTTP a devolver en POST
+}
+
+// FallarPostDe configura el CRUD simulado para que el POST de un recurso
+// responda con el status HTTP dado (por ejemplo 503), simulando un CRUD dueño
+// caído. Sirve para ejercitar la política de fallo tolerado (notify) de una
+// relación en el flujo extremo a extremo.
+func (c *CRUDSimulado) FallarPostDe(recurso string, status int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fallarPost == nil {
+		c.fallarPost = map[string]int{}
+	}
+	c.fallarPost[recurso] = status
 }
 
 // NuevoCRUDSimulado arranca el CRUD simulado. existentes precarga, por clave
@@ -128,6 +142,17 @@ func (c *CRUDSimulado) manejar(w http.ResponseWriter, r *http.Request) {
 		Query:  r.URL.Query().Get("query"),
 		Cuerpo: cuerpo,
 	})
+	// Fallo inducido: un POST a un recurso marcado responde con el status de error
+	// configurado, simulando un CRUD dueño caído para ejercitar la política notify.
+	if r.Method == http.MethodPost {
+		if status, ok := c.fallarPost[recursoDePath(r.URL.Path)]; ok {
+			c.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			_, _ = io.WriteString(w, `{"Error":"servicio no disponible"}`)
+			return
+		}
+	}
 	claveGet := "GET " + strings.TrimRight(r.URL.Path, "/")
 	respuesta := c.responder(r.Method, r.URL.Path, claveGet, cuerpo)
 	c.mu.Unlock()
@@ -315,3 +340,36 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 	}
 }
 
+
+// cuerpoProveedorNaturalConTerceroID devuelve el cuerpo de creación de un
+// proveedor natural NUEVO (sin Id propio) variando la FK ascendente reenviada
+// TerceroId. incluir controla si el campo aparece en el cuerpo: con incluir=false
+// el campo se omite (ausencia); con incluir=true se agrega con el valor dado,
+// incluido nil para representar un null explícito del cliente. Permite ejercitar
+// la matriz de conciliación de la FK ascendente (ausente, null o un valor) sobre
+// el flujo extremo a extremo.
+func cuerpoProveedorNaturalConTerceroID(terceroID any, incluir bool) map[string]any {
+	cuerpo := map[string]any{
+		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"DescripcionPortafolio": "Servicios de consultoría",
+		"Tercero": map[string]any{
+			"NombreCompleto":      "Ana Pérez",
+			"TipoContribuyenteId": float64(2),
+			"DatosIdentificacion": []any{
+				map[string]any{"Numero": "123456", "TipoDocumentoId": float64(1)},
+			},
+		},
+		"ProveedorNatural": map[string]any{"PerfilDeclarado": float64(3)},
+		"Contacto": []any{
+			map[string]any{
+				"Finalidad":       "notificaciones",
+				"TipoCanal":       "correo",
+				"ValorEspecifico": "ana@correo.co",
+			},
+		},
+	}
+	if incluir {
+		cuerpo["TerceroId"] = terceroID
+	}
+	return cuerpo
+}

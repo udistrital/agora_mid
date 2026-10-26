@@ -137,7 +137,7 @@ responde `400` sin materializar nada.
 
 | Nodo | Cardinalidad | Campos escribibles | Reglas |
 |---|---|---|---|
-| (raíz) `proveedor` | 1 | `TerceroId`, `TipoRegistroId`, `DescripcionPortafolio` | `TipoRegistroId` obligatorio. `TerceroId` es clave natural e **inmutable**: cambiarlo en `PATCH` responde `400`; puede omitirse y se propaga desde el `Tercero` materializado. |
+| (raíz) `proveedor` | 1 | `TerceroId`, `TipoRegistroId`, `DescripcionPortafolio` | `TipoRegistroId` obligatorio. `TerceroId` es clave natural y llave relacional derivada reenviable: puede omitirse o reenviarse. Reenviarlo coincidente con la autoritativa se acepta; distinto en una entidad existente responde `400` (sin reasignar); distinto en una entidad nueva se canoniza (`206`). |
 | `Tercero` | 1-1 | `NombreCompleto`, `PrimerNombre`, `SegundoNombre`, `PrimerApellido`, `SegundoApellido`, `FechaNacimiento`, `TipoContribuyenteId` | Se crea/actualiza en el CRUD de terceros pero **nunca se elimina**; su `Id` se propaga a `proveedor.TerceroId`. |
 | `Tercero.DatosIdentificacion` | 1-N | `Numero`, `TipoDocumentoId`, `DigitoVerificacion`, `CiudadExpedicion`, `FechaExpedicion` | Idempotencia por clave natural `Numero`+`TipoDocumentoId` (ambos **inmutables**). No se elimina. |
 | `ProveedorNatural` | 1-1 | `PerfilDeclarado`, `ExperienciaLaboralMeses`, `ExperienciaProfesionalMeses` | PK compartida con `proveedor`. Válido solo si `TipoRegistroId` es persona natural. |
@@ -194,18 +194,22 @@ registros.
 
 | Código | Significado |
 |---|---|
-| `200` | Creación/actualización completa sin avisos. `Data` devuelve el subárbol materializado (el cuerpo enviado enriquecido con el `Id` de cada entidad, las llaves foráneas propagadas como enteros y `AutorModificacionId`); `MetaData` se omite. |
-| `206` | Materialización parcial tolerada: una relación no bloqueante falló tras materializar otras. El recurso se conserva, `Data` incluye el subárbol ya materializado y los avisos van en `MetaData.Errors`. |
-| `400` | Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId` ausente o no positivo, campo no escribible o inmutable, o rama de detalle incoherente con el tipo de registro. No se materializa nada. |
+| `200` | Creación/actualización completa sin avisos. `Data` devuelve el subárbol materializado (el cuerpo enviado enriquecido con el `Id` de cada entidad, las llaves foráneas propagadas como enteros y `AutorModificacionId`); `MetaData` se omite. Incluye el reenvío de una llave relacional derivada que **coincide** con la autoritativa. |
+| `206` | Respuesta parcial con avisos en `MetaData.Errors`, por dos orígenes: (1) **canonización** — una entidad nueva reenvió una llave relacional derivada desactualizada y el motor la reemplazó por la autoritativa (`kind: field_normalization`, `path` = `mapped_name` del nodo, p. ej. `Tercero`); (2) **fallo tolerado** — una relación no bloqueante falló tras materializar otras (`kind: relation`, `path` con índice en colecciones, p. ej. `Contacto[0]`). El recurso se conserva y `Data` incluye el subárbol ya materializado. |
+| `400` | Cuerpo o campo inválido: cuerpo no es un objeto JSON, `TipoRegistroId` ausente o no positivo, campo no escribible, conflicto de una llave relacional derivada en una entidad existente (una FK reenviada que difiere de la autoritativa y reasignaría la entidad), o rama de detalle incoherente con el tipo de registro. No se materializa nada; `Data` es `null` y `Message` cita la ruta lógica sin exponer valores. |
 | `405` | Método HTTP no permitido; solo se admiten `POST` y `PATCH` (además de `GET`). |
 | `502` | Fallo bloqueante de una relación bajo política de error estricta al escribir en un CRUD dueño. |
 | `504` | Tiempo de espera agotado durante un fallo bloqueante de escritura. |
 
 Las respuestas usan el mismo envelope plano `Success`/`Status`/`Message`/`Data`
-del proyecto. `MetaData.Errors` reporta las relaciones que no pudieron
-materializarse sin exponer URLs ni datos sensibles. Las llaves foráneas
+del proyecto. `MetaData.Errors` reporta tanto normalizaciones de campos derivados
+(`kind: field_normalization`) como relaciones toleradas no materializadas
+(`kind: relation`), sin exponer URLs ni datos sensibles. Las llaves foráneas
 propagadas en cascada (`TerceroId` del proveedor, `TerceroId` de
 `DatosIdentificacion`, `ProveedorId` de `Contacto`/`CuentaBancaria`) se devuelven
-como enteros, coherentes con el contrato de los CRUD dueños.
+como enteros, coherentes con el contrato de los CRUD dueños. Una llave relacional
+derivada puede reenviarse en el `Data`: ausente o `null` se completa; igual se
+conserva (`200`); distinta en entidad nueva se canoniza (`206`); distinta en
+entidad existente responde `400`.
 
 La definición OpenAPI de estos endpoints está en `swagger/swagger.yml`.

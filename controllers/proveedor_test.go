@@ -317,6 +317,29 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 			wantBody:   `"Errors"`,
 		},
 		{
+			name:   "canonización de campo derivado 206 field_normalization",
+			metodo: http.MethodPost,
+			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			resultado: helper.WriteResult{
+				Data: map[string]any{"Id": 10, "TerceroId": 201},
+				Warnings: []responses.RelationError{
+					{Path: "Tercero", Service: "tercero", Message: "se normalizó un campo relacional derivado con la llave autoritativa", Kind: helper.KindFieldNormalization},
+				},
+			},
+			wantStatus: 206,
+			wantBody:   `"field_normalization"`,
+		},
+		{
+			name:   "campo derivado coincidente 200 sin aviso",
+			metodo: http.MethodPost,
+			cuerpo: `{"TerceroId":201,"TipoRegistroId":1}`,
+			resultado: helper.WriteResult{
+				Data: map[string]any{"Id": 10, "TerceroId": 201},
+			},
+			wantStatus: 200,
+			wantBody:   `"Status":"200"`,
+		},
+		{
 			name:       "cuerpo JSON inválido 400",
 			metodo:     http.MethodPost,
 			cuerpo:     `no-es-json`,
@@ -372,6 +395,10 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 			}
 			if !strings.Contains(rec.Body.String(), tt.wantBody) {
 				t.Errorf("la respuesta no contiene %q: %s", tt.wantBody, rec.Body.String())
+			}
+			// Una respuesta 200 no debe incluir avisos en MetaData.Errors.
+			if tt.wantStatus == 200 && strings.Contains(rec.Body.String(), `"Errors"`) {
+				t.Errorf("una respuesta 200 no debe incluir MetaData.Errors: %s", rec.Body.String())
 			}
 			// En los casos que llegan al servicio, el autor viaja por el contexto.
 			if tt.err == nil && tt.wantStatus < 400 {
