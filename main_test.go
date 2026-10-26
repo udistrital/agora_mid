@@ -9,6 +9,57 @@ import (
 	"github.com/udistrital/agora_mid/controllers"
 )
 
+// La ruta /v1/proveedor/consulta se sirve con el handler Consultar. Se verifica
+// que POST llega a Consultar (valida el cuerpo antes de tocar el servicio) y que
+// GET/PUT/DELETE responden 405 con Allow: POST, igual que en el arranque donde
+// beego.Any enlaza http.HandlerFunc(proveedorHandler.Consultar).
+func TestEnrutarConsultaProveedorDespachaPorMetodo(t *testing.T) {
+	h := controllers.NewProveedorHandler(nil)
+	router := http.HandlerFunc(h.Consultar)
+
+	casos := []struct {
+		nombre     string
+		metodo     string
+		cuerpo     string
+		wantStatus int
+		wantAllow  string
+	}{
+		{
+			// POST con id ausente -> Consultar responde 400 antes del servicio.
+			nombre: "POST va a Consultar", metodo: http.MethodPost,
+			cuerpo: `{}`, wantStatus: http.StatusBadRequest,
+		},
+		{
+			nombre: "GET responde 405", metodo: http.MethodGet,
+			wantStatus: http.StatusMethodNotAllowed, wantAllow: http.MethodPost,
+		},
+		{
+			nombre: "PUT responde 405", metodo: http.MethodPut,
+			wantStatus: http.StatusMethodNotAllowed, wantAllow: http.MethodPost,
+		},
+		{
+			nombre: "DELETE responde 405", metodo: http.MethodDelete,
+			wantStatus: http.StatusMethodNotAllowed, wantAllow: http.MethodPost,
+		},
+	}
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			req := httptest.NewRequest(c.metodo, "/v1/proveedor/consulta", strings.NewReader(c.cuerpo))
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != c.wantStatus {
+				t.Fatalf("status = %d; esperado %d. Body: %s", rec.Code, c.wantStatus, rec.Body.String())
+			}
+			if c.wantAllow != "" && rec.Header().Get("Allow") != c.wantAllow {
+				t.Errorf("Allow = %q; esperado %q", rec.Header().Get("Allow"), c.wantAllow)
+			}
+		})
+	}
+}
+
 // enrutarProveedor debe delegar por método: GET a la lectura, POST/PATCH a la
 // escritura. Se verifica sin red: cada rama falla temprano con 400 por entrada
 // inválida antes de tocar un servicio, lo que evidencia a qué handler llegó.
