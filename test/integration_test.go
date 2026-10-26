@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/udistrital/agora_mid/config"
 )
 
 // respuestaEnvoltorio es la vista mínima del envoltorio OAS plano que las
@@ -13,6 +15,7 @@ import (
 type respuestaEnvoltorio struct {
 	Success  bool           `json:"Success"`
 	Status   string         `json:"Status"`
+	Message  string         `json:"Message"`
 	Data     map[string]any `json:"Data"`
 	MetaData *struct {
 		Errors []map[string]any `json:"Errors"`
@@ -249,5 +252,87 @@ func TestIntegracionContinuacionTrasCreacionParcial(t *testing.T) {
 	postContacto, _, _ := peticionesPorMetodo(crud.Capturas(), "contacto")
 	if postContacto != 1 {
 		t.Errorf("el contacto faltante debe crearse; POST=%d. capturas=%+v", postContacto, crud.Capturas())
+	}
+}
+
+// ejecutarConsulta envía un POST a /v1/proveedor/consulta con el cuerpo JSON
+// {id, fields} y decodifica el envoltorio de respuesta. Es la ruta de lectura por
+// cuerpo (handler.Consultar); se usa para ejercitar la validación de fields sin
+// depender del GET, que será retirado.
+func ejecutarConsulta(t *testing.T, router http.Handler, id int, fields []string) (*httptest.ResponseRecorder, respuestaEnvoltorio) {
+	t.Helper()
+	cuerpo := comoJSON(t, map[string]any{"id": id, "fields": fields})
+	req := httptest.NewRequest(http.MethodPost, "/v1/proveedor/consulta", strings.NewReader(cuerpo))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	var env respuestaEnvoltorio
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("respuesta no es un envoltorio JSON válido: %v; body=%s", err, rec.Body.String())
+	}
+	return rec, env
+}
+
+// Negación tipo allowed_fields por lista negra: pedir en fields un campo que SÍ
+// está en la configuración (allowed_fields de la relación en el YAML real) pero
+// que la lista negra veta se rechaza con 400 y el mismo mensaje observable que
+// un campo no permitido, sin distinguir el caso ni consultar el CRUD dueño
+// (política anti-sondeo + fallo temprano). Se ejercita por POST
+// /v1/proveedor/consulta (lectura por cuerpo).
+func TestIntegracionFieldVetadoSeRechazaComoNoPermitido(t *testing.T) {
+	// Tercero.NombreCompleto SÍ está declarado en allowed_fields de la relación
+	// Tercero (terceros/tercero) en config/relaciones_proveedor.yaml. La lista
+	// negra lo veta de forma transversal.
+	blacklist := config.GlobalBlacklist{
+		"terceros": {
+			"tercero": {"NombreCompleto"},
+		},
+	}
+
+	crud := NuevoCRUDSimulado(t, nil)
+	router := routerProveedorConBlacklist(t, crud, blacklist)
+
+	// Caso A: campo configurado (allowed_fields) pero vetado por la lista negra.
+	recVetado, envVetado := ejecutarConsulta(t, router, 101, []string{"Tercero.NombreCompleto"})
+	if recVetado.Code != http.StatusBadRequest {
+		t.Fatalf("un campo vetado debe rechazarse con 400; status=%d body=%s", recVetado.Code, recVetado.Body.String())
+	}
+
+	// Caso B: campo realmente no permitido (fuera de allowed_fields), sin lista
+	// negra, sobre el mismo router/configuración.
+	routerSinBL := routerProveedor(t, crud)
+	recNoPermitido, envNoPermitido := ejecutarConsulta(t, routerSinBL, 101, []string{"Tercero.CampoInexistente"})
+	if recNoPermitido.Code != http.StatusBadRequest {
+		t.Fatalf("un campo no permitido debe rechazarse con 400; status=%d body=%s", recNoPermitido.Code, recNoPermitido.Body.String())
+	}
+
+	// Ambos caminos deben producir el mismo código y el mismo mensaje observable:
+	// la negación por lista negra es indistinguible de la negación por
+	// allowed_fields, salvo el nombre del campo citado.
+	if recVetado.Code != recNoPermitido.Code {
+		t.Errorf("el status debe coincidir; vetado=%d no_permitido=%d", recVetado.Code, recNoPermitido.Code)
+	}
+	if envVetado.Status != "400" || envNoPermitido.Status != "400" {
+		t.Errorf("ambos envoltorios deben reportar 400; vetado=%q no_permitido=%q", envVetado.Status, envNoPermitido.Status)
+	}
+	if envVetado.Success || envNoPermitido.Success {
+		t.Errorf("ambas respuestas deben ser no exitosas; vetado=%v no_permitido=%v", envVetado.Success, envNoPermitido.Success)
+	}
+
+	// El mensaje del campo vetado debe usar la misma plantilla "no está permitido"
+	// que el no permitido (sin revelar que el campo existe o que está vetado).
+	if !strings.Contains(envVetado.Message, "no está permitido") {
+		t.Errorf("el mensaje del campo vetado debe usar la plantilla de no permitido; mensaje=%q", envVetado.Message)
+	}
+	if !strings.Contains(envVetado.Message, "Tercero.NombreCompleto") {
+		t.Errorf("el mensaje debe citar la ruta solicitada; mensaje=%q", envVetado.Message)
+	}
+
+	// Fallo temprano: el rechazo ocurre antes de consultar el CRUD dueño, de modo
+	// que una ruta vetada no dispara ninguna petición de lectura del proveedor.
+	for _, c := range crud.Capturas() {
+		if recursoDePath(c.Path) == "proveedor" {
+			t.Errorf("un fields vetado no debe consultar el CRUD; captura=%+v", c)
+		}
 	}
 }

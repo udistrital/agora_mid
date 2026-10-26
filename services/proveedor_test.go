@@ -111,6 +111,7 @@ func servicioPrueba(server *httptest.Server) ProveedorService {
 		cfgProveedorPrueba(),
 		tipoRegistroNaturalPrueba,
 		nil,
+		nil,
 	)
 }
 

@@ -62,7 +62,6 @@ relations:
     endpoint: /v1/tercero
     query_template: "Id:{ids}"
     allowed_fields:
-      - Id
       - NombreCompleto
       - TipoContribuyenteId
     # write: Tercero es dueño de su propio Id; el proveedor lo referencia por la
@@ -103,7 +102,6 @@ relations:
         endpoint: /v1/datos_identificacion
         query_template: "TerceroId:{ids}"
         allowed_fields:
-          - Id
           - Numero
           - TipoDocumentoId
           - CiudadExpedicion
@@ -142,7 +140,6 @@ relations:
         endpoint: /v1/tipo_contribuyente
         query_template: "Id:{ids}"
         allowed_fields:
-          - Id
           - Nombre
 
   # ProveedorNatural: detalle de persona natural (PK compartida con proveedor).
@@ -161,7 +158,6 @@ relations:
     endpoint: /v1/proveedor_natural
     query_template: "Id:{ids}"
     allowed_fields:
-      - Id
       - PerfilDeclarado
       - ExperienciaLaboralMeses
       - ExperienciaProfesionalMeses
@@ -195,7 +191,6 @@ relations:
         endpoint: /v1/perfil
         query_template: "Id:{ids}"
         allowed_fields:
-          - Id
           - Nombre
 
   # ProveedorJuridico: detalle de persona jurídica (PK compartida con proveedor).
@@ -212,7 +207,6 @@ relations:
     endpoint: /v1/proveedor_juridico
     query_template: "Id:{ids}"
     allowed_fields:
-      - Id
       - NombreComercial
       - MatriculaMercantil
       - FechaConstitucion
@@ -250,7 +244,6 @@ relations:
     endpoint: /v1/contacto
     query_template: "ProveedorId:{ids}"
     allowed_fields:
-      - Id
       - NombreContacto
       - Finalidad
       - TipoCanal
@@ -290,7 +283,6 @@ relations:
     endpoint: /v1/cuenta_bancaria
     query_template: "ProveedorId:{ids}"
     allowed_fields:
-      - Id
       - EntidadBancariaId
       - TipoCuentaId
       - NumeroCuenta

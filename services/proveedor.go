@@ -50,6 +50,11 @@ type ProveedorService struct {
 	// corresponde a persona natural. Un proveedor con este tipo de registro
 	// expande la rama ProveedorNatural; cualquier otro expande ProveedorJuridico.
 	TipoRegistroNatural int
+	// Blacklist es la lista negra global de campos que el servicio inyecta al
+	// expansor para recortar los campos vetados de la salida de todo resolver y
+	// para rechazar un campo vetado pedido explícitamente en fields. Puede ser nil
+	// o vacía (sin supresión).
+	Blacklist config.GlobalBlacklist
 }
 
 // ProveedorRecord es la vista mínima del proveedor base que el servicio de
@@ -86,7 +91,7 @@ func (s ProveedorService) LeerProveedor(
 	// validación: se reutiliza en la expansión sin volver a parsear.
 	var seleccion *helper.NodoSeleccion
 	if len(fields) > 0 {
-		arbol, err := helper.ParsearFields(fields, s.Config.Relations, nil)
+		arbol, err := helper.ParsearFields(fields, s.Config.Relations, nil, s.Blacklist)
 		if err != nil {
 			return helper.ExpandResult{}, err
 		}
@@ -113,7 +118,7 @@ func (s ProveedorService) LeerProveedor(
 		"Activo":         base.Activo,
 	}
 
-	return helper.Expand(ctx, data, cfg, s.Registry, helper.ExpandOptions{Seleccion: seleccion})
+	return helper.Expand(ctx, data, cfg, s.Registry, helper.ExpandOptions{Seleccion: seleccion, Blacklist: s.Blacklist})
 }
 
 // proveedorBase consulta el proveedor por su id contra el CRUD dueño y devuelve
@@ -180,13 +185,15 @@ func (s ProveedorService) configParaTipo(tipoRegistro int) config.ServiceConfig 
 // NewProveedorService construye un ProveedorService con el transporte HTTP, la
 // configuración de relaciones del proveedor y el registro relación→resolver del
 // núcleo resuelto contra las URLs de los CRUD. generic es el resolver genérico
-// de respaldo para relaciones sin resolver específico; puede ser nil.
+// de respaldo para relaciones sin resolver específico; puede ser nil. blacklist
+// es la lista negra global de campos; puede ser nil o vacía (sin supresión).
 func NewProveedorService(
 	client clients.HTTPClient,
 	urls config.ServiceURLs,
 	cfg config.ServiceConfig,
 	tipoRegistroNatural int,
 	generic helper.Resolver,
+	blacklist config.GlobalBlacklist,
 ) ProveedorService {
 	inner := helper.NewHTTPResolver(client, urls)
 	registry := helper.NewResolverRegistry(NewResolversNucleo(inner), generic)
@@ -196,5 +203,6 @@ func NewProveedorService(
 		Config:              cfg,
 		Registry:            registry,
 		TipoRegistroNatural: tipoRegistroNatural,
+		Blacklist:           blacklist,
 	}
 }

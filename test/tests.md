@@ -25,7 +25,18 @@ write-resolvers** contra CRUD dueños simulados, sin red real ni base de datos.
   devolver (para idempotencia y continuación tras creación parcial).
 - `routerProveedor(t, crud)`: arma el router real de `/v1/proveedor` (GET →
   lectura, POST/PATCH → escritura) sobre el servicio de escritura real cableado
-  contra el CRUD simulado, cargando el YAML de producción.
+  contra el CRUD simulado, cargando el YAML de producción. Equivale a
+  `routerProveedorConBlacklist(t, crud, nil)`.
+- `routerProveedorConBlacklist(t, crud, blacklist)`: como `routerProveedor` pero
+  inyecta una lista negra global (`config.GlobalBlacklist`) en el servicio de
+  lectura, para ejercitar el recorte y el rechazo por lista negra sobre la
+  configuración real. Una `blacklist` nil equivale a "sin supresión". El router
+  además despacha `POST /v1/proveedor/consulta` al handler de lectura por cuerpo
+  (`Consultar`), replicando el enrutado del `main`.
+- `ejecutar(t, router, metodo, cuerpo)` / `ejecutarConsulta(t, router, id, fields)`:
+  envían, respectivamente, una petición con cuerpo a `POST`/`PATCH /v1/proveedor`
+  o un `POST /v1/proveedor/consulta` con cuerpo JSON `{id, fields}` (lectura por
+  cuerpo), y decodifican el envoltorio de respuesta.
 - `cuerpoProveedorNatural()`: cuerpo de **creación** válido de un proveedor
   natural (proveedor raíz + tercero con datos de identificación y FK del tipo de
   contribuyente + rama natural + contacto).
@@ -84,6 +95,33 @@ write-resolvers** contra CRUD dueños simulados, sin red real ni base de datos.
   - Proveedor: 0 `POST`, 1 `PATCH`.
   - datos_identificacion existente: 0 `POST`, 1 `PATCH` (no se duplica).
   - Contacto faltante: 1 `POST` (lo ausente sí se crea).
+
+### TestIntegracionFieldVetadoSeRechazaComoNoPermitido
+
+- **Propósito**: verificar la **negación tipo `allowed_fields` por lista negra**
+  en la ruta de **lectura por cuerpo** (`POST /v1/proveedor/consulta`): pedir en
+  `fields` un campo que sí está declarado en la configuración real
+  (`allowed_fields` de la relación) pero que la lista negra global veta se rechaza
+  igual que un campo no permitido, sin distinguir el caso (política anti-sondeo) y
+  sin consultar el CRUD dueño (fallo temprano).
+- **Actores**: cliente del API (`POST /v1/proveedor/consulta` con cuerpo
+  `{id, fields}`), middleware con una lista negra global inyectada, CRUD simulados
+  (sin precarga).
+- **Entradas**:
+  - Lista negra: `terceros → tercero → [NombreCompleto]` (veta un campo que el
+    YAML real sí lista en `allowed_fields` de `Tercero`).
+  - Caso A: `POST /v1/proveedor/consulta` con `{id:101, fields:["Tercero.NombreCompleto"]}`
+    sobre el router con la lista negra inyectada (`routerProveedorConBlacklist`).
+  - Caso B (contraste): `POST /v1/proveedor/consulta` con
+    `{id:101, fields:["Tercero.CampoInexistente"]}` sobre el router sin lista negra
+    (`routerProveedor`), un campo realmente no permitido.
+- **Salidas esperadas**:
+  - Ambos casos: `400` con envoltorio `Success: false`, `Status: "400"`.
+  - El mensaje del campo vetado usa la misma plantilla "no está permitido" que el
+    no permitido y cita la ruta solicitada (`Tercero.NombreCompleto`), sin revelar
+    que el campo existe ni que está vetado.
+  - Ninguna petición al CRUD de `proveedor`: la ruta vetada se rechaza antes de
+    consultar el CRUD dueño.
 
 ## Prueba e2e (`e2e_test.go`)
 

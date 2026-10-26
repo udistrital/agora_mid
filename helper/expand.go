@@ -54,6 +54,11 @@ type ExpandOptions struct {
 	// de modo que la validación de fields tiene una única fuente de verdad. Si es
 	// nil, Expand parsea Fields contra la configuración recibida.
 	Seleccion *NodoSeleccion
+	// Blacklist es la lista negra global de campos. Cuando no es nil, el motor
+	// recorta los campos vetados de la salida de todo resolver (específico y
+	// genérico) antes de anidar cada registro, con precedencia sobre allowed_fields
+	// y sobre el Id implícito. Una lista negra nil o vacía no recorta nada.
+	Blacklist config.GlobalBlacklist
 }
 
 // ExpandResult es el resultado de una expansión: los datos expandidos y los
@@ -120,6 +125,8 @@ type expansor struct {
 	maxDepth   int
 	maxRelIDs  int
 	onRelError string
+	// blacklist es la lista negra global de campos; nil o vacía no recorta nada.
+	blacklist config.GlobalBlacklist
 	// cache por solicitud: clave "servicio|mapped|field|key" -> registros.
 	cache    map[string][]map[string]any
 	warnings []responses.RelationError
@@ -174,7 +181,7 @@ func Expand(
 	case options.Seleccion != nil:
 		seleccion = options.Seleccion
 	case len(options.Fields) > 0:
-		arbol, err := ParsearFields(options.Fields, cfg.Relations, allowedTopLevel(cfg))
+		arbol, err := ParsearFields(options.Fields, cfg.Relations, allowedTopLevel(cfg), options.Blacklist)
 		if err != nil {
 			return ExpandResult{}, err
 		}
@@ -187,6 +194,7 @@ func Expand(
 		maxDepth:   maxDepth,
 		maxRelIDs:  maxRelIDs,
 		onRelError: onRelError,
+		blacklist:  options.Blacklist,
 		cache:      make(map[string][]map[string]any),
 	}
 
@@ -401,7 +409,33 @@ func (ex *expansor) expandirRelacionNivel(
 	// papel) y sobre los mismos punteros insertados.
 	proyectarRegistros(registros, seleccionEfectiva)
 
+	// Recorte por lista negra: sobre el mismo choke-point y después de la
+	// proyección, se eliminan los campos vetados de cada registro resuelto, sea
+	// cual sea el resolver (específico o genérico) y exista o no selección. La
+	// lista negra gana sobre allowed_fields y sobre el Id implícito (precedencia
+	// lista negra > allowed_fields > Id), y su supresión es silenciosa (sin aviso).
+	ex.recortarVetados(registros, rel)
+
 	return nil
+}
+
+// recortarVetados elimina in situ de cada registro resuelto los campos vetados
+// por la lista negra para la relación (emparejando por RelatedAPI/RelatedTable,
+// con los comodines WildcardANY). Se aplica sobre la salida de todo resolver,
+// después de la proyección por fields, de modo que un campo permitido por
+// allowed_fields o el Id implícito también se suprimen si están vetados. Una
+// lista negra nil o vacía no recorta nada.
+func (ex *expansor) recortarVetados(registros []map[string]any, rel config.RelationConfig) {
+	if len(ex.blacklist) == 0 {
+		return
+	}
+	for _, reg := range registros {
+		for campo := range reg {
+			if ex.blacklist.CampoVetado(rel.RelatedAPI, rel.RelatedTable, campo) {
+				delete(reg, campo)
+			}
+		}
+	}
 }
 
 // proyectarRegistros recorta in situ cada registro a los campos seleccionados

@@ -196,6 +196,19 @@ func idBase(res string) int {
 // producción, no una copia.
 func routerProveedor(t *testing.T, crud *CRUDSimulado) http.Handler {
 	t.Helper()
+	return routerProveedorConBlacklist(t, crud, nil)
+}
+
+// routerProveedorConBlacklist es como routerProveedor pero inyecta una lista
+// negra global en el servicio de lectura, de modo que las pruebas puedan
+// ejercitar el recorte y el rechazo por lista negra sobre la configuración real.
+// Una blacklist nil equivale a "sin supresión".
+func routerProveedorConBlacklist(
+	t *testing.T,
+	crud *CRUDSimulado,
+	blacklist config.GlobalBlacklist,
+) http.Handler {
+	t.Helper()
 
 	urls := crud.URLs()
 	relaciones, err := config.LoadRelaciones("../config", urls)
@@ -208,10 +221,17 @@ func routerProveedor(t *testing.T, crud *CRUDSimulado) http.Handler {
 	}
 
 	escritura := services.NewProveedorWriteService(crud.Client(), urls, cfg, tipoRegistroNatural)
-	lectura := services.NewProveedorService(crud.Client(), urls, cfg, tipoRegistroNatural, nil)
+	lectura := services.NewProveedorService(crud.Client(), urls, cfg, tipoRegistroNatural, nil, blacklist)
 	handler := controllers.NewProveedorHandlerCompleto(lectura, escritura)
 
+	// Replica el enrutado del main: /v1/proveedor/consulta expone la lectura por
+	// cuerpo JSON (handler.Consultar, solo POST), y /v1/proveedor despacha por
+	// método (GET -> lectura, POST/PATCH -> escritura).
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/proveedor/consulta" {
+			handler.Consultar(w, r)
+			return
+		}
 		switch r.Method {
 		case http.MethodPost, http.MethodPatch:
 			handler.Escribir(w, r)

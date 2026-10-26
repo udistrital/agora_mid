@@ -24,17 +24,17 @@
 
 ## 5. Recorte por lista negra sobre la salida de todo resolver
 
-- [ ] 5.1 En `helper/expand.go` extender el choke-point de proyección del grupo 2 para recortar también los campos vetados del registro devuelto por el resolver antes de anidarlo, aplicando precedencia lista negra > `allowed_fields` > `Id` implícito, usando `RelatedAPI`/`RelatedTable` de la relación para casar; verificar con una prueba en `helper/expand_test.go` que un campo permitido por `allowed_fields` y vetado se omite, y que un `Id` implícito vetado se omite, sin aviso en `MetaData`
-- [ ] 5.2 Verificar que el resolver genérico obedece la lista negra: una relación resuelta por el genérico cuyo registro trae un campo vetado lo entrega recortado; verificar con una prueba en `helper/` que cubre la rama del resolver genérico y afirma el campo ausente (más el aviso `generic_resolver` intacto)
-- [ ] 5.3 Hacer que pedir explícitamente en `fields` un campo vetado produzca el mismo resultado que un campo no permitido, reutilizando el rechazo genérico existente sin distinguir el motivo ni emitir aviso; verificar con una prueba en `helper/seleccion_test.go` que `fields` con una ruta vetada se rechaza igual que una ruta no permitida
+- [x] 5.1 En `helper/expand.go` extender el choke-point de proyección del grupo 2 para recortar también los campos vetados del registro devuelto por el resolver antes de anidarlo, aplicando precedencia lista negra > `allowed_fields` > `Id` implícito, usando `RelatedAPI`/`RelatedTable` de la relación para casar; verificar con una prueba en `helper/expand_test.go` que un campo permitido por `allowed_fields` y vetado se omite, y que un `Id` implícito vetado se omite, sin aviso en `MetaData`
+- [x] 5.2 Verificar que el resolver genérico obedece la lista negra: una relación resuelta por el genérico cuyo registro trae un campo vetado lo entrega recortado; verificar con una prueba en `helper/` que cubre la rama del resolver genérico y afirma el campo ausente (más el aviso `generic_resolver` intacto)
+- [x] 5.3 Hacer que pedir explícitamente en `fields` un campo vetado produzca el mismo resultado que un campo no permitido, reutilizando el rechazo genérico existente sin distinguir el motivo ni emitir aviso; verificar con una prueba en `helper/seleccion_test.go` que `fields` con una ruta vetada se rechaza igual que una ruta no permitida
 
 ## 6. Limpieza de configuración (opcional)
 
-- [ ] 6.1 Retirar `Id` de las `allowed_fields` de las relaciones en `config/relaciones_proveedor.yaml` (ya innecesario por el `Id` implícito) y verificar con `go test ./...` que la expansión sigue entregando el `Id` de cada relación y que todo compila
+- [x] 6.1 Retirar `Id` de las `allowed_fields` de las relaciones en `config/relaciones_proveedor.yaml` (ya innecesario por el `Id` implícito) y verificar con `go test ./...` que la expansión sigue entregando el `Id` de cada relación y que todo compila
 
 ## 7. Verificación integral
 
-- [ ] 7.1 Ejecutar `go build ./...` y `go test ./...` para confirmar que la proyección estricta de `fields`, el `Id` implícito, la lista negra (incluida la ruta del resolver genérico), el rechazo de un campo vetado en `fields` y el invariante de tipos de aviso funcionan en conjunto sin regresiones
+- [x] 7.1 Ejecutar `go build ./...` y `go test ./...` para confirmar que la proyección estricta de `fields`, el `Id` implícito, la lista negra (incluida la ruta del resolver genérico), el rechazo de un campo vetado en `fields` y el invariante de tipos de aviso funcionan en conjunto sin regresiones
 
 ## Workflow follow-up
 

@@ -25,11 +25,9 @@ func main() {
 
 	// Cargar y validar la lista negra global de campos de expansión. Aborta el
 	// arranque si el archivo es inválido o contiene una entrada inconsistente
-	// (por ejemplo ANY/ANY/ANY). Aún no se inyecta en el motor de expansión: esa
-	// conexión llega con el recorte por lista negra. Validarla aquí deja el
-	// arranque como el punto único donde una configuración incoherente falla
-	// temprano.
-	config.MustLoadBlacklist("config/global_blacklist.yaml", relaciones)
+	// (por ejemplo ANY/ANY/ANY). Se inyecta en el servicio de lectura para que el
+	// motor recorte los campos vetados de la salida de todo resolver.
+	blacklist := config.MustLoadBlacklist("config/global_blacklist.yaml", relaciones)
 
 	proveedorConfig, ok := relaciones["proveedor"]
 	if !ok {
@@ -55,6 +53,7 @@ func main() {
 		proveedorConfig,
 		tipoNatural,
 		nil,
+		blacklist,
 	)
 	proveedorWriteService := services.NewProveedorWriteService(
 		clients.HTTPClient{},
