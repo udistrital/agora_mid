@@ -7,10 +7,6 @@ import (
 	"github.com/udistrital/agora_mid/responses"
 )
 
-// KindGenericResolver es el valor de Kind de los avisos emitidos cuando se
-// resuelve una relación con el resolver genérico.
-const KindGenericResolver = "generic_resolver"
-
 // GenericMarker identifica a los resolvers que entregan Data sin transformar y
 // cuyo uso debe notificarse mediante un aviso generic_resolver.
 type GenericMarker interface {

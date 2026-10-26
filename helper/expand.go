@@ -9,7 +9,9 @@ import (
 	"github.com/udistrital/agora_mid/responses"
 )
 
-// Tipos de aviso de expansión serializados en MetaData.Errors.
+// Tipos de aviso de expansión serializados en MetaData.Errors. Todo Kind emitido
+// por el motor de expansión corresponde a una de estas constantes; no debe
+// emitirse ningún Kind fuera de este conjunto.
 const (
 	// KindRelation marca un error de relación tolerado en modo notify.
 	KindRelation = "relation"
@@ -17,7 +19,19 @@ const (
 	KindDepth = "depth"
 	// KindCycle marca la detención de una rama por ciclo detectado.
 	KindCycle = "cycle"
+	// KindGenericResolver marca una relación resuelta por el resolver genérico,
+	// cuyo Data se entrega sin transformar.
+	KindGenericResolver = "generic_resolver"
 )
+
+// KindsDeAviso enumera el conjunto completo de tipos de aviso declarados. El
+// invariante del motor es que todo Kind emitido pertenece a este conjunto.
+var KindsDeAviso = []string{
+	KindRelation,
+	KindDepth,
+	KindCycle,
+	KindGenericResolver,
+}
 
 // ExpandOptions son las opciones de expansión que arma el controlador. El helper
 // no implementa recursión en el controlador: recibe estas opciones, resuelve y

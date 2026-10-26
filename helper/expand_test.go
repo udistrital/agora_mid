@@ -435,3 +435,131 @@ func contieneAviso(avisos []responses.RelationError, kind string) bool {
 	}
 	return false
 }
+
+// TestInvarianteKindsDeAviso afirma el invariante "todo Kind emitido tiene una
+// constante declarada": el conjunto declarado KindsDeAviso es exactamente
+// {relation, depth, cycle, generic_resolver}, cada ruta de emisión produce un
+// Kind dentro de ese conjunto y cada constante declarada se emite por alguna
+// ruta (no hay constante muerta ni Kind fuera del conjunto).
+func TestInvarianteKindsDeAviso(t *testing.T) {
+	// 1. El conjunto declarado coincide exactamente con los cuatro canónicos.
+	declarados := make(map[string]struct{}, len(KindsDeAviso))
+	for _, k := range KindsDeAviso {
+		if _, dup := declarados[k]; dup {
+			t.Errorf("KindsDeAviso contiene un duplicado: %q", k)
+		}
+		declarados[k] = struct{}{}
+	}
+	canonicos := map[string]struct{}{
+		KindRelation:        {},
+		KindDepth:           {},
+		KindCycle:           {},
+		KindGenericResolver: {},
+	}
+	if len(declarados) != len(canonicos) {
+		t.Fatalf("KindsDeAviso = %v; esperado exactamente %d constantes", KindsDeAviso, len(canonicos))
+	}
+	for k := range canonicos {
+		if _, ok := declarados[k]; !ok {
+			t.Errorf("la constante canónica %q no está en KindsDeAviso", k)
+		}
+	}
+
+	// 2. Ejercer cada ruta de emisión y recolectar los Kind producidos.
+	emitidos := make(map[string]struct{})
+	recolectar := func(avisos []responses.RelationError) {
+		for _, a := range avisos {
+			if _, ok := declarados[a.Kind]; !ok {
+				t.Errorf("Kind emitido %q sin constante declarada (aviso %+v)", a.Kind, a)
+			}
+			emitidos[a.Kind] = struct{}{}
+		}
+	}
+
+	// relation: error de relación tolerado en modo notify.
+	{
+		res := &resolverFake{err: errors.New("503 service unavailable")}
+		registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+		data := map[string]any{"Id": float64(1), "TerceroId": float64(7)}
+		cfg := config.ServiceConfig{
+			Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+			Relations: []config.RelationConfig{relacionesPrueba()[0]},
+		}
+		out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+		if err != nil {
+			t.Fatalf("notify no debe devolver error: %v", err)
+		}
+		recolectar(out.Warnings)
+	}
+
+	// depth: config hija con menor profundidad que el límite global.
+	{
+		rels := relacionesPrueba()
+		rels[0].Depth = 1
+		res := &resolverFake{registros: []map[string]any{{"Id": float64(7)}}}
+		registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+		data := map[string]any{"TerceroId": float64(7)}
+		cfg := config.ServiceConfig{
+			Service: "s", MaxDepth: 3, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+			Relations: []config.RelationConfig{rels[0]},
+		}
+		out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+		if err != nil {
+			t.Fatalf("expansión con reducción de profundidad no debe fallar: %v", err)
+		}
+		recolectar(out.Warnings)
+	}
+
+	// cycle: una relación cuya hija vuelve a mapear el mismo mapped_name.
+	{
+		tercero := config.RelationConfig{
+			Name: "Tercero", RelatedService: "tercero", RelatedAPI: "terceros", RelatedTable: "t",
+			Direction: config.DirectionLocalToRelated, LocalField: "TerceroId", RelatedField: "Id",
+			Cardinality: config.CardinalityOne, Depth: 5, MappedName: "Tercero",
+			Endpoint: "/v1/tercero", QueryTemplate: "Id:{ids}", AllowedFields: []string{"Id"},
+			NestedRelations: []config.RelationConfig{
+				{
+					Name: "Tercero", RelatedService: "tercero", RelatedAPI: "terceros", RelatedTable: "t",
+					Direction: config.DirectionLocalToRelated, LocalField: "TerceroId", RelatedField: "Id",
+					Cardinality: config.CardinalityOne, Depth: 5, MappedName: "Tercero",
+					Endpoint: "/v1/tercero", QueryTemplate: "Id:{ids}", AllowedFields: []string{"Id"},
+				},
+			},
+		}
+		res := &resolverFake{registros: []map[string]any{{"Id": float64(7), "TerceroId": float64(7)}}}
+		registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+		data := map[string]any{"TerceroId": float64(7)}
+		cfg := config.ServiceConfig{
+			Service: "s", MaxDepth: 5, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+			Relations: []config.RelationConfig{tercero},
+		}
+		out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+		if err != nil {
+			t.Fatalf("expansión con ciclo no debe fallar: %v", err)
+		}
+		recolectar(out.Warnings)
+	}
+
+	// generic_resolver: relación sin resolver especializado usa el genérico.
+	{
+		generico := &resolverFake{registros: []map[string]any{{"Id": float64(7), "Campo": "x"}}, generico: true}
+		registry := NewResolverRegistry(map[string]Resolver{}, generico)
+		data := map[string]any{"TerceroId": float64(7)}
+		cfg := config.ServiceConfig{
+			Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+			Relations: []config.RelationConfig{relacionesPrueba()[0]},
+		}
+		out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+		if err != nil {
+			t.Fatalf("expansión con resolver genérico no debe fallar: %v", err)
+		}
+		recolectar(out.Warnings)
+	}
+
+	// 3. Cada constante declarada se emitió por alguna ruta (no hay constante muerta).
+	for k := range declarados {
+		if _, ok := emitidos[k]; !ok {
+			t.Errorf("la constante declarada %q no fue emitida por ninguna ruta de expansión", k)
+		}
+	}
+}

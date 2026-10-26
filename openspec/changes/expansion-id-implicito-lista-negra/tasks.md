@@ -2,8 +2,8 @@
 
 ## 1. Constantes de tipos de aviso e invariante
 
-- [ ] 1.1 En `helper/expand.go` añadir la constante `KindGenericResolver = "generic_resolver"` junto a `KindRelation/KindDepth/KindCycle` y hacer que `AvisoGenericResolver` use la constante; verificar con `go test ./helper/...` que el aviso emitido conserva `Kind: "generic_resolver"`
-- [ ] 1.2 Agregar una prueba en `helper/` que afirme el invariante "todo `Kind` emitido tiene una constante declarada": recorre el conjunto de constantes de aviso ({relation, depth, cycle, generic_resolver}) y verifica que cada ruta de emisión usa una de ellas y que no hay ningún `Kind` emitido fuera del conjunto; verificar con `go test ./helper/...`
+- [x] 1.1 En `helper/expand.go` añadir la constante `KindGenericResolver = "generic_resolver"` junto a `KindRelation/KindDepth/KindCycle` y hacer que `AvisoGenericResolver` use la constante; verificar con `go test ./helper/...` que el aviso emitido conserva `Kind: "generic_resolver"`
+- [x] 1.2 Agregar una prueba en `helper/` que afirme el invariante "todo `Kind` emitido tiene una constante declarada": recorre el conjunto de constantes de aviso ({relation, depth, cycle, generic_resolver}) y verifica que cada ruta de emisión usa una de ellas y que no hay ningún `Kind` emitido fuera del conjunto; verificar con `go test ./helper/...`
 
 ## 2. Id implícito en selección y expansión
 
