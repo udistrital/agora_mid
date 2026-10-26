@@ -929,3 +929,76 @@ func TestExpandMatrizSeleccion(t *testing.T) {
 		}
 	})
 }
+
+// Id implícito en expansión (grupo 3, task 3.2): sin fields, la entidad expandida
+// conserva su Id aunque allowed_fields de la relación no lo liste.
+func TestExpandIdImplicitoSinFields(t *testing.T) {
+	// Tercero con allowed_fields SIN Id; el resolver sí devuelve Id.
+	rel := config.RelationConfig{
+		Name: "Tercero", RelatedService: "tercero", RelatedAPI: "terceros", RelatedTable: "tercero",
+		Direction: config.DirectionLocalToRelated, LocalField: "TerceroId", RelatedField: "Id",
+		Cardinality: config.CardinalityOne, Depth: 1, MappedName: "Tercero",
+		AllowedFields: []string{"NombreCompleto"},
+	}
+	res := &resolverFake{registros: []map[string]any{{"Id": float64(7), "NombreCompleto": "Ana"}}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"Id": float64(1), "TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rel},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	tercero, ok := out.Data.(map[string]any)["Tercero"].(map[string]any)
+	if !ok {
+		t.Fatalf("se esperaba la relación Tercero; recibido: %T", out.Data.(map[string]any)["Tercero"])
+	}
+	if _, existe := tercero["Id"]; !existe {
+		t.Errorf("el Id implícito debe conservarse sin fields aunque allowed_fields no lo liste; recibido: %+v", tercero)
+	}
+}
+
+// Omisión explícita del Id por fields: cuando la selección de una relación no
+// menciona su Id, el Id NO se incluye para esa solicitud y no se emite aviso. Es
+// la contraparte del Id implícito: implícito por defecto (sin fields), pero
+// omitible como cualquier escalar cuando hay selección parcial que no lo nombra.
+func TestExpandIdOmitidoSiNoEstaEnFields(t *testing.T) {
+	// allowed_fields SÍ incluye Id; el resolver lo devuelve. Aun así, al pedir
+	// solo NombreCompleto, el Id no debe entregarse.
+	rel := config.RelationConfig{
+		Name: "Tercero", RelatedService: "tercero", RelatedAPI: "terceros", RelatedTable: "tercero",
+		Direction: config.DirectionLocalToRelated, LocalField: "TerceroId", RelatedField: "Id",
+		Cardinality: config.CardinalityOne, Depth: 1, MappedName: "Tercero",
+		AllowedFields: []string{"Id", "NombreCompleto"},
+	}
+	res := &resolverFake{registros: []map[string]any{{"Id": float64(7), "NombreCompleto": "Ana"}}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"Id": float64(1), "TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rel},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{
+		Fields: []string{"Tercero.NombreCompleto"},
+	})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	tercero := out.Data.(map[string]any)["Tercero"].(map[string]any)
+	if _, existe := tercero["Id"]; existe {
+		t.Errorf("Id no fue seleccionado en fields y no debe incluirse; recibido: %+v", tercero)
+	}
+	if !tieneExactamente(tercero, "NombreCompleto") {
+		t.Errorf("debe entregarse solo NombreCompleto; recibido: %+v", tercero)
+	}
+	// La omisión del Id es silenciosa: no emite aviso.
+	if len(out.Warnings) != 0 {
+		t.Errorf("la omisión del Id no debe emitir aviso; avisos: %+v", out.Warnings)
+	}
+}

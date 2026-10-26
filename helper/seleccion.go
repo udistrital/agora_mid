@@ -8,6 +8,11 @@ import (
 	"github.com/udistrital/agora_mid/config"
 )
 
+// campoId es el nombre canónico del identificador de toda entidad. Es
+// seleccionable y se conserva de forma implícita en la expansión aunque la
+// configuración no lo declare en allowed_fields.
+const campoId = "Id"
+
 // NodoSeleccion representa un nodo del árbol de selección construido a partir de
 // las rutas de fields. Cada nodo corresponde a un campo (base o relación) y, si
 // es una relación, puede llevar hijos para los descendientes solicitados.
@@ -154,9 +159,14 @@ func buscarRelacion(relaciones []config.RelationConfig, nombre string) (config.R
 // significa que no hay lista de restricción declarada en ese nivel (los campos
 // base provienen del esquema del recurso), por lo que se acepta cualquier campo.
 // Un allowed declarado (no nil, incluido vacío) restringe estrictamente a sus
-// elementos.
+// elementos, con una excepción: el campo "Id" es seleccionable de forma implícita
+// en cualquier nivel aunque no esté declarado en allowed_fields, de modo que toda
+// entidad anidada sea identificable por defecto.
 func campoPermitido(allowed []string, campo string) bool {
 	if allowed == nil {
+		return true
+	}
+	if campo == campoId {
 		return true
 	}
 	for _, a := range allowed {

@@ -13,8 +13,8 @@
 
 ## 3. Id implícito en selección y expansión
 
-- [ ] 3.1 En `helper/seleccion.go` permitir que la ruta del `Id` de una relación sea válida aunque `Id` no esté en `allowed_fields` (p. ej. `campoPermitido` acepta `Id` para un nivel de relación); verificar con una prueba en `helper/seleccion_test.go` que `fields=Tercero.Id` se acepta cuando `allowed_fields` de `Tercero` no lista `Id`, y que un campo no-`Id` fuera de `allowed_fields` sigue rechazándose. La omisión del `Id` por `fields` (cuando la selección del nivel no lo menciona) ya queda cubierta por la proyección estricta del grupo 2 y no requiere trato especial del `Id`
-- [ ] 3.2 En `helper/expand.go` garantizar que el `Id` de cada entidad expandida se conserva por defecto (expansión sin `fields`) aunque `allowed_fields` no lo liste, apoyándose en el no-recorte por defecto del grupo 2; verificar con una prueba en `helper/expand_test.go` que una relación con `allowed_fields` sin `Id` se expande con su `Id` presente
+- [x] 3.1 En `helper/seleccion.go` permitir que la ruta del `Id` de una relación sea válida aunque `Id` no esté en `allowed_fields` (p. ej. `campoPermitido` acepta `Id` para un nivel de relación); verificar con una prueba en `helper/seleccion_test.go` que `fields=Tercero.Id` se acepta cuando `allowed_fields` de `Tercero` no lista `Id`, y que un campo no-`Id` fuera de `allowed_fields` sigue rechazándose. La omisión del `Id` por `fields` (cuando la selección del nivel no lo menciona) ya queda cubierta por la proyección estricta del grupo 2 y no requiere trato especial del `Id`
+- [x] 3.2 En `helper/expand.go` garantizar que el `Id` de cada entidad expandida se conserva por defecto (expansión sin `fields`) aunque `allowed_fields` no lo liste, apoyándose en el no-recorte por defecto del grupo 2; verificar con una prueba en `helper/expand_test.go` que una relación con `allowed_fields` sin `Id` se expande con su `Id` presente
 
 ## 4. Carga y validación de la lista negra al arranque
 

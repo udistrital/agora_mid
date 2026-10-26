@@ -158,3 +158,37 @@ func TestParsearFieldsRelacionCompleta(t *testing.T) {
 		t.Error("seleccionar una relación completa debe materializarla")
 	}
 }
+
+// Id implícito en selección (grupo 3, task 3.1): la ruta del Id de una relación
+// es válida aunque allowed_fields de esa relación no liste Id; un campo no-Id
+// fuera de allowed_fields sigue rechazándose.
+func TestParsearFieldsIdImplicito(t *testing.T) {
+	// Relación Tercero con allowed_fields que NO incluye Id.
+	rels := []config.RelationConfig{
+		{
+			Name: "Tercero", RelatedService: "tercero", RelatedAPI: "terceros", RelatedTable: "tercero",
+			Direction: config.DirectionLocalToRelated, LocalField: "TerceroId", RelatedField: "Id",
+			Cardinality: config.CardinalityOne, Depth: 2, MappedName: "Tercero",
+			AllowedFields: []string{"NombreCompleto"},
+		},
+	}
+
+	// Tercero.Id se acepta pese a que allowed_fields no lista Id.
+	arbol, err := ParsearFields([]string{"Tercero.Id"}, rels, nil)
+	if err != nil {
+		t.Fatalf("Tercero.Id debe aceptarse por Id implícito; err=%v", err)
+	}
+	hijo, ok := arbol.Hijo("Tercero")
+	if !ok || !hijo.TieneCampo("Id") {
+		t.Errorf("el árbol debe contener Tercero.Id; recibido: %+v", hijo)
+	}
+
+	// Un campo no-Id fuera de allowed_fields sigue rechazándose.
+	_, err = ParsearFields([]string{"Tercero.Secreto"}, rels, nil)
+	if err == nil {
+		t.Fatal("un campo no-Id fuera de allowed_fields debe rechazarse")
+	}
+	if _, ok := err.(*ErrorFields); !ok {
+		t.Errorf("se esperaba *ErrorFields; recibido: %T", err)
+	}
+}
