@@ -250,19 +250,15 @@ func routerProveedorConBlacklist(
 	handler := controllers.NewProveedorHandlerCompleto(lectura, escritura)
 
 	// Replica el enrutado del main: /v1/proveedor/consulta expone la lectura por
-	// cuerpo JSON (handler.Consultar, solo POST), y /v1/proveedor despacha por
-	// método (GET -> lectura, POST/PATCH -> escritura).
+	// cuerpo JSON (handler.Consultar, solo POST), y /v1/proveedor atiende la
+	// escritura (handler.Escribir); tras retirar el GET de lectura, GET/PUT/DELETE
+	// sobre /v1/proveedor obtienen 405 con Allow: POST, PATCH desde Escribir.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/proveedor/consulta" {
 			handler.Consultar(w, r)
 			return
 		}
-		switch r.Method {
-		case http.MethodPost, http.MethodPatch:
-			handler.Escribir(w, r)
-		default:
-			handler.Leer(w, r)
-		}
+		handler.Escribir(w, r)
 	})
 }
 

@@ -101,15 +101,13 @@ func adaptarHandler(handler http.Handler) func(*beecontext.Context) {
 	}
 }
 
-// enrutarProveedor delega GET a la lectura del proveedor y POST/PATCH a su
-// escritura, sobre el mismo recurso raíz /v1/proveedor.
+// enrutarProveedor atiende la escritura del proveedor sobre el recurso raíz
+// /v1/proveedor. Tras retirar la lectura por GET, solo POST/PATCH materializan;
+// cualquier otro método (GET/PUT/DELETE) obtiene 405 con Allow: POST, PATCH
+// resuelto por el propio handler Escribir. La lectura vive en
+// /v1/proveedor/consulta (handler Consultar).
 func enrutarProveedor(h *controllers.ProveedorHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost, http.MethodPatch:
-			h.Escribir(w, r)
-		default:
-			h.Leer(w, r)
-		}
+		h.Escribir(w, r)
 	})
 }

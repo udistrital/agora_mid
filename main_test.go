@@ -60,9 +60,10 @@ func TestEnrutarConsultaProveedorDespachaPorMetodo(t *testing.T) {
 	}
 }
 
-// enrutarProveedor debe delegar por método: GET a la lectura, POST/PATCH a la
-// escritura. Se verifica sin red: cada rama falla temprano con 400 por entrada
-// inválida antes de tocar un servicio, lo que evidencia a qué handler llegó.
+// enrutarProveedor atiende solo la escritura sobre /v1/proveedor tras retirar el
+// GET de lectura: POST/PATCH llegan a Escribir (fallan con 400 por entrada
+// inválida antes de tocar un servicio, lo que evidencia que llegaron al handler),
+// y GET/PUT/DELETE obtienen 405 anunciando POST, PATCH. Se verifica sin red.
 func TestEnrutarProveedorDespachaPorMetodo(t *testing.T) {
 	// Handler sin servicios: las rutas de validación temprana no los invocan.
 	h := controllers.NewProveedorHandlerCompleto(nil, nil)
@@ -77,11 +78,6 @@ func TestEnrutarProveedorDespachaPorMetodo(t *testing.T) {
 		wantAllow  string
 	}{
 		{
-			// GET sin id -> Leer responde 400 (id obligatorio).
-			nombre: "GET va a Leer", metodo: http.MethodGet, url: "/v1/proveedor",
-			wantStatus: http.StatusBadRequest,
-		},
-		{
 			// POST con JSON inválido -> Escribir responde 400 antes del servicio.
 			nombre: "POST va a Escribir", metodo: http.MethodPost, url: "/v1/proveedor",
 			cuerpo: "no-json", wantStatus: http.StatusBadRequest,
@@ -92,9 +88,15 @@ func TestEnrutarProveedorDespachaPorMetodo(t *testing.T) {
 			cuerpo: "no-json", wantStatus: http.StatusBadRequest,
 		},
 		{
-			// DELETE cae en la lectura (default) y obtiene 405 con Allow: GET.
-			nombre: "DELETE va a Leer (405)", metodo: http.MethodDelete, url: "/v1/proveedor",
-			wantStatus: http.StatusMethodNotAllowed, wantAllow: http.MethodGet,
+			// GET ya no es lectura: Escribir responde 405 con Allow: POST, PATCH.
+			nombre: "GET responde 405", metodo: http.MethodGet, url: "/v1/proveedor",
+			wantStatus: http.StatusMethodNotAllowed,
+			wantAllow:  http.MethodPost + ", " + http.MethodPatch,
+		},
+		{
+			nombre: "DELETE responde 405", metodo: http.MethodDelete, url: "/v1/proveedor",
+			wantStatus: http.StatusMethodNotAllowed,
+			wantAllow:  http.MethodPost + ", " + http.MethodPatch,
 		},
 	}
 

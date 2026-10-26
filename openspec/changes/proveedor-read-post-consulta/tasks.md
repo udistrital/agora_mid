@@ -12,9 +12,9 @@
 
 ## 3. Retiro del GET de lectura (grupo final)
 
-- [ ] 3.1 Eliminar el manejador `Leer` y la rama de lectura en `enrutarProveedor` (`main.go`) de modo que `GET`/`PUT`/`DELETE` sobre `/v1/proveedor` respondan `405` con `Allow: POST, PATCH`; verificar con una prueba que `GET /v1/proveedor` devuelve `405`
-- [ ] 3.2 Retirar el path `GET /v1/proveedor` de `swagger/swagger.yml`; verificar que el JSON derivado ya no publica la lectura por GET
-- [ ] 3.3 Eliminar las pruebas específicas del GET de lectura y ejecutar `go build ./...` y `go test ./...` para confirmar que no quedan referencias al manejador `Leer` ni al GET de lectura
+- [x] 3.1 Eliminar el manejador `Leer` y la rama de lectura en `enrutarProveedor` (`main.go`) de modo que `GET`/`PUT`/`DELETE` sobre `/v1/proveedor` respondan `405` con `Allow: POST, PATCH`; verificar con una prueba que `GET /v1/proveedor` devuelve `405`
+- [x] 3.2 Retirar el path `GET /v1/proveedor` de `swagger/swagger.yml`; verificar que el JSON derivado ya no publica la lectura por GET
+- [x] 3.3 Eliminar las pruebas específicas del GET de lectura y ejecutar `go build ./...` y `go test ./...` para confirmar que no quedan referencias al manejador `Leer` ni al GET de lectura
 
 ## Workflow follow-up
 
