@@ -19,6 +19,11 @@ type NodoSeleccion struct {
 	// presencia de una relación aquí implica que debe materializarse para poder
 	// resolver sus descendientes.
 	Hijos map[string]*NodoSeleccion
+	// Completo indica que una ruta nombró esta relación como hoja (último
+	// segmento), por lo que debe expandirse completa por configuración, ignorando
+	// los Campos y Hijos acumulados por otras rutas (precedencia por relación de
+	// la selección más amplia). No aplica al nodo raíz de la selección.
+	Completo bool
 }
 
 func nuevoNodoSeleccion() *NodoSeleccion {
@@ -100,10 +105,15 @@ func insertarRuta(
 	// Último segmento de la ruta.
 	if len(segmentos) == 1 {
 		if esRelacion {
-			// Seleccionar la relación completa; se materializa como hijo.
-			if _, ok := nodo.Hijos[seg]; !ok {
-				nodo.Hijos[seg] = nuevoNodoSeleccion()
+			// Seleccionar la relación completa; se materializa como hijo y se
+			// marca Completo para que se expanda por configuración (precedencia
+			// por relación: domina sobre cualquier descendiente del mismo nodo).
+			hijo, ok := nodo.Hijos[seg]
+			if !ok {
+				hijo = nuevoNodoSeleccion()
+				nodo.Hijos[seg] = hijo
 			}
+			hijo.Completo = true
 			return nil
 		}
 		if !campoPermitido(allowed, seg) {

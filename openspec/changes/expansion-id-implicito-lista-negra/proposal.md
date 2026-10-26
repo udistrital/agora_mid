@@ -14,14 +14,21 @@ configuración de cada servicio.
 
 ## What Changes
 
+- Se corrige la **proyección estricta de `fields`** en la expansión: hoy el motor
+  inserta el registro completo que entrega el resolver, pero una selección por
+  `fields` debe resolver cada ruta según su último segmento (una relación terminal
+  se expande completa; un escalar terminal entrega solo ese escalar), con los
+  segmentos intermedios como contenedores esqueleto del camino solicitado y sin
+  las relaciones hermanas no nombradas. Esta proyección es el sustrato sobre el
+  que operan el `Id` implícito y la lista negra.
 - El `Id` de toda entidad expandida queda **disponible de forma implícita**: la
   configuración ya no necesita declararlo en `allowed_fields` para que una
   relación sea identificable. Cada tabla tiene `Id`, de modo que la expansión lo
   conserva aunque no esté listado.
-- Una selección explícita por `fields` puede **omitir** el `Id` (no hay sintaxis
-  de exclusión): si una ruta de `fields` no menciona el `Id`, ese `Id` no se
-  incluye para esa solicitud, de forma silenciosa. La omisión es local a la
-  solicitud y no altera el comportamiento por defecto.
+- Una selección por `fields` que no mencione el `Id` lo omite como a cualquier
+  otro escalar no solicitado (caso particular de la proyección estricta, sin
+  sintaxis de exclusión); la omisión es local a la solicitud y, sin `fields`, el
+  `Id` se conserva por defecto.
 - Se introduce una **lista negra global** declarada en un archivo único
   `config/global_blacklist.yaml`, cargada al arranque. Una entrada se expresa de
   forma jerárquica `related_api -> related_table -> [field]`, con la palabra
@@ -50,12 +57,15 @@ configuración de cada servicio.
 <!-- Ninguna capacidad nueva: se modifican capacidades existentes. -->
 
 ### Modified Capabilities
-- `nested-object-expansion`: se añade que el `Id` de toda entidad expandida está
-  disponible de forma implícita (sin declararlo en `allowed_fields`) y que una
-  selección por `fields` puede omitirlo; se añade la lista negra global de campos
-  (archivo, estructura jerárquica con comodín `ANY`, precedencia sobre
-  `allowed_fields` e `Id` implícito, aplicación sobre la salida de todo resolver,
-  validación al arranque) y el resultado de pedir un campo vetado en `fields`.
+- `nested-object-expansion`: se refuerza la selección por `fields` con proyección
+  estricta de escalares (devolver solo las rutas solicitadas, corrigiendo la
+  desviación que inserta el registro completo); se añade que el `Id` de toda
+  entidad expandida está disponible de forma implícita (sin declararlo en
+  `allowed_fields`) y que una selección por `fields` puede omitirlo como a
+  cualquier escalar; se añade la lista negra global de campos (archivo, estructura
+  jerárquica con comodín `ANY`, precedencia sobre `allowed_fields` e `Id`
+  implícito, aplicación sobre la salida de todo resolver, validación al arranque) y
+  el resultado de pedir un campo vetado en `fields`.
 - `api-response-contract`: se precisa la enumeración de tipos de aviso de
   `MetaData.Errors` para que coincida con los realmente emitidos
   (`relation`, `depth`, `cycle`, `generic_resolver`) y se declara el invariante de
@@ -72,12 +82,13 @@ configuración de cada servicio.
   modelo conocido; un comodín `ANY` no se verifica; `ANY/ANY/ANY` aborta el
   arranque). Las `allowed_fields` de `config/relaciones_proveedor.yaml` dejan de
   necesitar `Id`.
-- **Código**: motor de expansión (`helper/expand.go`) para inyectar el `Id`
-  implícito y aplicar el recorte de lista negra sobre la salida de cada resolver;
-  validación/parseo de la selección (`helper/seleccion.go`) para que el `Id` sea
-  seleccionable sin estar en `allowed_fields`; carga y validación de la lista
-  negra en `config/`; constantes de tipos de aviso en `helper/expand.go`
-  (añadir `generic_resolver`).
+- **Código**: motor de expansión (`helper/expand.go`) para introducir el recorte
+  proyectivo de escalares sobre la salida de cada resolver (corrige la desviación
+  actual que inserta el registro completo), e inyectar sobre ese mismo punto el
+  `Id` implícito y aplicar el recorte de lista negra; validación/parseo de la
+  selección (`helper/seleccion.go`) para que el `Id` sea seleccionable sin estar en
+  `allowed_fields`; carga y validación de la lista negra en `config/`; constantes
+  de tipos de aviso en `helper/expand.go` (añadir `generic_resolver`).
 - **Contrato de respuesta**: `api-response-contract` precisa la enumeración de
   tipos de aviso; no se añade un tipo nuevo para la lista negra.
 - **Relación con el cambio en curso `proveedor-read-post-consulta`**: son
@@ -91,7 +102,8 @@ configuración de cada servicio.
 - **`declarative-write-engine`**: sin cambios. La ausencia de `Id` en un cuerpo de
   escritura sigue significando "crear"; la regla de `Id` implícito y la lista negra
   son exclusivas de la lectura/expansión.
-- **Pruebas**: casos de `Id` implícito presente sin estar en `allowed_fields`;
-  omisión de `Id` por `fields`; recorte por lista negra sobre resolver específico
-  y genérico; validación de arranque de la lista negra; invariante de constantes
-  de aviso.
+- **Pruebas**: proyección estricta por `fields` (solo rutas solicitadas; sin
+  recorte cuando no hay `fields`); casos de `Id` implícito presente sin estar en
+  `allowed_fields`; omisión de `Id` por `fields`; recorte por lista negra sobre
+  resolver específico y genérico; validación de arranque de la lista negra;
+  invariante de constantes de aviso.

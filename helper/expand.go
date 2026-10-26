@@ -364,10 +364,20 @@ func (ex *expansor) expandirRelacionNivel(
 		ex.agregarAviso(AvisoGenericResolver(rutaStr, rel))
 	}
 
+	// Una relación marcada Completo (nombrada como hoja en fields) se expande por
+	// configuración, como si no hubiera selección por debajo de ella: se ignoran
+	// los Campos/Hijos acumulados por otras rutas y no se recorta. Un subSeleccion
+	// nil (sin fields) tiene el mismo efecto. Para un nodo parcial, seleccionEfectiva
+	// es el propio nodo y gobierna la recursión y la proyección.
+	seleccionEfectiva := subSeleccion
+	if subSeleccion != nil && subSeleccion.Completo {
+		seleccionEfectiva = nil
+	}
+
 	// Recursión sobre descendientes de todos los registros resueltos del nivel.
 	if len(rel.NestedRelations) > 0 && efectiva-1 > 0 && len(registros) > 0 {
 		if err := ex.expandirNivel(
-			registros, rel.NestedRelations, subSeleccion, efectiva-1, rutaActual,
+			registros, rel.NestedRelations, seleccionEfectiva, efectiva-1, rutaActual,
 		); err != nil {
 			return err
 		}
@@ -384,7 +394,38 @@ func (ex *expansor) expandirRelacionNivel(
 		ex.insertarResultado(recurso, rel, coincidencias)
 	}
 
+	// Proyección estricta: cuando hay selección parcial de fields para este nivel,
+	// cada registro resuelto se recorta a los escalares seleccionados más las
+	// relaciones hijas materializadas. Un nodo Completo (seleccionEfectiva nil) no
+	// se recorta. Se aplica después de distribuir (la llave de join ya cumplió su
+	// papel) y sobre los mismos punteros insertados.
+	proyectarRegistros(registros, seleccionEfectiva)
+
 	return nil
+}
+
+// proyectarRegistros recorta in situ cada registro a los campos seleccionados
+// cuando la selección del nivel no está vacía (contiene campos escalares o
+// relaciones hijas). Conserva los campos escalares en seleccion.Campos y los
+// mapped_name de las relaciones hijas seleccionadas; elimina cualquier otro
+// campo escalar, incluido el Id cuando no se seleccionó. Cuando la selección es
+// nil (relación pedida completa) o vacía, no recorta: devuelve el registro tal
+// como lo entregó el resolver.
+func proyectarRegistros(registros []map[string]any, seleccion *NodoSeleccion) {
+	if seleccion == nil || seleccion.Vacio() {
+		return
+	}
+	for _, reg := range registros {
+		for campo := range reg {
+			if _, esEscalarSeleccionado := seleccion.Campos[campo]; esEscalarSeleccionado {
+				continue
+			}
+			if _, esRelacionHija := seleccion.Hijos[campo]; esRelacionHija {
+				continue
+			}
+			delete(reg, campo)
+		}
+	}
 }
 
 // llaveLocal obtiene la llave local del recurso según la dirección de la

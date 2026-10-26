@@ -112,6 +112,17 @@ servicio cargadas. Una entrada con componentes exactos debe existir en ese model
 configuración de relaciones inválida ya impide el arranque. Un comodín es
 intencionalmente amplio y no debe fallar por inexistencia.
 
+### D8. Marcador de relación completa y precedencia por relación
+`NodoSeleccion` lleva un marcador de completitud que `ParsearFields` activa cuando
+una ruta termina en una relación (hoja). Un nodo completo expande su subárbol por
+configuración e ignora los escalares/hijos acumulados por otras rutas; la
+precedencia "la selección más amplia gana" es **por relación**, de modo que una
+relación completa no altera el tratamiento de sus relaciones hermanas (que
+permanecen completas o parciales según sus propias rutas). Rationale: resuelve de
+forma determinista el solapamiento de rutas sobre una misma relación (por ejemplo
+`Tercero` junto a `Tercero.Id`) sin que el orden de aparición sea significativo, y
+evita que la proyección escalar colapse una relación pedida completa.
+
 ## Risks / Trade-offs
 
 - [El recorte por lista negra oculta un campo que la configuración declaró como
