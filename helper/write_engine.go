@@ -51,6 +51,22 @@ type WriteResolver interface {
 		payload map[string]any,
 		keys []string,
 	) (map[string]any, error)
+
+	// Recuperar resuelve, usando únicamente lecturas (GET), el identificador
+	// autoritativo de un registro existente para el payload dado: por el Id
+	// presente en el payload o por la clave natural declarada (keys). Devuelve 0
+	// cuando no existe un registro reutilizable y no ejecuta ninguna escritura.
+	//
+	// El motor la usa para validar ANTES de materializar (por ejemplo, conciliar
+	// la FK local de un nodo contra el Id autoritativo de la entidad referenciada
+	// por fk_inbound) sin provocar efectos colaterales: un 400 por conflicto no
+	// debe dejar escrituras parciales en ningún CRUD dueño.
+	Recuperar(
+		ctx context.Context,
+		rel config.RelationConfig,
+		payload map[string]any,
+		keys []string,
+	) (int, error)
 }
 
 // WriteResolverRegistry asocia un related_service con el WriteResolver que lo
@@ -429,10 +445,18 @@ func (me *motorEscritura) materializarHijos(
 }
 
 // materializarInbound ejecuta el pre-pass de FK ascendente (fk_inbound): por cada
-// relación del nodo declarada fk_inbound y presente en el cuerpo, materializa la
-// entidad referenciada (y su propio subárbol) ANTES que el nodo y propaga su Id
-// hacia arriba, a la FK local del nodo (rel.LocalField). La entidad referenciada
-// materializada queda anidada en el nodo bajo su mapped_name para la respuesta.
+// relación del nodo declarada fk_inbound y presente en el cuerpo, recupera por
+// lectura el Id autoritativo de la entidad referenciada, concilia la FK local del
+// nodo (rel.LocalField) contra ese Id y, solo si no hay conflicto, materializa la
+// entidad referenciada (y su propio subárbol) ANTES que el nodo, propagando su Id
+// hacia arriba. La entidad referenciada materializada queda anidada en el nodo
+// bajo su mapped_name para la respuesta.
+//
+// Orden "validar antes de escribir": recuperar -> conciliar -> materializar. Un
+// conflicto de FK local en un nodo existente devuelve *ErrorEscritura ANTES de
+// cualquier escritura, de modo que un 400 no deja escrituras parciales en ningún
+// CRUD dueño. Alinea fk_inbound con los modos descendentes (fk, shared_pk), que
+// ya concilian antes de materializar.
 //
 // Solo aplica a relaciones de cardinalidad 1-1: una FK local del nodo apunta a un
 // único registro referenciado.
@@ -470,6 +494,30 @@ func (me *motorEscritura) materializarInbound(
 			continue
 		}
 
+		// 1) Recuperar por lectura el Id autoritativo de la entidad referenciada,
+		// sin escribir. Un fallo de la recuperación se trata con la misma política
+		// de error de relación que un fallo de escritura (no una ruta distinta).
+		idRecuperado, err := me.recuperarEntidad(res, rel, referida, *rel.Write, rel.NestedRelations)
+		if err != nil {
+			if err := me.manejarErrorRelacion(rel, rutaStr); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// 2) Conciliar hacia arriba contra el Id autoritativo recuperado ANTES de
+		// materializar: la FK local del nodo (rel.LocalField) se completa, se
+		// conserva o, en un nodo existente con FK incompatible, dispara un conflicto
+		// (*ErrorEscritura) sin escribir nada. Cuando la entidad referenciada no
+		// existe aún (idRecuperado == 0), la conciliación se difiere al Id que la
+		// materialización asigne (caso de creación/canonización de entidad nueva).
+		if idRecuperado > 0 {
+			if err := me.conciliarCampoDerivado(nodo, rel.LocalField, idRecuperado, rel.RelatedService, rutaStr); err != nil {
+				return err
+			}
+		}
+
+		// 3) Sin conflicto: materializar la entidad referenciada y propagar su Id.
 		materializado, err := me.materializarEntidad(res, rel, referida, *rel.Write, rutaStr, rel.NestedRelations)
 		if err != nil {
 			return me.manejarErrorRelacion(rel, rutaStr)
@@ -478,11 +526,10 @@ func (me *motorEscritura) materializarInbound(
 			referida[k] = v
 		}
 
-		// Conciliar hacia arriba: la FK local del nodo (rel.LocalField) debe tomar
-		// el Id de la entidad referenciada recién materializada. Se aplica la misma
-		// matriz: ausente/null se completa, coincide se conserva, difiere en un nodo
-		// existente (con Id propio) es conflicto (*ErrorEscritura) y difiere en un
-		// nodo nuevo canoniza con aviso. El disparador del conflicto es el Id del
+		// Reconciliar la FK local del nodo con el Id autoritativo final de la
+		// entidad referenciada. Para un nodo existente ya validado en el paso 2 es
+		// un no-op coincidente; para un nodo nuevo con FK desactualizada canoniza y
+		// avisa (field_normalization). El disparador del conflicto es el Id del
 		// propio nodo, no el de la entidad referenciada.
 		if id, hay := referida["Id"]; hay && id != nil {
 			if err := me.conciliarCampoDerivado(nodo, rel.LocalField, id, rel.RelatedService, rutaStr); err != nil {
@@ -497,6 +544,26 @@ func (me *motorEscritura) materializarInbound(
 		}
 	}
 	return nil
+}
+
+// recuperarEntidad resuelve, usando únicamente lecturas, el Id autoritativo de
+// una entidad para la conciliación previa a la escritura. Aplana el payload y
+// extrae los valores de la clave natural igual que materializarEntidad, pero
+// delega en la operación de recuperación del resolver (Recuperar), que no ejecuta
+// escrituras. Devuelve 0 cuando no existe un registro reutilizable.
+func (me *motorEscritura) recuperarEntidad(
+	res WriteResolver,
+	rel config.RelationConfig,
+	payload map[string]any,
+	wc config.WriteConfig,
+	relNivel []config.RelationConfig,
+) (int, error) {
+	if res == nil {
+		return 0, fmt.Errorf("write: no hay resolver para %q", rel.RelatedService)
+	}
+	plano := aplanarParametros(payload, wc.WritableFields, relNivel, camposDerivadosInternos(rel, relNivel))
+	keys := valoresClaveNatural(plano, wc.NaturalKey)
+	return res.Recuperar(me.ctx, rel, plano, keys)
 }
 
 // materializarValorRelacion materializa el valor de una relación, que puede ser

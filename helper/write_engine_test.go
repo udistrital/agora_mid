@@ -26,6 +26,58 @@ type resolverFalso struct {
 	siguienteID float64
 	llamadas    *[]registroMaterializacion
 	fallarCon   error
+	// fallarRecuperarCon, si no es nil, hace que Recuperar devuelva este error,
+	// para ejercitar la política on_relation_error ante un fallo de recuperación.
+	fallarRecuperarCon error
+	// idRecuperado es el Id autoritativo que Recuperar devuelve cuando el payload
+	// no trae Id propio. 0 indica que no existe un registro reutilizable; en ese
+	// caso Recuperar cae en el Id de materialización (siguienteID) simulando que la
+	// entidad se creará. Permite simular la recuperación por lectura del Id
+	// autoritativo de una entidad referenciada por fk_inbound.
+	idRecuperado float64
+	// recuperaciones cuenta cuántas veces se invocó Recuperar, para verificar que
+	// el pre-pass recupera por lectura antes de materializar.
+	recuperaciones *int
+}
+
+func (r *resolverFalso) Recuperar(
+	_ context.Context,
+	_ config.RelationConfig,
+	payload map[string]any,
+	_ []string,
+) (int, error) {
+	if r.recuperaciones != nil {
+		*r.recuperaciones++
+	}
+	if r.fallarRecuperarCon != nil {
+		return 0, r.fallarRecuperarCon
+	}
+	// Un Id propio en el payload es el identificador autoritativo del registro
+	// existente.
+	if v, ok := payload["Id"]; ok && v != nil {
+		return int(aFloat(v)), nil
+	}
+	// Sin Id propio, el Id autoritativo es el que el registro existente tendría al
+	// resolverse por clave natural. Si no se configuró uno, se usa el Id que la
+	// materialización asignaría, simulando la creación idempotente.
+	if r.idRecuperado > 0 {
+		return int(r.idRecuperado), nil
+	}
+	return int(r.siguienteID), nil
+}
+
+// aFloat normaliza a float64 un valor numérico de Id para el resolver de prueba.
+func aFloat(v any) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case int:
+		return float64(t)
+	case int64:
+		return float64(t)
+	default:
+		return 0
+	}
 }
 
 func (r *resolverFalso) Materialize(
@@ -752,7 +804,10 @@ func TestWriteInboundDiferenteNuevo(t *testing.T) {
 }
 
 // fk_inbound: RefId diferente en un nodo EXISTENTE (con Id propio) es conflicto:
-// *ErrorEscritura y no se materializa la raíz en conflicto.
+// *ErrorEscritura. Bajo el invariante "validar antes de escribir", el conflicto
+// se detecta tras recuperar por lectura el Id autoritativo de la entidad
+// referenciada y conciliar la FK local, ANTES de materializar: ni la entidad
+// referenciada ni la raíz deben pasar por Materialize.
 func TestWriteInboundDiferenteExistente(t *testing.T) {
 	var ll []registroMaterializacion
 	body := map[string]any{"Id": float64(100), "Descripcion": "p", "RefId": float64(999), "Referida": map[string]any{"Nombre": "Ana"}}
@@ -761,12 +816,10 @@ func TestWriteInboundDiferenteExistente(t *testing.T) {
 	if !errors.As(err, &ee) {
 		t.Fatalf("se esperaba *ErrorEscritura por conflicto fk_inbound de nodo existente; err=%v", err)
 	}
-	// La raíz en conflicto no debe materializarse (solo pudo materializarse la
-	// entidad referenciada en el pre-pass idempotente).
+	// Ninguna entidad debe materializarse ante el conflicto: ni la referenciada
+	// (el pre-pass ya no escribe antes de conciliar) ni la raíz en conflicto.
 	for _, c := range ll {
-		if c.servicio == "raiz" {
-			t.Errorf("no debe materializarse la raíz en conflicto; llamadas=%+v", ll)
-		}
+		t.Errorf("no debe materializarse ninguna entidad en conflicto; se materializó %q; llamadas=%+v", c.servicio, ll)
 	}
 }
 
@@ -944,5 +997,107 @@ func TestWriteInmutableDerivadoDifiereExistenteConflicto(t *testing.T) {
 	var ee *ErrorEscritura
 	if !errors.As(err, &ee) {
 		t.Fatalf("se esperaba *ErrorEscritura por conflicto de entidad existente; err=%v", err)
+	}
+}
+
+// Ante un conflicto de fk_inbound en un nodo EXISTENTE (con Id propio), el motor
+// debe recuperar por lectura el Id autoritativo de la entidad referenciada,
+// conciliar la FK local del nodo y detectar el conflicto ANTES de materializar:
+// ni la entidad referenciada ni el nodo deben pasar por Materialize, y se
+// devuelve *ErrorEscritura. Hoy el pre-pass materializa la entidad referenciada
+// antes de conciliar, por lo que este test falla (se observa una materialización
+// de "referida").
+func TestWriteInboundConflictoNoMaterializaReferidaNiNodo(t *testing.T) {
+	var ll []registroMaterializacion
+	var recuperaciones int
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll, recuperaciones: &recuperaciones}
+	// La entidad referenciada existe con Id autoritativo 200 (recuperable por
+	// lectura); el nodo reenvía RefId=999, incompatible, en un nodo con Id propio.
+	referida := &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll, idRecuperado: 200, recuperaciones: &recuperaciones}
+	registry := NewWriteResolverRegistry(raiz, map[string]WriteResolver{"referida": referida})
+
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"RefId":       float64(999),
+		"Referida":    map[string]any{"Id": float64(200), "Nombre": "Ana"},
+	}
+
+	_, err := Write(context.Background(), body, cfgEscrituraInbound(), registry, WriteOptions{Verb: WriteVerbUpdate})
+	var ee *ErrorEscritura
+	if !errors.As(err, &ee) {
+		t.Fatalf("se esperaba *ErrorEscritura por conflicto fk_inbound de nodo existente; err=%v", err)
+	}
+
+	// Invariante "validar antes de escribir": ninguna materialización (ni de la
+	// entidad referenciada ni del nodo) debe ocurrir ante el conflicto.
+	for _, c := range ll {
+		t.Errorf("no debe materializarse ninguna entidad ante el conflicto; se materializó %q; llamadas=%+v", c.servicio, ll)
+	}
+	// La validación previa exige haber recuperado por lectura el Id autoritativo
+	// de la entidad referenciada.
+	if recuperaciones == 0 {
+		t.Errorf("el pre-pass debe recuperar por lectura el Id autoritativo antes de conciliar")
+	}
+}
+
+// Un fallo del GET de recuperación de una entidad fk_inbound se trata con la
+// misma política de error de relación que un fallo de escritura, sin introducir
+// una ruta de error distinta: en modo tolerante (notify) se agrega un aviso y la
+// cascada continúa (la raíz se materializa igual); en modo estricto (fail) se
+// aborta con *errorFatalEscritura.
+
+// registryInboundRecuperarFalla construye el registro fk_inbound con un resolver
+// de la entidad referenciada cuya recuperación por lectura falla.
+func registryInboundRecuperarFalla(ll *[]registroMaterializacion) WriteResolverRegistry {
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: ll}
+	referida := &resolverFalso{
+		servicio:           "referida",
+		siguienteID:        200,
+		llamadas:           ll,
+		fallarRecuperarCon: errors.New("crud caído al recuperar"),
+	}
+	return NewWriteResolverRegistry(raiz, map[string]WriteResolver{"referida": referida})
+}
+
+// notify: el fallo de la recuperación agrega un aviso no sensible y la cascada
+// continúa (la raíz se materializa).
+func TestWriteInboundFalloRecuperacionTolerante(t *testing.T) {
+	var ll []registroMaterializacion
+	body := map[string]any{"Descripcion": "p", "Referida": map[string]any{"Nombre": "Ana"}}
+
+	res, err := Write(context.Background(), body, cfgEscrituraInbound(), registryInboundRecuperarFalla(&ll),
+		WriteOptions{OnRelationError: config.OnRelationErrorNotify})
+	if err != nil {
+		t.Fatalf("modo tolerante no debe devolver error fatal ante un fallo de recuperación: %v", err)
+	}
+	if len(res.Warnings) != 1 || res.Warnings[0].Kind != KindRelation {
+		t.Fatalf("se esperaba un aviso relation por el fallo de recuperación; warnings=%+v", res.Warnings)
+	}
+	if res.Warnings[0].Path != "Referida" || res.Warnings[0].Service != "referida" {
+		t.Errorf("el aviso debe identificar la relación Referida; aviso=%+v", res.Warnings[0])
+	}
+	// El aviso no debe exponer el error interno del CRUD.
+	if contieneTexto(res.Warnings[0].Message, "crud caído") {
+		t.Errorf("el aviso no debe exponer el error interno del CRUD; aviso=%+v", res.Warnings[0])
+	}
+	// La cascada continúa: la raíz se materializa pese al fallo tolerado.
+	if aCadena(res.Data["Id"]) != "100" {
+		t.Errorf("la raíz debe materializarse pese al fallo tolerado; data=%+v", res.Data)
+	}
+}
+
+// fail: el fallo de la recuperación aborta la cascada con *errorFatalEscritura.
+func TestWriteInboundFalloRecuperacionEstricto(t *testing.T) {
+	var ll []registroMaterializacion
+	body := map[string]any{"Descripcion": "p", "Referida": map[string]any{"Nombre": "Ana"}}
+
+	_, err := Write(context.Background(), body, cfgEscrituraInbound(), registryInboundRecuperarFalla(&ll),
+		WriteOptions{OnRelationError: config.OnRelationErrorFail})
+	if !EsErrorFatalEscritura(err) {
+		t.Fatalf("modo estricto debe abortar con *errorFatalEscritura ante un fallo de recuperación; err=%v", err)
+	}
+	if contieneTexto(err.Error(), "crud caído") {
+		t.Errorf("el error fatal no debe exponer el mensaje interno del CRUD; err=%v", err)
 	}
 }

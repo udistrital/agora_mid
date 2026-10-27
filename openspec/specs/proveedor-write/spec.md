@@ -71,6 +71,12 @@ relacionales.
 - **THEN** el MID no cambia silenciosamente la asociación y responde `400` cuando
   no puede demostrar compatibilidad
 
+#### Scenario: Conflicto de FK ascendente en proveedor existente no deja escrituras parciales
+- **WHEN** un `PATCH` sobre un proveedor existente reenvía una FK ascendente
+  (`TerceroId`) incompatible con el `tercero` resuelto para el cuerpo
+- **THEN** el MID responde `400` sin haber enviado ninguna creación ni
+  actualización al CRUD de `tercero` ni al de `proveedor`
+
 ### Requirement: Cascada entre CRUD dueños con tercero no eliminable
 El sistema SHALL ejecutar la escritura del subárbol a través de los CRUD dueños
 (terceros y gestión de personas), creando y modificando `tercero` y

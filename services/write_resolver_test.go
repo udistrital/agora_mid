@@ -231,3 +231,80 @@ func TestWriteResolverUpsertPorIdDelCuerpo(t *testing.T) {
 		}
 	}
 }
+
+// La operación de recuperación (Recuperar) resuelve el Id de un registro
+// existente usando SOLO lecturas (GET), sin POST ni PATCH: es la pieza que el
+// motor usa para validar antes de escribir. Aquí el proveedor ya existe por su
+// clave natural (TerceroId=25); Recuperar debe devolver su Id (88) consultando
+// el CRUD por GET y no debe emitir ninguna escritura.
+func TestWriteResolverRecuperaExistentePorClaveNaturalSoloGET(t *testing.T) {
+	var capturas []peticionCapturada
+	server := crudSimulado(t, map[string]string{
+		"GET /v1/proveedor": `{"Data":[{"Id":88,"TerceroId":25}]}`,
+	}, &capturas)
+	defer server.Close()
+
+	r := NewEntityWriteResolver(
+		clients.HTTPClient{Client: server.Client()},
+		urlsDe(server),
+		"gestion_personas_crud",
+		endpointProveedor,
+		queryPorTerceroId,
+	)
+
+	id, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
+		"TerceroId": float64(25),
+	}, []string{"25"})
+	if err != nil {
+		t.Fatalf("Recuperar no debe fallar: %v", err)
+	}
+	if id != 88 {
+		t.Errorf("Recuperar debe resolver el Id existente 88; id=%d", id)
+	}
+
+	// Solo se permiten lecturas: ninguna escritura (POST/PATCH).
+	for _, c := range capturas {
+		if c.metodo == http.MethodPost || c.metodo == http.MethodPatch {
+			t.Errorf("Recuperar no debe emitir escrituras; captura=%+v", c)
+		}
+	}
+	var huboGet bool
+	for _, c := range capturas {
+		if c.metodo == http.MethodGet {
+			huboGet = true
+		}
+	}
+	if !huboGet {
+		t.Errorf("Recuperar debe resolver por GET; capturas=%+v", capturas)
+	}
+}
+
+// Cuando el payload trae un Id propio, Recuperar lo devuelve directamente sin
+// consultar el CRUD (no hay clave natural que buscar).
+func TestWriteResolverRecuperaPorIdDelCuerpoSinGET(t *testing.T) {
+	var capturas []peticionCapturada
+	server := crudSimulado(t, nil, &capturas)
+	defer server.Close()
+
+	r := NewEntityWriteResolver(
+		clients.HTTPClient{Client: server.Client()},
+		urlsDe(server),
+		"gestion_personas_crud",
+		endpointProveedor,
+		queryPorTerceroId,
+	)
+
+	id, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
+		"Id":        float64(5),
+		"TerceroId": float64(25),
+	}, nil)
+	if err != nil {
+		t.Fatalf("Recuperar no debe fallar: %v", err)
+	}
+	if id != 5 {
+		t.Errorf("Recuperar debe devolver el Id del cuerpo 5; id=%d", id)
+	}
+	if len(capturas) != 0 {
+		t.Errorf("Recuperar con Id en el cuerpo no debe consultar el CRUD; capturas=%+v", capturas)
+	}
+}

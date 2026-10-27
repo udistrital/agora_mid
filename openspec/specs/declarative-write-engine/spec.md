@@ -62,11 +62,12 @@ conserva su tipo numérico.
 - **WHEN** un nodo referencia a otra entidad por una FK propia (por ejemplo
   `proveedor` referencia a `tercero` por `TerceroId`) y la relación declara
   propagación `fk_inbound`
-- **THEN** el motor materializa la entidad referenciada ANTES que el nodo y, en ese
-  pre-pass, compara la FK local reenviada (`TerceroId`) contra el `Id` de la
-  entidad recién materializada antes de fijarla: si el nodo no tiene `Id` propio la
-  fija con el `Id` autoritativo; si el nodo tiene `Id` propio y la FK local
-  reenviada difiere, no la sobrescribe y devuelve un error de cuerpo inválido
+- **THEN** el motor recupera (por lectura) el `Id` autoritativo de la entidad
+  referenciada ANTES de materializarla y, en ese pre-pass, compara la FK local
+  reenviada (`TerceroId`) contra ese `Id` autoritativo antes de fijarla: si el nodo
+  no tiene `Id` propio la fija con el `Id` autoritativo; si el nodo tiene `Id`
+  propio y la FK local reenviada difiere, no la sobrescribe, devuelve un error de
+  cuerpo inválido y no materializa la entidad referenciada ni el nodo
 
 #### Scenario: La llave propagada conserva su tipo numérico
 - **WHEN** el `Id` del padre materializado es un valor numérico y el motor lo
@@ -141,6 +142,47 @@ modo estricto aborta la cascada.
 
 #### Scenario: Fallo de relación bloqueante
 - **WHEN** una relación bloqueante falla o la política es estricta
+- **THEN** el motor detiene la cascada y reporta el error sin exponer URLs,
+  credenciales ni cuerpos remotos
+
+### Requirement: Validación antes de cualquier escritura
+El sistema SHALL evaluar toda validación capaz de producir `400` —un campo
+inmutable incompatible o la conciliación de un campo derivado de relación— ANTES
+de ejecutar cualquier escritura de la entidad involucrada, de modo que un `400`
+nunca deje escrituras parciales en los CRUD dueños.
+
+#### Scenario: Conflicto de campo derivado no produce escrituras
+- **WHEN** una conciliación de campo derivado de relación determina un conflicto de
+  entidad existente que debe responder `400`
+- **THEN** el motor no envía ninguna petición de creación ni de actualización a los
+  CRUD de las entidades involucradas y responde `400`
+
+#### Scenario: Campo inmutable incompatible no produce escrituras
+- **WHEN** una entidad existente recuperada trae un campo inmutable con un valor
+  distinto del registro autoritativo
+- **THEN** el motor responde `400` sin enviar ninguna creación ni actualización a
+  ningún CRUD dueño
+
+#### Scenario: Recuperación previa sin efectos de escritura
+- **WHEN** el motor recupera el estado de una entidad para validarla antes de
+  escribir
+- **THEN** la recuperación usa únicamente lecturas (GET) y no modifica ningún
+  registro en los CRUD dueños
+
+### Requirement: La recuperación de validación honra la política de error
+El sistema SHALL tratar un fallo en la recuperación previa de una entidad bajo la
+misma política de error de relación (`on_relation_error`) que un fallo de
+escritura, sin introducir una ruta de error distinta.
+
+#### Scenario: Fallo de recuperación en modo tolerante
+- **WHEN** la lectura previa de una relación no bloqueante falla y la política es
+  tolerante
+- **THEN** el motor conserva lo ya materializado, continúa con las demás relaciones
+  y agrega un aviso no sensible con la ruta lógica de la relación
+
+#### Scenario: Fallo de recuperación en modo estricto
+- **WHEN** la lectura previa de una relación falla y la política es estricta o la
+  relación es bloqueante
 - **THEN** el motor detiene la cascada y reporta el error sin exponer URLs,
   credenciales ni cuerpos remotos
 

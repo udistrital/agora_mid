@@ -528,3 +528,53 @@ func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
 		t.Errorf("el proveedor debe materializarse pese al fallo tolerado; POST=%d", post)
 	}
 }
+
+// Un conflicto de FK ascendente (TerceroId) en un proveedor EXISTENTE responde
+// 400 sin dejar escrituras parciales: ni el tercero (entidad referenciada por
+// fk_inbound) ni el proveedor deben recibir POST ni PATCH. Solo se permiten GET
+// (recuperación por lectura).
+func TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales(t *testing.T) {
+	// El proveedor ya existe por su TerceroId=201 (entidad existente). El tercero
+	// referenciado se recupera/materializa con su propio Id autoritativo (201); la
+	// FK local reenviada (TerceroId=999) diverge en un nodo con Id propio ->
+	// conflicto que debe responder 400 sin escrituras.
+	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
+		"GET /v1/proveedor": {{"Id": float64(101), "TerceroId": float64(201)}},
+		"GET /v1/tercero":   {{"Id": float64(201), "NombreCompleto": "Ana Pérez"}},
+	})
+	router := routerProveedor(t, crud)
+
+	cuerpo := map[string]any{
+		"Id":                    float64(101),
+		"TerceroId":             float64(999),
+		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"DescripcionPortafolio": "Servicios de consultoría",
+		"Tercero": map[string]any{
+			"Id":             float64(201),
+			"NombreCompleto": "Ana Pérez",
+		},
+		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+	}
+
+	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
+
+	// El conflicto responde 400.
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; esperado 400 por conflicto fk_inbound existente. body=%s", rec.Code, rec.Body.String())
+	}
+	if env.Status != "400" || env.Success {
+		t.Errorf("envoltorio inesperado para un conflicto: %+v", env)
+	}
+
+	// Cero escrituras en tercero y en proveedor (GET permitidos).
+	postTercero, patchTercero, _ := peticionesPorMetodo(crud.Capturas(), "tercero")
+	if postTercero != 0 || patchTercero != 0 {
+		t.Errorf("un 400 no debe escribir en tercero; POST=%d PATCH=%d. capturas=%+v",
+			postTercero, patchTercero, crud.Capturas())
+	}
+	postProveedor, patchProveedor, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	if postProveedor != 0 || patchProveedor != 0 {
+		t.Errorf("un 400 no debe escribir en proveedor; POST=%d PATCH=%d. capturas=%+v",
+			postProveedor, patchProveedor, crud.Capturas())
+	}
+}

@@ -191,6 +191,25 @@ write-resolvers** contra CRUD dueños simulados, sin red real ni base de datos.
   - No se materializa el proveedor en conflicto: 0 `POST` y 0 `PATCH` de
     proveedor (sin reasignación silenciosa).
 
+### TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales
+
+- **Propósito**: verificar el invariante **"validar antes de escribir"** para
+  `fk_inbound`: un conflicto de FK ascendente en un proveedor existente responde
+  `400` sin dejar **escrituras parciales** en ningún CRUD dueño. A diferencia de
+  `TestIntegracionConflictoFKAscendenteExistente400` (que solo verifica el
+  proveedor), esta prueba afirma además que la entidad referenciada (`tercero`) no
+  recibe ninguna escritura: el motor recupera su Id autoritativo por lectura y
+  concilia la FK local **antes** de materializar.
+- **Actores**: cliente del API, middleware, CRUD simulados con el proveedor
+  precargado (`GET /v1/proveedor` → `{Id:101, TerceroId:201}`) y el tercero
+  precargado (`GET /v1/tercero` → `{Id:201, NombreCompleto:"Ana Pérez"}`).
+- **Entradas**: `PATCH`, cuerpo con proveedor `Id:101` y `TerceroId=999` divergente
+  del tercero referenciado (`Id:201`).
+- **Salidas esperadas**:
+  - `400` con envoltorio `Success: false`, `Status: "400"`.
+  - Cero escrituras en `tercero`: 0 `POST` y 0 `PATCH` (solo `GET` permitidos).
+  - Cero escrituras en `proveedor`: 0 `POST` y 0 `PATCH` (solo `GET` permitidos).
+
 ### TestIntegracionFalloRelacionToleradaNotify206
 
 - **Propósito**: verificar la política de fallo **tolerado** (`notify`): cuando el
@@ -247,7 +266,7 @@ simulado).
 | Campo derivado **`null`** | se trata como ausente, completa, `200` sin aviso | `TestWriteFKDerivadoNull`, `TestWriteInboundNull` | — | `TestIntegracionFKAscendenteNull200` |
 | Campo derivado **coincide** | conserva, `200` sin aviso | `TestWriteFKDerivadoCoincide`, `TestWriteSharedPKCoincide`, `TestWriteInboundCoincide` | `campo derivado coincidente 200 sin aviso` (en `TestProveedorHandlerEscribir`) | `TestIntegracionReenvioDataCoincide200` |
 | **Diferencia en entidad nueva** | canoniza con la llave autoritativa, `206` + `Kind: field_normalization` | `TestWriteFKDerivadoDiferenteNuevo`, `TestWriteInboundDiferenteNuevo` | `canonización de campo derivado 206 field_normalization` (en `TestProveedorHandlerEscribir`) | `TestIntegracionCreacionCompleta`, e2e fase 1 |
-| **Diferencia en entidad existente** | conflicto, `400`, sin reasignar | `TestWriteFKDerivadoDiferenteExistente`, `TestWriteSharedPKDiferenteExistente`, `TestWriteInboundDiferenteExistente` | `campo inválido 400` (en `TestProveedorHandlerEscribir`) | `TestIntegracionConflictoFKAscendenteExistente400` |
+| **Diferencia en entidad existente** | conflicto, `400`, sin reasignar | `TestWriteFKDerivadoDiferenteExistente`, `TestWriteSharedPKDiferenteExistente`, `TestWriteInboundDiferenteExistente` | `campo inválido 400` (en `TestProveedorHandlerEscribir`) | `TestIntegracionConflictoFKAscendenteExistente400`, `TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales` |
 | **Fallo de relación tolerado** (`notify`) | conserva lo materializado, `206` + `Kind: relation` | `TestWriteTolerante` | `materialización parcial 206` (en `TestProveedorHandlerEscribir`) | `TestIntegracionFalloRelacionToleradaNotify206` |
 | **Fallo de relación bloqueante** (`fail`) | aborta, `502`/`504` | `TestWriteEstricto` | `fallo bloqueante 502`, `fallo bloqueante por timeout 504` (en `TestProveedorHandlerEscribir`) | — (cubierto por unitaria del motor y prueba del controlador) |
 

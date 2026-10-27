@@ -164,6 +164,30 @@ func (r *EntityWriteResolver) Materialize(
 	return salida, nil
 }
 
+// Recuperar resuelve el identificador autoritativo de un registro existente
+// usando únicamente lecturas (GET), sin ejecutar ninguna escritura. Reutiliza la
+// misma lógica de resolución del upsert (resolverExistente): prioriza el Id del
+// payload y, si no lo hay, busca por la clave natural declarada. Devuelve 0
+// cuando no existe un registro reutilizable.
+//
+// Es la operación de recuperación del contrato WriteResolver que el motor usa
+// para validar antes de materializar, de modo que un 400 por conflicto no deje
+// escrituras parciales en los CRUD dueños.
+func (r *EntityWriteResolver) Recuperar(
+	ctx context.Context,
+	_ config.RelationConfig,
+	payload map[string]any,
+	keys []string,
+) (int, error) {
+	base, ok := r.urls[r.relatedAPI]
+	if !ok || strings.TrimSpace(base) == "" {
+		return 0, fmt.Errorf("write-resolver: no hay URL base para %q", r.relatedAPI)
+	}
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	endpoint := "/" + strings.TrimLeft(strings.TrimSpace(r.endpoint), "/")
+	return r.resolverExistente(ctx, base, endpoint, payload, keys)
+}
+
 // resolverExistente determina el Id de un registro existente para el upsert.
 // Prioriza el Id presente en el payload (propagado por PK compartida o enviado
 // por el cliente en una colección); si no hay Id y la entidad declara clave
