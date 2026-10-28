@@ -64,6 +64,36 @@ func TestRelacionesProveedorCargaYValida(t *testing.T) {
 	}
 }
 
+// Verifica que el recurso raíz del proveedor declare las columnas de primer
+// nivel que pueden utilizarse como filtros de colección.
+func TestRelacionesProveedorDeclaraCamposFiltrables(t *testing.T) {
+	contenido, err := os.ReadFile(localizarArchivoProveedor(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	ruta := filepath.Join(dir, "relaciones_proveedor.yaml")
+	if err := os.WriteFile(ruta, contenido, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	configs, err := LoadRelaciones(dir, urlsPrueba())
+	if err != nil {
+		t.Fatalf("relaciones_proveedor.yaml debe cargar y validar sin error: %v", err)
+	}
+
+	sc := configs["proveedor"]
+	esperados := []string{"Id", "TerceroId", "TipoRegistroId", "DescripcionPortafolio"}
+	if len(sc.FilterableFields) != len(esperados) {
+		t.Fatalf("campos filtrables inesperados: got=%v want=%v", sc.FilterableFields, esperados)
+	}
+	for i, esperado := range esperados {
+		if sc.FilterableFields[i] != esperado {
+			t.Errorf("campo filtrable %d inesperado: got=%q want=%q", i, sc.FilterableFields[i], esperado)
+		}
+	}
+}
+
 // La configuración del proveedor no nombra implementaciones de código: solo
 // declara related_service (nombre lógico) y campos del contrato declarativo; no
 // hay un campo que apunte a un struct o función resolver.

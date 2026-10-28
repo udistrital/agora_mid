@@ -2,8 +2,8 @@
 
 ## 1. Soporte de configuración para campos filtrables
 
-- [ ] 1.1 Añadir una prueba en `config/relaciones_proveedor_test.go` (o el test del loader) que falle si la configuración del recurso raíz no admite declarar los campos filtrables de primer nivel; ejecutar `go test ./config/` y confirmar que FALLA porque el soporte no existe aún
-- [ ] 1.2 Extender la configuración del servicio para declarar los campos filtrables de primer nivel y su carga en `config/relaciones_loader.go`, declararlos en `config/relaciones_proveedor.yaml` con un comentario que indique que solo admiten primer nivel, y verificar que la prueba 1.1 pasa y `go build ./...` compila
+- [x] 1.1 Añadir una prueba en `config/relaciones_proveedor_test.go` (o el test del loader) que falle si la configuración del recurso raíz no admite declarar los campos filtrables de primer nivel; ejecutar `go test ./config/` y confirmar que FALLA porque el soporte no existe aún
+- [x] 1.2 Extender la configuración del servicio para declarar los campos filtrables de primer nivel y su carga en `config/relaciones_loader.go`, declararlos en `config/relaciones_proveedor.yaml` con un comentario que indique que solo admiten primer nivel, y verificar que la prueba 1.1 pasa y `go build ./...` compila
 
 ## 2. Prueba de integración primero (roja)
 
