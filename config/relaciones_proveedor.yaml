@@ -1,0 +1,310 @@
+# Configuración declarativa de relaciones del proveedor.
+#
+# Declara el árbol de entidades del núcleo que se expanden como objetos anidados
+# a partir del proveedor raíz. La asociación de cada relación con su resolver
+# específico ocurre por convención de nombre en el código (related_service); este
+# archivo no nombra implementaciones.
+
+# service: nombre lógico del servicio; debe ser "proveedor" para que el
+# ProveedorService lo cargue.
+service: proveedor
+
+# max_depth: profundidad máxima global de expansión. Limita cuántos niveles de
+# relaciones anidadas se recorren sin importar el depth de cada relación.
+# Valor válido: entero positivo.
+max_depth: 4
+
+# on_relation_error: política ante un fallo al resolver una relación.
+#   notify -> conserva el recurso principal y agrega un aviso en MetaData.Errors.
+#   fail   -> aborta la expansión (el controlador mapea a 502/504).
+on_relation_error: notify
+
+# max_related_ids: número máximo de llaves consultadas por lote al resolver una
+# relación. Acota el tamaño de cada petición al CRUD. Valor válido: entero
+# positivo.
+max_related_ids: 100
+
+# write: configuración de escritura de la entidad raíz (proveedor). Como raíz, no
+# propaga la llave de ningún padre, por lo que key_propagation se omite.
+#   writable_fields: campos que el cliente puede enviar; cualquier otro -> 400.
+#   immutable_fields: campos que no cambian tras la creación; enviarlos en una
+#     actualización -> 400. Deben estar en writable_fields.
+#   natural_key: campos que identifican un proveedor existente para el upsert
+#     idempotente (tercero_id es unique en el modelo).
+#   policy: verbos admitidos (creatable/updatable/deletable). El proveedor se
+#     crea y actualiza; deletable queda en false mientras DELETE está diferido.
+write:
+  writable_fields:
+    - TerceroId
+    - TipoRegistroId
+    - DescripcionPortafolio
+  immutable_fields:
+    - TerceroId
+  natural_key:
+    - TerceroId
+  policy:
+    creatable: true
+    updatable: true
+    deletable: false
+
+relations:
+  # Tercero: datos de identidad del proveedor (1-1 vía proveedor.tercero_id).
+  - name: Tercero
+    related_service: tercero
+    related_api: terceros
+    related_table: tercero
+    direction: local_to_related
+    local_field: TerceroId
+    related_field: Id
+    cardinality: one
+    depth: 3
+    mapped_name: Tercero
+    endpoint: /v1/tercero
+    query_template: "Id:{ids}"
+    allowed_fields:
+      - NombreCompleto
+      - TipoContribuyenteId
+    # write: Tercero es dueño de su propio Id; el proveedor lo referencia por la
+    # FK proveedor.tercero_id (proveedor.TerceroId -> tercero.Id). Por eso se
+    # materializa ANTES que el proveedor (key_propagation: fk_inbound) y su Id se
+    # propaga hacia arriba a proveedor.TerceroId. Se crea y actualiza en el CRUD de
+    # terceros pero nunca se elimina (deletable: false). TipoContribuyenteId
+    # referencia un catálogo por Id.
+    write:
+      writable_fields:
+        - NombreCompleto
+        - PrimerNombre
+        - SegundoNombre
+        - PrimerApellido
+        - SegundoApellido
+        - FechaNacimiento
+        - TipoContribuyenteId
+      immutable_fields: []
+      natural_key: []
+      key_propagation: fk_inbound
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+    nested_relations:
+      # DatosIdentificacion: documentos del tercero (1-N por tercero_id). La
+      # ciudad de expedición queda como ID plano (sin relación declarada).
+      - name: DatosIdentificacion
+        related_service: datos_identificacion
+        related_api: terceros
+        related_table: datos_identificacion
+        direction: related_to_local
+        local_field: Id
+        related_field: TerceroId
+        cardinality: many
+        depth: 1
+        mapped_name: DatosIdentificacion
+        endpoint: /v1/datos_identificacion
+        query_template: "TerceroId:{ids}"
+        allowed_fields:
+          - Numero
+          - TipoDocumentoId
+          - CiudadExpedicion
+        # write: documentos del tercero (1-N por tercero_id). Idempotencia por
+        # clave natural numero + tipo_documento_id; ambos inmutables. La llave del
+        # padre (tercero) se propaga por FK (TerceroId). No se elimina.
+        write:
+          writable_fields:
+            - Numero
+            - TipoDocumentoId
+            - DigitoVerificacion
+            - CiudadExpedicion
+            - FechaExpedicion
+          immutable_fields:
+            - Numero
+            - TipoDocumentoId
+          natural_key:
+            - Numero
+            - TipoDocumentoId
+          key_propagation: fk
+          policy:
+            creatable: true
+            updatable: true
+            deletable: false
+      # TipoContribuyente: clasificación del tercero (persona natural/jurídica).
+      - name: TipoContribuyente
+        related_service: tipo_contribuyente
+        related_api: terceros
+        related_table: tipo_contribuyente
+        direction: local_to_related
+        local_field: TipoContribuyenteId
+        related_field: Id
+        cardinality: one
+        depth: 1
+        mapped_name: TipoContribuyente
+        endpoint: /v1/tipo_contribuyente
+        query_template: "Id:{ids}"
+        allowed_fields:
+          - Nombre
+
+  # ProveedorNatural: detalle de persona natural (PK compartida con proveedor).
+  # El ProveedorService decide, según el tipo de registro, si esta rama o la
+  # jurídica se expande.
+  - name: ProveedorNatural
+    related_service: proveedor_natural
+    related_api: gestion_personas_crud
+    related_table: proveedor_natural
+    direction: local_to_related
+    local_field: Id
+    related_field: Id
+    cardinality: one
+    depth: 2
+    mapped_name: ProveedorNatural
+    endpoint: /v1/proveedor_natural
+    query_template: "Id:{ids}"
+    allowed_fields:
+      - PerfilDeclarado
+      - ExperienciaLaboralMeses
+      - ExperienciaProfesionalMeses
+    # write: detalle de persona natural con PK compartida con proveedor
+    # (proveedor.id - proveedor_natural.id). PerfilDeclarado referencia el
+    # catálogo perfil por Id. Mutuamente excluyente con ProveedorJuridico.
+    write:
+      writable_fields:
+        - PerfilDeclarado
+        - ExperienciaLaboralMeses
+        - ExperienciaProfesionalMeses
+      immutable_fields: []
+      natural_key: []
+      key_propagation: shared_pk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+    nested_relations:
+      # Perfil: perfil declarado del proveedor natural.
+      - name: Perfil
+        related_service: perfil
+        related_api: gestion_personas_crud
+        related_table: perfil
+        direction: local_to_related
+        local_field: PerfilDeclarado
+        related_field: Id
+        cardinality: one
+        depth: 1
+        mapped_name: Perfil
+        endpoint: /v1/perfil
+        query_template: "Id:{ids}"
+        allowed_fields:
+          - Nombre
+
+  # ProveedorJuridico: detalle de persona jurídica (PK compartida con proveedor).
+  - name: ProveedorJuridico
+    related_service: proveedor_juridico
+    related_api: gestion_personas_crud
+    related_table: proveedor_juridico
+    direction: local_to_related
+    local_field: Id
+    related_field: Id
+    cardinality: one
+    depth: 2
+    mapped_name: ProveedorJuridico
+    endpoint: /v1/proveedor_juridico
+    query_template: "Id:{ids}"
+    allowed_fields:
+      - NombreComercial
+      - MatriculaMercantil
+      - FechaConstitucion
+    # write: detalle de persona jurídica con PK compartida con proveedor
+    # (proveedor.id - proveedor_juridico.id). MatriculaMercantil es unique en el
+    # modelo. Mutuamente excluyente con ProveedorNatural.
+    write:
+      writable_fields:
+        - NombreComercial
+        - MatriculaMercantil
+        - FechaConstitucion
+        - FechaRenovacion
+        - ReportaBeneficiosFinales
+        - CotizaBolsa
+        - RequiereRevisorFiscal
+      immutable_fields: []
+      natural_key: []
+      key_propagation: shared_pk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+
+  # Contacto: medios de contacto del proveedor (1-N por proveedor_id).
+  - name: Contacto
+    related_service: contacto
+    related_api: gestion_personas_crud
+    related_table: contacto
+    direction: related_to_local
+    local_field: Id
+    related_field: ProveedorId
+    cardinality: many
+    depth: 1
+    mapped_name: Contacto
+    endpoint: /v1/contacto
+    query_template: "ProveedorId:{ids}"
+    allowed_fields:
+      - NombreContacto
+      - Finalidad
+      - TipoCanal
+      - ValorEspecifico
+      - EsPrincipal
+    # write: medios de contacto (1-N por proveedor_id). La llave del padre se
+    # propaga por FK (ProveedorId). Sin clave natural: un elemento sin Id se crea,
+    # con Id se actualiza.
+    write:
+      writable_fields:
+        - NombreContacto
+        - Finalidad
+        - TipoCanal
+        - ValorEspecifico
+        - Extension
+        - EsPrincipal
+      immutable_fields: []
+      natural_key: []
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+
+  # CuentaBancaria: cuentas del proveedor (1-N por proveedor_id). La ciudad de
+  # apertura queda como ID plano (sin relación declarada).
+  - name: CuentaBancaria
+    related_service: cuenta_bancaria
+    related_api: gestion_personas_crud
+    related_table: cuenta_bancaria
+    direction: related_to_local
+    local_field: Id
+    related_field: ProveedorId
+    cardinality: many
+    depth: 1
+    mapped_name: CuentaBancaria
+    endpoint: /v1/cuenta_bancaria
+    query_template: "ProveedorId:{ids}"
+    allowed_fields:
+      - EntidadBancariaId
+      - TipoCuentaId
+      - NumeroCuenta
+      - NombreTitular
+      - CiudadAperturaId
+      - EsPrincipal
+    # write: cuentas bancarias (1-N por proveedor_id). La llave del padre se
+    # propaga por FK (ProveedorId). EntidadBancariaId, TipoCuentaId y
+    # CiudadAperturaId referencian catálogos/ubicaciones por Id. Sin clave
+    # natural: un elemento sin Id se crea, con Id se actualiza.
+    write:
+      writable_fields:
+        - EntidadBancariaId
+        - TipoCuentaId
+        - NumeroCuenta
+        - NombreTitular
+        - CiudadAperturaId
+        - EsPrincipal
+      immutable_fields: []
+      natural_key: []
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true

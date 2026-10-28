@@ -8,6 +8,11 @@ import (
 	"github.com/udistrital/agora_mid/config"
 )
 
+// campoId es el nombre canónico del identificador de toda entidad. Es
+// seleccionable y se conserva de forma implícita en la expansión aunque la
+// configuración no lo declare en allowed_fields.
+const campoId = "Id"
+
 // NodoSeleccion representa un nodo del árbol de selección construido a partir de
 // las rutas de fields. Cada nodo corresponde a un campo (base o relación) y, si
 // es una relación, puede llevar hijos para los descendientes solicitados.
@@ -19,6 +24,11 @@ type NodoSeleccion struct {
 	// presencia de una relación aquí implica que debe materializarse para poder
 	// resolver sus descendientes.
 	Hijos map[string]*NodoSeleccion
+	// Completo indica que una ruta nombró esta relación como hoja (último
+	// segmento), por lo que debe expandirse completa por configuración, ignorando
+	// los Campos y Hijos acumulados por otras rutas (precedencia por relación de
+	// la selección más amplia). No aplica al nodo raíz de la selección.
+	Completo bool
 }
 
 func nuevoNodoSeleccion() *NodoSeleccion {
@@ -53,9 +63,14 @@ func (n *NodoSeleccion) Vacio() bool {
 // Al solicitar un descendiente (por ejemplo "Tercero.Id"), el objeto padre
 // ("Tercero") se incluye automáticamente en el árbol para poder materializarlo.
 //
+// blacklist es la lista negra global de campos; puede ser nil. Pedir
+// explícitamente un campo vetado produce el mismo resultado observable que pedir
+// un campo no permitido (se rechaza con *ErrorFields y el mismo motivo), sin
+// anunciar que el campo existe ni que está vetado.
+//
 // Devuelve un *ErrorFields cuando una ruta es vacía, duplicada o no permitida; el
 // llamador debe mapearlo a 400 Bad Request sin iniciar la expansión.
-func ParsearFields(fields []string, relaciones []config.RelationConfig, allowed []string) (*NodoSeleccion, error) {
+func ParsearFields(fields []string, relaciones []config.RelationConfig, allowed []string, blacklist config.GlobalBlacklist) (*NodoSeleccion, error) {
 	raiz := nuevoNodoSeleccion()
 	vistas := make(map[string]struct{}, len(fields))
 
@@ -77,7 +92,11 @@ func ParsearFields(fields []string, relaciones []config.RelationConfig, allowed 
 			segmentos[i] = strings.TrimSpace(seg)
 		}
 
-		if err := insertarRuta(raiz, ruta, segmentos, relaciones, allowed); err != nil {
+		// El nivel base no corresponde a ninguna relación resuelta: sus campos no
+		// pasan por el choke-point de la lista negra. Se recorre con api/tabla
+		// vacías; la lista negra solo aplica una vez que la ruta desciende a una
+		// relación (que aporta su RelatedAPI/RelatedTable).
+		if err := insertarRuta(raiz, ruta, segmentos, relaciones, allowed, blacklist, "", ""); err != nil {
 			return nil, err
 		}
 	}
@@ -86,13 +105,19 @@ func ParsearFields(fields []string, relaciones []config.RelationConfig, allowed 
 }
 
 // insertarRuta inserta una ruta en el árbol validando cada segmento contra las
-// relaciones y los allowed_fields del nivel correspondiente.
+// relaciones y los allowed_fields del nivel correspondiente. nivelAPI y
+// nivelTabla identifican la relación cuyo nivel se está recorriendo (vacías en el
+// nivel base) y se usan para emparejar un campo escalar terminal contra la lista
+// negra.
 func insertarRuta(
 	nodo *NodoSeleccion,
 	rutaCompleta string,
 	segmentos []string,
 	relaciones []config.RelationConfig,
 	allowed []string,
+	blacklist config.GlobalBlacklist,
+	nivelAPI string,
+	nivelTabla string,
 ) error {
 	seg := segmentos[0]
 	rel, esRelacion := buscarRelacion(relaciones, seg)
@@ -100,13 +125,20 @@ func insertarRuta(
 	// Último segmento de la ruta.
 	if len(segmentos) == 1 {
 		if esRelacion {
-			// Seleccionar la relación completa; se materializa como hijo.
-			if _, ok := nodo.Hijos[seg]; !ok {
-				nodo.Hijos[seg] = nuevoNodoSeleccion()
+			// Seleccionar la relación completa; se materializa como hijo y se
+			// marca Completo para que se expanda por configuración (precedencia
+			// por relación: domina sobre cualquier descendiente del mismo nodo).
+			hijo, ok := nodo.Hijos[seg]
+			if !ok {
+				hijo = nuevoNodoSeleccion()
+				nodo.Hijos[seg] = hijo
 			}
+			hijo.Completo = true
 			return nil
 		}
-		if !campoPermitido(allowed, seg) {
+		// Un campo vetado por la lista negra se rechaza igual que un campo no
+		// permitido: mismo *ErrorFields y mismo motivo, sin distinguir el caso.
+		if !campoPermitido(allowed, seg) || blacklist.CampoVetado(nivelAPI, nivelTabla, seg) {
 			return &ErrorFields{Path: rutaCompleta, Motivo: fmt.Sprintf("el campo %q no está permitido", seg)}
 		}
 		nodo.Campos[seg] = struct{}{}
@@ -121,13 +153,15 @@ func insertarRuta(
 		}
 	}
 
-	// Incluir automáticamente el padre y descender.
+	// Incluir automáticamente el padre y descender al nivel de la relación, que
+	// aporta su RelatedAPI/RelatedTable para emparejar la lista negra en los
+	// segmentos siguientes.
 	hijo, ok := nodo.Hijos[seg]
 	if !ok {
 		hijo = nuevoNodoSeleccion()
 		nodo.Hijos[seg] = hijo
 	}
-	return insertarRuta(hijo, rutaCompleta, segmentos[1:], rel.NestedRelations, rel.AllowedFields)
+	return insertarRuta(hijo, rutaCompleta, segmentos[1:], rel.NestedRelations, rel.AllowedFields, blacklist, rel.RelatedAPI, rel.RelatedTable)
 }
 
 // buscarRelacion devuelve la relación con el MappedName indicado y si existe.
@@ -144,9 +178,14 @@ func buscarRelacion(relaciones []config.RelationConfig, nombre string) (config.R
 // significa que no hay lista de restricción declarada en ese nivel (los campos
 // base provienen del esquema del recurso), por lo que se acepta cualquier campo.
 // Un allowed declarado (no nil, incluido vacío) restringe estrictamente a sus
-// elementos.
+// elementos, con una excepción: el campo "Id" es seleccionable de forma implícita
+// en cualquier nivel aunque no esté declarado en allowed_fields, de modo que toda
+// entidad anidada sea identificable por defecto.
 func campoPermitido(allowed []string, campo string) bool {
 	if allowed == nil {
+		return true
+	}
+	if campo == campoId {
 		return true
 	}
 	for _, a := range allowed {

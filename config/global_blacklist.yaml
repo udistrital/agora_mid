@@ -1,0 +1,53 @@
+# Lista negra global de campos de expansión.
+#
+# Declara campos que se SUPRIMEN de la salida de expansión de objetos anidados,
+# sin importar que una allowed_fields los permita o que sean el Id implícito. Es
+# a la vez (a) un mecanismo para ocultar campos sensibles de forma transversal y
+# (b) una red de seguridad por encima de la configuración de cada servicio.
+#
+# Precedencia: lista negra > allowed_fields > Id implícito. Un campo listado aquí
+# se elimina de la respuesta aunque esté permitido o sea el Id de la entidad.
+#
+# Estructura jerárquica:
+#
+#   global_blacklist:
+#     <related_api>:
+#       <related_table>:
+#         - <Campo>
+#
+# Los ejes son related_api -> related_table -> [field], casados contra el
+# RelatedAPI/RelatedTable de cada relación declarada en config/relaciones_*.yaml.
+#
+# Palabra reservada ANY (comodín):
+#   - Puede aparecer en cualquier nivel (api, tabla o campo).
+#   - Como único/elemento de la lista de campos significa "todos los campos de
+#     esa tabla".
+#   - ANY/ANY/ANY (comodín en los tres niveles) está PROHIBIDO y aborta el
+#     arranque.
+#   - Se escribe en mayúsculas; no colisiona con apis/tablas (minúsculas) ni con
+#     campos (PascalCase).
+#
+# Validación al arranque:
+#   - Un componente exacto (sin ANY) debe existir en el modelo conocido (la unión
+#     de related_api, related_table, allowed_fields + Id + related_field de las
+#     relaciones cargadas). Un componente exacto inexistente aborta el arranque.
+#   - Un comodín ANY no se verifica contra el modelo (es intencionalmente amplio).
+#
+# Un archivo ausente o vacío, o la clave global_blacklist sin entradas, significa
+# "sin supresión". Este archivo se entrega sin entradas activas; añada bloques
+# bajo global_blacklist cuando necesite suprimir campos.
+#
+# Ejemplos (comentados; descoméntelos y ajústelos al modelo real para activarlos):
+#
+# global_blacklist:
+#   # Suprimir un campo sensible concreto de una tabla concreta.
+#   terceros:
+#     tercero:
+#       - NombreCompleto
+#   # Suprimir TODOS los campos de una tabla (deja solo lo que el motor conserve
+#   # por otras reglas).
+#   gestion_personas_crud:
+#     contacto:
+#       - ANY
+
+global_blacklist:

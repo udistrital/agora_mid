@@ -9,8 +9,10 @@ type RelationError struct {
 	Path    string `json:"path"`
 	Service string `json:"service"`
 	Message string `json:"message"`
-	// Kind identifica el origen del aviso: relation, depth, cycle o
-	// generic_resolver.
+	// Kind identifica el origen del aviso mediante una constante declarada en el
+	// código (por ejemplo relation, depth, cycle, generic_resolver o
+	// field_normalization). El conjunto de valores no es cerrado: se extiende
+	// declarando una constante por cada nuevo origen de aviso.
 	Kind string `json:"kind"`
 }
 

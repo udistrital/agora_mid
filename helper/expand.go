@@ -9,7 +9,10 @@ import (
 	"github.com/udistrital/agora_mid/responses"
 )
 
-// Tipos de aviso de expansión serializados en MetaData.Errors.
+// Tipos de aviso serializados en MetaData.Errors. Cada constante se registra en
+// catalogoKinds junto con el motor que la emite; ese catálogo es la fuente de
+// verdad del conjunto de Kinds y de KindsDeAviso. No debe emitirse ningún Kind
+// sin una constante registrada que lo respalde.
 const (
 	// KindRelation marca un error de relación tolerado en modo notify.
 	KindRelation = "relation"
@@ -17,7 +20,66 @@ const (
 	KindDepth = "depth"
 	// KindCycle marca la detención de una rama por ciclo detectado.
 	KindCycle = "cycle"
+	// KindGenericResolver marca una relación resuelta por el resolver genérico,
+	// cuyo Data se entrega sin transformar.
+	KindGenericResolver = "generic_resolver"
+	// KindFieldNormalization marca la canonización de un campo derivado de una
+	// relación (fk, shared_pk o fk_inbound) reenviado desactualizado en una
+	// entidad nueva: el motor de escritura reemplaza el valor por la llave
+	// autoritativa y lo reporta sin exponer datos remotos. Es distinto de
+	// KindRelation, reservado a fallos remotos tolerados.
+	KindFieldNormalization = "field_normalization"
 )
+
+// KindOrigen identifica el subsistema que emite un tipo de aviso. Distinguir el
+// origen permite verificar, por cada motor, que toda constante declarada tiene
+// una ruta de emisión real que la respalde.
+type KindOrigen string
+
+const (
+	// KindOrigenExpansion marca los avisos emitidos por el motor de expansión.
+	KindOrigenExpansion KindOrigen = "expansion"
+	// KindOrigenEscritura marca los avisos emitidos por el motor de escritura.
+	KindOrigenEscritura KindOrigen = "escritura"
+)
+
+// catalogoKinds es la única fuente de verdad de los tipos de aviso: asocia cada
+// constante Kind con el motor que la emite. Toda constante de aviso del sistema
+// se declara aquí; el conjunto es abierto y se extiende registrando una entrada
+// nueva por cada origen de aviso. Declarar un Kind sin registrarlo en este
+// catálogo deja su aviso sin respaldo, por lo que agregar un tipo de aviso obliga
+// a nombrar su origen en este mismo punto.
+//
+// Los consumidores NO deben recuperar el Kind a emitir desde este catálogo: cada
+// punto de emisión referencia su constante directamente (por ejemplo
+// KindFieldNormalization), de modo que el compilador garantice el símbolo y se
+// conserve el amarre uno a uno entre sitio de emisión y constante. El catálogo
+// sirve para validar y enumerar, no para decidir qué se emite.
+var catalogoKinds = map[string]KindOrigen{
+	KindRelation:           KindOrigenExpansion,
+	KindDepth:              KindOrigenExpansion,
+	KindCycle:              KindOrigenExpansion,
+	KindGenericResolver:    KindOrigenExpansion,
+	KindFieldNormalization: KindOrigenEscritura,
+}
+
+// KindsDeAviso devuelve las constantes de tipo de aviso declaradas, derivadas del
+// catálogo (no se mantiene una lista en paralelo). El orden no es significativo.
+func KindsDeAviso() []string {
+	kinds := make([]string, 0, len(catalogoKinds))
+	for k := range catalogoKinds {
+		kinds = append(kinds, k)
+	}
+	return kinds
+}
+
+// OrigenDeKind devuelve el origen registrado para un Kind y si está declarado en
+// el catálogo. Sirve para validar y documentar los tipos de aviso, no para elegir
+// qué emitir.
+func OrigenDeKind(kind string) (KindOrigen, bool) {
+	origen, ok := catalogoKinds[kind]
+	return origen, ok
+}
 
 // ExpandOptions son las opciones de expansión que arma el controlador. El helper
 // no implementa recursión en el controlador: recibe estas opciones, resuelve y
@@ -35,6 +97,16 @@ type ExpandOptions struct {
 	// OnRelationError es la política de error de relación: notify o fail. Vacío
 	// toma la de la ServiceConfig.
 	OnRelationError string
+	// Seleccion es un árbol de selección ya parseado y validado por el llamador.
+	// Cuando no es nil, Expand lo usa directamente y no vuelve a parsear Fields,
+	// de modo que la validación de fields tiene una única fuente de verdad. Si es
+	// nil, Expand parsea Fields contra la configuración recibida.
+	Seleccion *NodoSeleccion
+	// Blacklist es la lista negra global de campos. Cuando no es nil, el motor
+	// recorta los campos vetados de la salida de todo resolver (específico y
+	// genérico) antes de anidar cada registro, con precedencia sobre allowed_fields
+	// y sobre el Id implícito. Una lista negra nil o vacía no recorta nada.
+	Blacklist config.GlobalBlacklist
 }
 
 // ExpandResult es el resultado de una expansión: los datos expandidos y los
@@ -101,6 +173,8 @@ type expansor struct {
 	maxDepth   int
 	maxRelIDs  int
 	onRelError string
+	// blacklist es la lista negra global de campos; nil o vacía no recorta nada.
+	blacklist config.GlobalBlacklist
 	// cache por solicitud: clave "servicio|mapped|field|key" -> registros.
 	cache    map[string][]map[string]any
 	warnings []responses.RelationError
@@ -147,10 +221,15 @@ func Expand(
 	}
 
 	// Construir el árbol de selección a partir de fields (puede ser nil si no se
-	// solicitaron fields: expansión completa).
+	// solicitaron fields: expansión completa). Si el llamador ya proveyó un árbol
+	// parseado (options.Seleccion), se reutiliza para no parsear dos veces y
+	// mantener una única fuente de verdad en la validación de fields.
 	var seleccion *NodoSeleccion
-	if len(options.Fields) > 0 {
-		arbol, err := ParsearFields(options.Fields, cfg.Relations, allowedTopLevel(cfg))
+	switch {
+	case options.Seleccion != nil:
+		seleccion = options.Seleccion
+	case len(options.Fields) > 0:
+		arbol, err := ParsearFields(options.Fields, cfg.Relations, allowedTopLevel(cfg), options.Blacklist)
 		if err != nil {
 			return ExpandResult{}, err
 		}
@@ -163,6 +242,7 @@ func Expand(
 		maxDepth:   maxDepth,
 		maxRelIDs:  maxRelIDs,
 		onRelError: onRelError,
+		blacklist:  options.Blacklist,
 		cache:      make(map[string][]map[string]any),
 	}
 
@@ -340,10 +420,20 @@ func (ex *expansor) expandirRelacionNivel(
 		ex.agregarAviso(AvisoGenericResolver(rutaStr, rel))
 	}
 
+	// Una relación marcada Completo (nombrada como hoja en fields) se expande por
+	// configuración, como si no hubiera selección por debajo de ella: se ignoran
+	// los Campos/Hijos acumulados por otras rutas y no se recorta. Un subSeleccion
+	// nil (sin fields) tiene el mismo efecto. Para un nodo parcial, seleccionEfectiva
+	// es el propio nodo y gobierna la recursión y la proyección.
+	seleccionEfectiva := subSeleccion
+	if subSeleccion != nil && subSeleccion.Completo {
+		seleccionEfectiva = nil
+	}
+
 	// Recursión sobre descendientes de todos los registros resueltos del nivel.
 	if len(rel.NestedRelations) > 0 && efectiva-1 > 0 && len(registros) > 0 {
 		if err := ex.expandirNivel(
-			registros, rel.NestedRelations, subSeleccion, efectiva-1, rutaActual,
+			registros, rel.NestedRelations, seleccionEfectiva, efectiva-1, rutaActual,
 		); err != nil {
 			return err
 		}
@@ -360,7 +450,64 @@ func (ex *expansor) expandirRelacionNivel(
 		ex.insertarResultado(recurso, rel, coincidencias)
 	}
 
+	// Proyección estricta: cuando hay selección parcial de fields para este nivel,
+	// cada registro resuelto se recorta a los escalares seleccionados más las
+	// relaciones hijas materializadas. Un nodo Completo (seleccionEfectiva nil) no
+	// se recorta. Se aplica después de distribuir (la llave de join ya cumplió su
+	// papel) y sobre los mismos punteros insertados.
+	proyectarRegistros(registros, seleccionEfectiva)
+
+	// Recorte por lista negra: sobre el mismo choke-point y después de la
+	// proyección, se eliminan los campos vetados de cada registro resuelto, sea
+	// cual sea el resolver (específico o genérico) y exista o no selección. La
+	// lista negra gana sobre allowed_fields y sobre el Id implícito (precedencia
+	// lista negra > allowed_fields > Id), y su supresión es silenciosa (sin aviso).
+	ex.recortarVetados(registros, rel)
+
 	return nil
+}
+
+// recortarVetados elimina in situ de cada registro resuelto los campos vetados
+// por la lista negra para la relación (emparejando por RelatedAPI/RelatedTable,
+// con los comodines WildcardANY). Se aplica sobre la salida de todo resolver,
+// después de la proyección por fields, de modo que un campo permitido por
+// allowed_fields o el Id implícito también se suprimen si están vetados. Una
+// lista negra nil o vacía no recorta nada.
+func (ex *expansor) recortarVetados(registros []map[string]any, rel config.RelationConfig) {
+	if len(ex.blacklist) == 0 {
+		return
+	}
+	for _, reg := range registros {
+		for campo := range reg {
+			if ex.blacklist.CampoVetado(rel.RelatedAPI, rel.RelatedTable, campo) {
+				delete(reg, campo)
+			}
+		}
+	}
+}
+
+// proyectarRegistros recorta in situ cada registro a los campos seleccionados
+// cuando la selección del nivel no está vacía (contiene campos escalares o
+// relaciones hijas). Conserva los campos escalares en seleccion.Campos y los
+// mapped_name de las relaciones hijas seleccionadas; elimina cualquier otro
+// campo escalar, incluido el Id cuando no se seleccionó. Cuando la selección es
+// nil (relación pedida completa) o vacía, no recorta: devuelve el registro tal
+// como lo entregó el resolver.
+func proyectarRegistros(registros []map[string]any, seleccion *NodoSeleccion) {
+	if seleccion == nil || seleccion.Vacio() {
+		return
+	}
+	for _, reg := range registros {
+		for campo := range reg {
+			if _, esEscalarSeleccionado := seleccion.Campos[campo]; esEscalarSeleccionado {
+				continue
+			}
+			if _, esRelacionHija := seleccion.Hijos[campo]; esRelacionHija {
+				continue
+			}
+			delete(reg, campo)
+		}
+	}
 }
 
 // llaveLocal obtiene la llave local del recurso según la dirección de la
