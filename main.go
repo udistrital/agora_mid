@@ -81,6 +81,15 @@ func main() {
 		adaptarHandler(http.HandlerFunc(proveedorHandler.Consultar)),
 	)
 
+	// /v1/proveedor/consulta/lista expone el listado de proveedores con filtros de
+	// primer nivel, selección de campos y paginación por cuerpo JSON. Solo acepta
+	// POST; otros métodos responden 405 con Allow: POST (resuelto en el handler
+	// ConsultarLista).
+	beego.Any(
+		"/v1/proveedor/consulta/lista",
+		adaptarHandler(http.HandlerFunc(proveedorHandler.ConsultarLista)),
+	)
+
 	// Publicar la definición OpenAPI estática en /swagger. El contrato vive en
 	// swagger/swagger.yml y queda accesible como GET /swagger/swagger.yml.
 	// swagger.json se deriva determinísticamente del YAML en cada arranque para

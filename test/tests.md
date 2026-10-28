@@ -1,42 +1,45 @@
 # Documentación de la suite de pruebas del subárbol del proveedor
 
 Este documento describe las pruebas de integración y de extremo a extremo (e2e)
-del middleware de escritura del proveedor, ubicadas en el paquete `test/`. Cada
-prueba ejercita el stack completo **controlador → servicio → motor de escritura →
-write-resolvers** contra CRUD dueños simulados, sin red real ni base de datos.
+del middleware del proveedor, ubicadas en el paquete `test/`. Las pruebas
+recorren el stack completo **cliente → controlador → servicio → motor** contra CRUD
+dueños simulados, sin red real ni base de datos. Cubren tanto la lectura de
+colección como la escritura del subárbol del proveedor.
 
 ## Actores
 
-- **Cliente del API**: envía el cuerpo anidado del subárbol por `POST`/`PATCH
-  /v1/proveedor` y el autor de la modificación por la cabecera `X-Autor-Id`.
-- **Middleware (MID)**: el router de `/v1/proveedor`, el `ProveedorWriteService` y
-  el `WriteEngine` genérico cableados con la configuración declarativa real
-  (`config/relaciones_proveedor.yaml`, cargada desde `../config`).
+- **Cliente del API**: envía cuerpos JSON para consultar el listado o materializar
+  el subárbol por `POST`/`PATCH /v1/proveedor`, y el autor de la modificación
+  por la cabecera `X-Autor-Id` cuando corresponde.
+- **Middleware (MID)**: los routers y controladores del proveedor, los servicios
+  de lectura y escritura, y los motores genéricos cableados con la configuración
+  declarativa real (`config/relaciones_proveedor.yaml`, cargada desde `../config`).
 - **CRUD dueños simulados**: un único servidor HTTP de prueba (`CRUDSimulado`,
   en `fixtures.go`) que imita a Terceros CRUD y a Gestión de Personas CRUD.
-  Responde `{"Data":{"Id":n}}` en `POST`/`PATCH` (con un Id autoincremental por
-  recurso y un rango distinto por entidad) y `{"Data":[...]}` en `GET`, y captura
-  cada petición (método, path, query, cuerpo) para las aserciones.
+  Responde `{"Data":{"Id":n}}` en `POST`/`PATCH` y `{"Data":[...]}` en `GET`,
+  y captura cada petición (método, path, query, cuerpo) para las aserciones.
 
 ## Fixtures y mocks compartidos (`fixtures.go`)
 
 - `CRUDSimulado` / `NuevoCRUDSimulado(t, existentes)`: servidor CRUD simulado;
   `existentes` precarga registros que una búsqueda por clave natural o por Id debe
   devolver (para idempotencia y continuación tras creación parcial).
-- `routerProveedor(t, crud)`: arma el router real de `/v1/proveedor` (GET →
-  lectura, POST/PATCH → escritura) sobre el servicio de escritura real cableado
-  contra el CRUD simulado, cargando el YAML de producción. Equivale a
+- `routerProveedor(t, crud)`: arma el router real de `/v1/proveedor` y de las
+  consultas del proveedor sobre los servicios reales cableados contra el CRUD
+  simulado, cargando el YAML de producción. Equivale a
   `routerProveedorConBlacklist(t, crud, nil)`.
 - `routerProveedorConBlacklist(t, crud, blacklist)`: como `routerProveedor` pero
   inyecta una lista negra global (`config.GlobalBlacklist`) en el servicio de
   lectura, para ejercitar el recorte y el rechazo por lista negra sobre la
   configuración real. Una `blacklist` nil equivale a "sin supresión". El router
-  además despacha `POST /v1/proveedor/consulta` al handler de lectura por cuerpo
-  (`Consultar`), replicando el enrutado del `main`.
-- `ejecutar(t, router, metodo, cuerpo)` / `ejecutarConsulta(t, router, id, fields)`:
-  envían, respectivamente, una petición con cuerpo a `POST`/`PATCH /v1/proveedor`
-  o un `POST /v1/proveedor/consulta` con cuerpo JSON `{id, fields}` (lectura por
-  cuerpo), y decodifican el envoltorio de respuesta.
+  despacha `POST /v1/proveedor/consulta` a `Consultar` y
+  `POST /v1/proveedor/consulta/lista` a `ConsultarLista`, replicando el enrutado
+  de `main`.
+- `ejecutar(t, router, metodo, cuerpo)` / `ejecutarConsulta(t, router, id, fields)` /
+  `ejecutarListaProveedor(t, router, cuerpo)`: envían, respectivamente, una
+  petición con cuerpo a `POST`/`PATCH /v1/proveedor`, una consulta puntual por
+  `POST /v1/proveedor/consulta` o un listado por
+  `POST /v1/proveedor/consulta/lista`, y decodifican el envoltorio de respuesta.
 - `cuerpoProveedorNatural()`: cuerpo de **creación** válido de un proveedor
   natural (proveedor raíz + tercero con datos de identificación y FK del tipo de
   contribuyente + rama natural + contacto).
@@ -57,6 +60,54 @@ write-resolvers** contra CRUD dueños simulados, sin red real ni base de datos.
   afirmar de qué CRUD provino cada Id materializado.
 
 ## Pruebas de integración (`integration_test.go`)
+
+### TestIntegracionListadoProveedor
+
+- **Propósito**: verificar de extremo a extremo el listado de proveedores con filtros
+  de primer nivel, expansión mediante `fields`, paginación delegada, propagación
+  del total del conjunto y rechazo temprano de filtros sobre relaciones.
+- **Actores**:
+  - **Cliente del API**: envía `POST /v1/proveedor/consulta/lista` con el cuerpo
+    JSON del listado.
+  - **Middleware (MID)**: `ConsultarLista`, `ProveedorService.ListarProveedores`,
+    el decodificador del envoltorio del CRUD y el motor de expansión de la
+    configuración real de proveedor.
+  - **CRUD dueños simulados**: `CRUDSimulado`, un servidor HTTP que representa al
+    CRUD de Gestión de Personas y al CRUD de Terceros, devuelve listas precargadas
+    y captura las peticiones recibidas.
+- **Entradas**:
+  - Estado precargado en el CRUD simulado:
+    - `GET /v1/proveedor`: dos proveedores, con `Id` 101 y 102, ambos con
+      `TerceroId=15` y `TipoRegistroId=1`.
+    - `GET /v1/tercero`: el tercero 15 con `NombreCompleto="Ana Pérez"`.
+  - Solicitud válida:
+    - Verbo y ruta: `POST /v1/proveedor/consulta/lista`.
+    - `query`: `[`\`TerceroId:15\``, `\`Id__in:101|102\``]`; la primera
+      condición usa igualdad implícita y la segunda usa una lista `__in` separada
+      por `|`.
+    - `fields`: `[`\`Tercero.NombreCompleto\``].
+    - Paginación: `limit=1`, `offset=1`.
+  - Solicitud inválida independiente:
+    - `query`: `[`\`Tercero.NombreCompleto:Ana\``], que intenta filtrar por un
+      campo de relación no permitido.
+- **Salidas esperadas**:
+  - Solicitud válida:
+    - Código HTTP `200`, envoltorio con `Success: true` y `Status: "200"`.
+    - `Data` contiene un solo proveedor, porque la página solicita un elemento
+      desde el desplazamiento 1.
+    - Cada proveedor de la página incluye `Tercero.NombreCompleto` expandido.
+    - `MetaData.Total` es `2`, tomado del total informado por el CRUD y no del
+      tamaño de la página (`1`). El envoltorio puede conservar avisos
+      informativos de profundidad en `MetaData.Errors` sin cambiar el estado
+      exitoso del listado.
+    - El CRUD de proveedores recibe una consulta GET con
+      `query=TerceroId:15,Id__in:101|102`; la ventana `limit`/`offset` se aplica
+      en el CRUD simulado. El MID consulta el CRUD de terceros para expandir
+      `Tercero` y no realiza escrituras.
+  - Solicitud inválida:
+    - Código HTTP `400` con respuesta no exitosa.
+    - El middleware rechaza el filtro antes de consultar el CRUD de proveedores;
+      el simulador no registra una lectura del recurso raíz.
 
 ### TestIntegracionCreacionCompleta
 
