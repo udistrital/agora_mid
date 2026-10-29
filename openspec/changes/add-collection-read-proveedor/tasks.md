@@ -27,8 +27,8 @@
 
 ## 6. Publicación del contrato OpenAPI (openapi-publication)
 
-- [ ] 6.1 Describir el endpoint `POST /v1/proveedor/consulta/lista` en el YAML fuente `swagger/swagger.yml` (cuerpo con `query` como lista de condiciones `Campo[__operador]:valor` de primer nivel con los operadores soportados y `|` como separador de `__in`, `fields`, `limit`, `offset`; respuestas `200`, `206`, `400`, `405`, `502/504`; `Data` como lista de proveedores expandidos; `MetaData.Total` con el total del conjunto) y documentarlo en `API.md`, de modo que ambos sean coherentes con el comportamiento implementado
-- [ ] 6.2 Verificar que el JSON derivado (`swagger/swagger.json`) refleja el YAML vigente de forma determinística tras el arranque del API (regeneración idempotente) y que la interfaz de `/swagger` carga el contrato local con el nuevo endpoint; comprobar que el contrato no introduce rutas inexistentes
+- [x] 6.1 Describir el endpoint `POST /v1/proveedor/consulta/lista` en el YAML fuente `swagger/swagger.yml` (cuerpo con `query` como lista de condiciones `Campo[__operador]:valor` de primer nivel con los operadores soportados y `|` como separador de `__in`, `fields`, `limit`, `offset`; respuestas `200`, `206`, `400`, `405`, `502/504`; `Data` como lista de proveedores expandidos; `MetaData.Total` con el total del conjunto) y documentarlo en `API.md`, de modo que ambos sean coherentes con el comportamiento implementado
+- [x] 6.2 Verificar que el JSON derivado (`swagger/swagger.json`) refleja el YAML vigente de forma determinística tras el arranque del API (regeneración idempotente) y que la interfaz de `/swagger` carga el contrato local con el nuevo endpoint; comprobar que el contrato no introduce rutas inexistentes
 
 ## 7. Documentación de la suite de pruebas (test-documentation)
 
@@ -36,4 +36,4 @@
 
 ## 8. Verificación de integración y regresión
 
-- [ ] 8.1 Ejecutar `go test ./...` y `go build ./...` y confirmar que todo pasa sin errores ni advertencias, reportando por nombre cualquier fallo observado
+- [x] 8.1 Ejecutar `go test ./...` y `go build ./...` y confirmar que todo pasa sin errores ni advertencias, reportando por nombre cualquier fallo observado
