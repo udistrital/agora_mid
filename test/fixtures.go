@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -45,8 +46,8 @@ type PeticionCRUD struct {
 //   - POST /v1/<recurso>/      crea y devuelve {"Data":{"Id":n}} con un Id
 //     autoincremental por recurso, imitando el 201 del CRUD real.
 //   - PATCH /v1/<recurso>/{id} actualiza y devuelve {"Data":{"Id":{id}}}.
-//   - GET  /v1/<recurso>       lista por clave natural y devuelve {"Data":[...]}
-//     a partir de los registros precargados en existentes.
+//   - GET  /v1/<recurso>       lista por clave natural y devuelve
+//     {"Data":[...],"Total":n} a partir de los registros precargados en existentes.
 //
 // Captura cada petición en orden para las aserciones del flujo en cascada.
 type CRUDSimulado struct {
@@ -154,7 +155,7 @@ func (c *CRUDSimulado) manejar(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	claveGet := "GET " + strings.TrimRight(r.URL.Path, "/")
-	respuesta := c.responder(r.Method, r.URL.Path, claveGet, cuerpo)
+	respuesta := c.responder(r.Method, r.URL.Path, claveGet, r.URL.Query(), cuerpo)
 	c.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -163,18 +164,45 @@ func (c *CRUDSimulado) manejar(w http.ResponseWriter, r *http.Request) {
 
 // responder construye la respuesta JSON según el verbo, imitando el contrato de
 // los CRUD dueños (ver gestion_personas_crud_swagger.yml): lista en GET, objeto
-// con Id materializado en POST/PATCH. Debe llamarse con c.mu tomado.
+// con Id materializado en POST/PATCH. En GET aplica limit y offset a la página,
+// pero conserva Total como el tamaño del conjunto completo. Debe llamarse con c.mu
+// tomado.
 func (c *CRUDSimulado) responder(
 	metodo, path, claveGet string,
+	query map[string][]string,
 	cuerpo map[string]any,
 ) string {
+	solicitarPagina := func(registros []map[string]any) []map[string]any {
+		limites, okLimit := query["limit"]
+		offsets, okOffset := query["offset"]
+		if !okLimit || !okOffset || len(limites) == 0 || len(offsets) == 0 {
+			return registros
+		}
+		limit, errLimit := strconv.Atoi(limites[0])
+		offset, errOffset := strconv.Atoi(offsets[0])
+		if errLimit != nil || errOffset != nil || limit < 0 || offset < 0 {
+			return registros
+		}
+		if offset >= len(registros) || limit == 0 {
+			return []map[string]any{}
+		}
+		fin := offset + limit
+		if fin > len(registros) {
+			fin = len(registros)
+		}
+		return registros[offset:fin]
+	}
+
 	switch metodo {
 	case http.MethodGet:
 		if registros, ok := c.existentes[claveGet]; ok && len(registros) > 0 {
-			data, _ := json.Marshal(map[string]any{"Data": registros})
+			data, _ := json.Marshal(map[string]any{
+				"Data":  solicitarPagina(registros),
+				"Total": len(registros),
+			})
 			return string(data)
 		}
-		return `{"Data":[]}`
+		return `{"Data":[],"Total":0}`
 	case http.MethodPatch:
 		// La actualización conserva el Id del cuerpo.
 		if id, ok := cuerpo["Id"]; ok {
@@ -250,11 +278,17 @@ func routerProveedorConBlacklist(
 	handler := controllers.NewProveedorHandlerCompleto(lectura, escritura)
 
 	// Replica el enrutado del main: /v1/proveedor/consulta expone la lectura por
-	// cuerpo JSON (handler.Consultar, solo POST), y /v1/proveedor atiende la
-	// escritura (handler.Escribir); tras retirar el GET de lectura, GET/PUT/DELETE
-	// sobre /v1/proveedor obtienen 405 con Allow: POST, PATCH desde Escribir.
+	// cuerpo JSON (handler.Consultar, solo POST), /v1/proveedor/consulta/lista
+	// expone el listado (handler.ConsultarLista, solo POST), y /v1/proveedor
+	// atiende la escritura (handler.Escribir); tras retirar el GET de lectura,
+	// GET/PUT/DELETE sobre /v1/proveedor obtienen 405 con Allow: POST, PATCH desde
+	// Escribir.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/proveedor/consulta" {
+		switch r.URL.Path {
+		case "/v1/proveedor/consulta/lista":
+			handler.ConsultarLista(w, r)
+			return
+		case "/v1/proveedor/consulta":
 			handler.Consultar(w, r)
 			return
 		}
@@ -335,7 +369,6 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 		},
 	}
 }
-
 
 // cuerpoProveedorNaturalConTerceroID devuelve el cuerpo de creación de un
 // proveedor natural NUEVO (sin Id propio) variando la FK ascendente reenviada

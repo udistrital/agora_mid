@@ -105,6 +105,7 @@ func servicioPrueba(server *httptest.Server) ProveedorService {
 		"parametros":            server.URL,
 		"gestion_personas_crud": server.URL,
 	}
+
 	return NewProveedorService(
 		clients.HTTPClient{Client: server.Client()},
 		urls,
@@ -113,6 +114,52 @@ func servicioPrueba(server *httptest.Server) ProveedorService {
 		nil,
 		nil,
 	)
+}
+
+// TestListarProveedoresValidaFiltrosAntesDeConsultarCRUD verifica la gramática
+// de filtros, la paginación delegada y el total recibido del CRUD.
+func TestListarProveedoresValidaFiltrosAntesDeConsultarCRUD(t *testing.T) {
+	var consultas []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consultas = append(consultas, r.URL.Query().Get("query"))
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}],"Total":9}`)
+	}))
+	defer server.Close()
+
+	svc := servicioPrueba(server)
+	svc.Config.FilterableFields = []string{"Id", "TerceroId", "TipoRegistroId"}
+
+	resultado, err := svc.ListarProveedores(context.Background(),
+		[]string{"TerceroId:25", "Id__in:5|6"},
+		nil, 2, 1)
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if resultado.Total != 9 || len(resultado.Data) != 1 {
+		t.Fatalf("resultado inesperado: %+v", resultado)
+	}
+	if len(consultas) != 1 || consultas[0] != "TerceroId:25,Id__in:5|6" {
+		t.Fatalf("filtros no trasladados con AND: %v", consultas)
+	}
+
+	for _, filtro := range []string{
+		"NombreCompleto:Ana",
+		"Tercero.NombreCompleto:Ana",
+		"Id__unsupported:5",
+		"Id__in:",
+		"Id__in:5",
+		"Id__gt:5|6",
+		"Id__isnull:maybe",
+	} {
+		antes := len(consultas)
+		if _, err := svc.ListarProveedores(context.Background(), []string{filtro}, nil, 2, 1); err == nil {
+			t.Errorf("filtro %q debe rechazarse", filtro)
+		}
+		if len(consultas) != antes {
+			t.Errorf("filtro inválido %q consultó el CRUD", filtro)
+		}
+	}
 }
 
 // Un id no positivo devuelve ErrProveedorIDInvalido sin consultar el CRUD.

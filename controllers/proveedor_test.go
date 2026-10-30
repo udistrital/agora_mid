@@ -20,6 +20,57 @@ type proveedorReaderStub struct {
 	fields    []string
 }
 
+type proveedorCollectionStub struct {
+	resultado helper.CollectionResult
+	err       error
+	query     []string
+	fields    []string
+	limit     int
+	offset    int
+}
+
+func (s *proveedorCollectionStub) ListarProveedores(
+	_ context.Context,
+	query, fields []string,
+	limit, offset int,
+) (helper.CollectionResult, error) {
+	s.query, s.fields, s.limit, s.offset = query, fields, limit, offset
+	return s.resultado, s.err
+}
+
+func TestProveedorHandlerConsultarLista(t *testing.T) {
+	stub := &proveedorCollectionStub{
+		resultado: helper.CollectionResult{
+			Data:  []any{map[string]any{"Id": 5}},
+			Total: 9,
+		},
+	}
+	handler := NewProveedorHandlerLista(stub)
+	req := httptest.NewRequest(http.MethodPost, "/v1/proveedor/consulta/lista",
+		strings.NewReader(`{"query":["Id:5"],"fields":["Tercero.Id"],"limit":2,"offset":1}`))
+	rec := httptest.NewRecorder()
+
+	handler.ConsultarLista(rec, req)
+
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"Total":9`) {
+		t.Fatalf("respuesta inesperada: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(stub.query) != 1 || stub.query[0] != "Id:5" ||
+		len(stub.fields) != 1 || stub.fields[0] != "Tercero.Id" ||
+		stub.limit != 2 || stub.offset != 1 {
+		t.Fatalf("parámetros no trasladados: %+v", stub)
+	}
+
+	for _, metodo := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
+		req = httptest.NewRequest(metodo, "/v1/proveedor/consulta/lista", nil)
+		rec = httptest.NewRecorder()
+		handler.ConsultarLista(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") != http.MethodPost {
+			t.Fatalf("método %s: status=%d allow=%q", metodo, rec.Code, rec.Header().Get("Allow"))
+		}
+	}
+}
+
 func (s *proveedorReaderStub) LeerProveedor(
 	_ context.Context,
 	id int,

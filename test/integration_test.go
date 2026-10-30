@@ -22,6 +22,19 @@ type respuestaEnvoltorio struct {
 	} `json:"MetaData"`
 }
 
+// respuestaListaEnvoltorio representa la respuesta esperada por el listado de
+// proveedores, incluyendo el total del conjunto independiente de la página.
+type respuestaListaEnvoltorio struct {
+	Success  bool             `json:"Success"`
+	Status   string           `json:"Status"`
+	Message  string           `json:"Message"`
+	Data     []map[string]any `json:"Data"`
+	MetaData *struct {
+		Total  int              `json:"Total"`
+		Errors []map[string]any `json:"Errors"`
+	} `json:"MetaData"`
+}
+
 // ejecutar envía una petición al router y decodifica el envoltorio de respuesta.
 func ejecutar(t *testing.T, router http.Handler, metodo, cuerpo string) (*httptest.ResponseRecorder, respuestaEnvoltorio) {
 	t.Helper()
@@ -46,6 +59,30 @@ func comoJSON(t *testing.T, v any) string {
 	return string(data)
 }
 
+// ejecutarListaProveedor envía una petición al endpoint de colección y
+// decodifica el envoltorio con la página expandida y su total.
+func ejecutarListaProveedor(
+	t *testing.T,
+	router http.Handler,
+	cuerpo map[string]any,
+) (*httptest.ResponseRecorder, respuestaListaEnvoltorio) {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/proveedor/consulta/lista",
+		strings.NewReader(comoJSON(t, cuerpo)),
+	)
+	req.Header.Set("X-Autor-Id", "9")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	var env respuestaListaEnvoltorio
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("respuesta de lista no es un envoltorio JSON válido: %v; body=%s", err, rec.Body.String())
+	}
+	return rec, env
+}
+
 // peticionesPorMetodo cuenta, por recurso (p. ej. "proveedor"), cuántas
 // peticiones de cada método recibió el CRUD simulado, tolerando tanto
 // /v1/<recurso> (listas, creación) como /v1/<recurso>/{id} (actualización).
@@ -55,6 +92,7 @@ func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, patch, 
 		if recursoDePath(c.Path) != recurso {
 			continue
 		}
+
 		switch c.Metodo {
 		case http.MethodPost:
 			post++
@@ -65,6 +103,73 @@ func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, patch, 
 		}
 	}
 	return
+}
+
+// TestIntegracionListadoProveedor verifica filtros de primer nivel, expansión,
+// paginación delegada, total del conjunto y rechazo temprano de un filtro
+// inválido mediante CRUD simulados.
+func TestIntegracionListadoProveedor(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
+		"GET /v1/proveedor": {
+			{"Id": float64(101), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(102), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
+		},
+		"GET /v1/tercero": {
+			{"Id": float64(15), "NombreCompleto": "Ana Pérez"},
+		},
+	})
+	router := routerProveedor(t, crud)
+
+	rec, env := ejecutarListaProveedor(t, router, map[string]any{
+		"query":  []string{"TerceroId:15", "Id__in:101|102"},
+		"fields": []string{"Tercero.NombreCompleto"},
+		"limit":  1,
+		"offset": 1,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; esperado 200. body=%s", rec.Code, rec.Body.String())
+	}
+	if env.Status != "200" || !env.Success {
+		t.Fatalf("envoltorio inesperado: %+v", env)
+	}
+	if len(env.Data) != 1 {
+		t.Fatalf("la página debe contener un proveedor: data=%+v", env.Data)
+	}
+	if env.MetaData == nil || env.MetaData.Total != 2 {
+		t.Fatalf("MetaData.Total debe conservar el total del CRUD: metadata=%+v", env.MetaData)
+	}
+	if tercero, ok := env.Data[0]["Tercero"].(map[string]any); !ok || tercero["NombreCompleto"] != "Ana Pérez" {
+		t.Fatalf("el proveedor debe incluir Tercero expandido: data=%+v", env.Data[0])
+	}
+
+	var consulta *PeticionCRUD
+	capturas := crud.Capturas()
+	for i := range capturas {
+		if capturas[i].Metodo == http.MethodGet && recursoDePath(capturas[i].Path) == "proveedor" {
+			consulta = &capturas[i]
+			break
+		}
+	}
+	if consulta == nil {
+		t.Fatal("el listado debe consultar el CRUD de proveedores")
+	}
+	if consulta.Query != "TerceroId:15,Id__in:101|102" {
+		t.Fatalf("query no trasladado con AND: got=%q", consulta.Query)
+	}
+
+	crudInvalido := NuevoCRUDSimulado(t, nil)
+	routerInvalido := routerProveedor(t, crudInvalido)
+	recInvalido, _ := ejecutarListaProveedor(t, routerInvalido, map[string]any{
+		"query": []string{"Tercero.NombreCompleto:Ana"},
+	})
+	if recInvalido.Code != http.StatusBadRequest {
+		t.Fatalf("filtro de relación debe responder 400: status=%d body=%s", recInvalido.Code, recInvalido.Body.String())
+	}
+	for _, captura := range crudInvalido.Capturas() {
+		if recursoDePath(captura.Path) == "proveedor" {
+			t.Fatalf("filtro inválido no debe consultar el CRUD: captura=%+v", captura)
+		}
+	}
 }
 
 // Creación completa vía POST con una FK ascendente desactualizada: el fixture
