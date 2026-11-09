@@ -358,3 +358,42 @@ func contienePath(paths []string, objetivo string) bool {
 	}
 	return false
 }
+
+// Un listado con proveedores naturales y jurídicos en la misma página expande
+// la rama de cada proveedor según su propio TipoRegistroId.
+func TestListarProveedoresRamaPorElementoEnPaginaMixta(t *testing.T) {
+	server := servidorCRUD(t, map[string]string{
+		"/v1/proveedor/": `{"Data":[` +
+			`{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true},` +
+			`{"Id":6,"TerceroId":26,"TipoRegistroId":2,"Activo":true}],"Total":2}`,
+		"/v1/proveedor_natural":  `{"Data":[{"Id":5,"PerfilDeclarado":2}]}`,
+		"/v1/proveedor_juridico": `{"Data":[{"Id":6,"NombreComercial":"ACME"}]}`,
+	}, nil)
+	defer server.Close()
+
+	svc := servicioPrueba(server)
+	resultado, err := svc.ListarProveedores(context.Background(), nil,
+		[]string{"Id", "ProveedorNatural.Id", "ProveedorJuridico.Id"}, 10, 0)
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if len(resultado.Data) != 2 {
+		t.Fatalf("se esperaban 2 proveedores; recibido: %+v", resultado.Data)
+	}
+
+	natural := resultado.Data[0].(map[string]any)
+	if _, ok := natural["ProveedorNatural"].(map[string]any); !ok {
+		t.Errorf("el proveedor natural debe expandir ProveedorNatural: %+v", natural)
+	}
+	if _, presente := natural["ProveedorJuridico"]; presente {
+		t.Errorf("el proveedor natural no debe expandir ProveedorJuridico: %+v", natural)
+	}
+
+	juridico := resultado.Data[1].(map[string]any)
+	if _, ok := juridico["ProveedorJuridico"].(map[string]any); !ok {
+		t.Errorf("el proveedor jurídico debe expandir ProveedorJuridico: %+v", juridico)
+	}
+	if _, presente := juridico["ProveedorNatural"]; presente {
+		t.Errorf("el proveedor jurídico no debe expandir ProveedorNatural: %+v", juridico)
+	}
+}

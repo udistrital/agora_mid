@@ -15,14 +15,18 @@ type CollectionResult struct {
 	Warnings []responses.RelationError
 }
 
-// ListCollection expande cada registro de una colección con la misma
-// configuración y opciones de Expand, conservando elementos cuya relación
-// falle bajo la política tolerante y propagando sus avisos.
+// ListCollection expande cada registro de una colección con la configuración
+// que devuelve cfgDe para ese registro y las mismas opciones de Expand. Conserva
+// el orden de la página, elementos cuya relación falle bajo la política tolerante
+// y propaga sus avisos. El total se devuelve sin cambios.
+//
+// cfgDe se invoca una vez por registro, antes de expandirlo, para que cada
+// elemento pueda podar su rama según su propio discriminador.
 func ListCollection(
 	ctx context.Context,
 	records []map[string]any,
 	total int,
-	cfg config.ServiceConfig,
+	cfgDe func(record map[string]any) config.ServiceConfig,
 	registry ResolverRegistry,
 	options ExpandOptions,
 ) (CollectionResult, error) {
@@ -31,7 +35,7 @@ func ListCollection(
 		Total: total,
 	}
 	for _, record := range records {
-		expandido, err := Expand(ctx, record, cfg, registry, options)
+		expandido, err := Expand(ctx, record, cfgDe(record), registry, options)
 		if err != nil {
 			return CollectionResult{}, err
 		}

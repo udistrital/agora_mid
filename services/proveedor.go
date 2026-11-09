@@ -187,7 +187,13 @@ func (s ProveedorService) ListarProveedores(
 			"TipoRegistroId": registro.TipoRegistroId, "Activo": registro.Activo,
 		})
 	}
-	return helper.ListCollection(ctx, records, lista.Total, s.configParaTipo(s.TipoRegistroNatural), s.Registry,
+	// Cada registro expande su propia rama según su TipoRegistroId, de modo que una
+	// página mixta de proveedores naturales y jurídicos expande la rama correcta.
+	cfgDe := func(record map[string]any) config.ServiceConfig {
+		tipo, _ := record["TipoRegistroId"].(int)
+		return s.configParaTipo(tipo)
+	}
+	return helper.ListCollection(ctx, records, lista.Total, cfgDe, s.Registry,
 		helper.ExpandOptions{Seleccion: seleccion, Blacklist: s.Blacklist})
 }
 

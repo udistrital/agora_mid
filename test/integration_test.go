@@ -683,3 +683,54 @@ func TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales(t *testing.T)
 			postProveedor, patchProveedor, crud.Capturas())
 	}
 }
+
+// Una página mixta de proveedores naturales y jurídicos expande de extremo a
+// extremo la rama correspondiente a cada registro, cargando la configuración
+// real desde config/relaciones_proveedor.yaml.
+func TestIntegracionListadoProveedorPaginaMixta(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
+		"GET /v1/proveedor": {
+			{"Id": float64(101), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(102), "TerceroId": float64(16), "TipoRegistroId": float64(2), "Activo": true},
+		},
+		"GET /v1/proveedor_natural": {
+			{"Id": float64(101), "PerfilDeclarado": float64(3)},
+		},
+		"GET /v1/proveedor_juridico": {
+			{"Id": float64(102), "NombreComercial": "ACME"},
+		},
+	})
+	router := routerProveedor(t, crud)
+
+	rec, env := ejecutarListaProveedor(t, router, map[string]any{
+		"query":  []string{"Id__in:101|102"},
+		"fields": []string{"ProveedorNatural.PerfilDeclarado", "ProveedorJuridico.NombreComercial"},
+		"limit":  10,
+		"offset": 0,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; esperado 200. body=%s", rec.Code, rec.Body.String())
+	}
+	if len(env.Data) != 2 {
+		t.Fatalf("se esperaban 2 proveedores: data=%+v", env.Data)
+	}
+	if env.MetaData == nil || env.MetaData.Total != 2 {
+		t.Fatalf("MetaData.Total debe ser 2: metadata=%+v", env.MetaData)
+	}
+
+	natural := env.Data[0]
+	if pn, ok := natural["ProveedorNatural"].(map[string]any); !ok || pn["PerfilDeclarado"] != float64(3) {
+		t.Errorf("el proveedor natural debe expandir ProveedorNatural: %+v", natural)
+	}
+	if _, presente := natural["ProveedorJuridico"]; presente {
+		t.Errorf("el proveedor natural no debe expandir ProveedorJuridico: %+v", natural)
+	}
+
+	juridico := env.Data[1]
+	if pj, ok := juridico["ProveedorJuridico"].(map[string]any); !ok || pj["NombreComercial"] != "ACME" {
+		t.Errorf("el proveedor jurídico debe expandir ProveedorJuridico: %+v", juridico)
+	}
+	if _, presente := juridico["ProveedorNatural"]; presente {
+		t.Errorf("el proveedor jurídico no debe expandir ProveedorNatural: %+v", juridico)
+	}
+}

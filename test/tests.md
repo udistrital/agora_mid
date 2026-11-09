@@ -109,6 +109,37 @@ colección como la escritura del subárbol del proveedor.
     - El middleware rechaza el filtro antes de consultar el CRUD de proveedores;
       el simulador no registra una lectura del recurso raíz.
 
+### TestIntegracionListadoProveedorPaginaMixta
+
+- **Propósito**: verificar de extremo a extremo que un listado con proveedores
+  naturales y jurídicos en la misma página expande la rama que corresponde a
+  cada registro según su `TipoRegistroId`, y no la rama de un único tipo para
+  toda la página.
+- **Actores**:
+  - **Cliente del API**: envía `POST /v1/proveedor/consulta/lista`.
+  - **Middleware (MID)**: `ConsultarLista`, `ProveedorService.ListarProveedores`,
+    el motor de colección y la configuración real de proveedor.
+  - **CRUD dueños simulados**: `CRUDSimulado`, que sirve el listado de proveedores
+    y las ramas `proveedor_natural` y `proveedor_juridico` precargadas.
+- **Entradas**:
+  - Estado precargado en el CRUD simulado:
+    - `GET /v1/proveedor`: proveedor `Id` 101 con `TipoRegistroId=1` (natural) y
+      proveedor `Id` 102 con `TipoRegistroId=2` (jurídico).
+    - `GET /v1/proveedor_natural`: detalle del 101 con `PerfilDeclarado=3`.
+    - `GET /v1/proveedor_juridico`: detalle del 102 con `NombreComercial="ACME"`.
+  - Solicitud: `POST /v1/proveedor/consulta/lista` con `query`
+    `[`\`Id__in:101|102\``]`, `fields`
+    `[`\`ProveedorNatural.PerfilDeclarado\``, `\`ProveedorJuridico.NombreComercial\``]`,
+    `limit=10` y `offset=0`.
+- **Salidas esperadas**:
+  - Código HTTP `200` con `Success: true` y `Status: "200"`.
+  - `Data` contiene dos proveedores, en el orden de la página.
+  - El proveedor natural expande `ProveedorNatural` (con `PerfilDeclarado=3`) y
+    no contiene `ProveedorJuridico`.
+  - El proveedor jurídico expande `ProveedorJuridico` (con
+    `NombreComercial="ACME"`) y no contiene `ProveedorNatural`.
+  - `MetaData.Total` es `2`.
+
 ### TestIntegracionCreacionCompleta
 
 - **Propósito**: verificar que un `POST /v1/proveedor` materializa el subárbol
