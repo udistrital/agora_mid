@@ -265,6 +265,58 @@ paths:
             relación. `Message`: `Gateway Timeout`.
           schema:
             $ref: "#/definitions/RespuestaErrorDependencia"
+  /proveedor/consulta/lista:
+    post:
+      tags:
+        - proveedor
+      summary: Lista proveedores con filtros, expansión y paginación
+      description: >-
+        Lista proveedores expandidos. `query` contiene condiciones
+        `Campo[__operador]:valor` combinadas mediante AND. Solo admite campos
+        filtrables de primer nivel declarados en la configuración; no admite
+        rutas de relaciones. Los operadores admitidos son `exact`, `iexact`,
+        `contains`, `icontains`, `gt`, `gte`, `lt`, `lte`, `startswith`,
+        `istartswith`, `endswith`, `iendswith`, `in` e `isnull`. Para `__in`,
+        los valores se separan con `|`. `limit` vale 20 por defecto y se limita
+        a un máximo de 100; `offset` vale 0 por defecto. Los valores negativos
+        producen `400`. Solo admite `POST`.
+      operationId: consultarListaProveedores
+      parameters:
+        - name: body
+          in: body
+          required: true
+          description: Filtros, campos a expandir y paginación.
+          schema:
+            $ref: "#/definitions/ConsultaListaProveedores"
+      responses:
+        "200":
+          description: Listado completado sin avisos de expansión.
+          schema:
+            $ref: "#/definitions/RespuestaListaProveedores"
+        "206":
+          description: >-
+            Listado completado con avisos de expansión. Los avisos se incluyen
+            en `MetaData.Errors`.
+          schema:
+            $ref: "#/definitions/RespuestaListaProveedoresConAvisos"
+        "400":
+          description: >-
+            Cuerpo JSON inválido, condición de filtro inválida, campo no
+            filtrable, operador no soportado o parámetro `fields` inválido.
+          schema:
+            $ref: "#/definitions/RespuestaErrorValidacionLectura"
+        "405":
+          description: Método HTTP no permitido; solo se admite `POST`.
+          schema:
+            $ref: "#/definitions/RespuestaErrorMetodo"
+        "502":
+          description: Error de dependencia o fallo fatal de expansión.
+          schema:
+            $ref: "#/definitions/RespuestaErrorDependencia"
+        "504":
+          description: Tiempo de espera agotado durante una dependencia.
+          schema:
+            $ref: "#/definitions/RespuestaErrorDependencia"
 definitions:
   ConsultaProveedor:
     type: object
@@ -295,6 +347,90 @@ definitions:
           - Id
           - Tercero.Id
           - Tercero.NombreCompleto
+  ConsultaListaProveedores:
+    type: object
+    description: >-
+      Parámetros del listado. Los filtros se validan contra los campos
+      filtrables de primer nivel declarados para el proveedor.
+    properties:
+      query:
+        type: array
+        description: >-
+          Condiciones `Campo[__operador]:valor`, combinadas mediante AND.
+          Para `__in`, separar los valores con `|`.
+        items:
+          type: string
+        example:
+          - "Id__gte:10"
+          - "TipoRegistroId__in:1|2"
+      fields:
+        type: array
+        description: Campos y rutas de relación permitidos que se desea expandir.
+        items:
+          type: string
+        example:
+          - "Tercero.Id"
+      limit:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 20
+        maximum: 100
+        description: Tamaño de página; 0 aplica el valor predeterminado.
+      offset:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+        description: Número de registros que se omiten antes de la página.
+  RespuestaListaProveedores:
+    type: object
+    required:
+      - Success
+      - Status
+      - Message
+      - Data
+      - MetaData
+    properties:
+      Success:
+        type: boolean
+        example: true
+      Status:
+        type: string
+        example: "200"
+      Message:
+        type: string
+        example: Proveedores consultados correctamente
+      Data:
+        type: array
+        items:
+          $ref: "#/definitions/Proveedor"
+      MetaData:
+        $ref: "#/definitions/MetaData"
+  RespuestaListaProveedoresConAvisos:
+    type: object
+    required:
+      - Success
+      - Status
+      - Message
+      - Data
+      - MetaData
+    properties:
+      Success:
+        type: boolean
+        example: true
+      Status:
+        type: string
+        example: "206"
+      Message:
+        type: string
+        example: Proveedores consultados con advertencias de expansión
+      Data:
+        type: array
+        items:
+          $ref: "#/definitions/Proveedor"
+      MetaData:
+        $ref: "#/definitions/MetaData"
   RespuestaProveedor:
     type: object
     description: Envelope OAS plano para una consulta exitosa sin avisos.
@@ -358,7 +494,7 @@ definitions:
         example: "400"
       Message:
         type: string
-        example: id debe ser un entero positivo
+        example: consulta de proveedores inválida
       Data:
         type: object
         x-nullable: true
@@ -450,8 +586,8 @@ definitions:
   MetaData:
     type: object
     description: >-
-      Bloque opcional con metadatos de la respuesta. Solo se incluye cuando hay
-      avisos de expansión (`Errors`) o un total de registros (`Length`).
+      Bloque de metadatos de la respuesta. Puede incluir avisos de expansión
+      (`Errors`), longitud de datos (`Length`) y total del conjunto filtrado (`Total`).
     properties:
       Errors:
         type: array
@@ -462,6 +598,10 @@ definitions:
         type: integer
         format: int64
         description: Total de valores posibles cuando `Data` es una lista.
+      Total:
+        type: integer
+        format: int64
+        description: Total del conjunto filtrado, independientemente del tamaño de la página.
   RelationError:
     type: object
     description: >-

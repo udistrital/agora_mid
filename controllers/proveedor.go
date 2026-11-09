@@ -22,6 +22,14 @@ type proveedorReader interface {
 	) (helper.ExpandResult, error)
 }
 
+type proveedorCollectionReader interface {
+	ListarProveedores(
+		ctx context.Context,
+		query, fields []string,
+		limit, offset int,
+	) (helper.CollectionResult, error)
+}
+
 // proveedorWriter materializa el subárbol del proveedor a partir de un cuerpo
 // anidado. verb es services' WriteVerbCreate (POST) o WriteVerbUpdate (PATCH).
 type proveedorWriter interface {
@@ -34,11 +42,20 @@ type proveedorWriter interface {
 
 type ProveedorHandler struct {
 	servicio  proveedorReader
+	coleccion proveedorCollectionReader
 	escritura proveedorWriter
 }
 
 func NewProveedorHandler(servicio proveedorReader) *ProveedorHandler {
-	return &ProveedorHandler{servicio: servicio}
+	handler := &ProveedorHandler{servicio: servicio}
+	handler.coleccion, _ = servicio.(proveedorCollectionReader)
+	return handler
+}
+
+// NewProveedorHandlerLista construye un handler dedicado al endpoint de
+// colección del proveedor.
+func NewProveedorHandlerLista(servicio proveedorCollectionReader) *ProveedorHandler {
+	return &ProveedorHandler{coleccion: servicio}
 }
 
 // NewProveedorHandlerCompleto construye un handler con los servicios de lectura y
@@ -47,7 +64,9 @@ func NewProveedorHandlerCompleto(
 	lectura proveedorReader,
 	escritura proveedorWriter,
 ) *ProveedorHandler {
-	return &ProveedorHandler{servicio: lectura, escritura: escritura}
+	handler := NewProveedorHandler(lectura)
+	handler.escritura = escritura
+	return handler
 }
 
 // consultaProveedorBody es el cuerpo JSON aceptado por el endpoint de consulta
@@ -120,6 +139,83 @@ func (h *ProveedorHandler) Consultar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.responder(w, status, true, message, resultado.Data, resultado.Warnings)
+}
+
+// consultaListaProveedorBody es el cuerpo JSON aceptado por el endpoint de
+// listado POST /v1/proveedor/consulta/lista.
+type consultaListaProveedorBody struct {
+	Query  []string `json:"query"`
+	Fields []string `json:"fields"`
+	Limit  int      `json:"limit"`
+	Offset int      `json:"offset"`
+}
+
+// ConsultarLista atiende POST sobre /v1/proveedor/consulta/lista y mapea la
+// página expandida junto con el total del conjunto filtrado.
+func (h *ProveedorHandler) ConsultarLista(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		h.responder(w, http.StatusMethodNotAllowed, false, "Método no permitido", nil, nil)
+		return
+	}
+	if h.coleccion == nil {
+		h.responder(w, http.StatusBadGateway, false, "Servicio de listado no disponible", nil, nil)
+		return
+	}
+	var body consultaListaProveedorBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		h.responder(w, http.StatusBadRequest, false, "El cuerpo debe ser un objeto JSON válido", nil, nil)
+		return
+	}
+	resultado, err := h.coleccion.ListarProveedores(r.Context(), body.Query, body.Fields, body.Limit, body.Offset)
+	if err != nil {
+		h.responderErrorLista(w, err)
+		return
+	}
+	status := http.StatusOK
+	message := "Proveedores consultados correctamente"
+	if requiereRespuestaParcial(resultado.Warnings) {
+		status = http.StatusPartialContent
+		message = "Proveedores consultados con advertencias de expansión"
+	}
+	h.responderConTotal(w, status, true, message, resultado.Data, resultado.Warnings, resultado.Total)
+}
+
+// requiereRespuestaParcial indica si una colección perdió materialización de
+// relaciones. Los avisos de profundidad son informativos: la relación solicitada
+// sí se entregó y por eso no cambian el estado 200, aunque se conservan en
+// MetaData.Errors.
+func requiereRespuestaParcial(warnings []responses.RelationError) bool {
+	for _, warning := range warnings {
+		if warning.Kind != helper.KindDepth {
+			return true
+		}
+	}
+	return false
+}
+
+// responderErrorLista mapea el error del servicio de listado al código HTTP del
+// contrato, sin exponer mensajes internos de los CRUD.
+func (h *ProveedorHandler) responderErrorLista(w http.ResponseWriter, err error) {
+	if errors.Is(err, services.ErrProveedorConsultaInvalida) {
+		h.responder(w, http.StatusBadRequest, false, err.Error(), nil, nil)
+		return
+	}
+	if helper.EsErrorFatalExpansion(err) {
+		status := http.StatusBadGateway
+		var netErr net.Error
+		if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &netErr) && netErr.Timeout() {
+			status = http.StatusGatewayTimeout
+		}
+		h.responder(w, status, false, http.StatusText(status), nil, nil)
+		return
+	}
+	var errorFields *helper.ErrorFields
+	if errors.As(err, &errorFields) {
+		h.responder(w, http.StatusBadRequest, false, errorFields.Error(), nil, nil)
+		return
+	}
+	h.responder(w, http.StatusBadGateway, false, "Error al consultar los proveedores", nil, nil)
 }
 
 // responderErrorLectura mapea el error del servicio de lectura al código HTTP del
@@ -285,4 +381,20 @@ func (h *ProveedorHandler) responder(
 		warnings,
 	)
 	_ = json.NewEncoder(w).Encode(response)
+}
+
+func (h *ProveedorHandler) responderConTotal(
+	w http.ResponseWriter,
+	status int,
+	success bool,
+	message string,
+	data any,
+	warnings []responses.RelationError,
+	total int,
+) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(responses.WithTotal(
+		success, strconv.Itoa(status), message, data, warnings, total,
+	))
 }

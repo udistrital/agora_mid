@@ -105,6 +105,7 @@ func servicioPrueba(server *httptest.Server) ProveedorService {
 		"parametros":            server.URL,
 		"gestion_personas_crud": server.URL,
 	}
+
 	return NewProveedorService(
 		clients.HTTPClient{Client: server.Client()},
 		urls,
@@ -113,6 +114,52 @@ func servicioPrueba(server *httptest.Server) ProveedorService {
 		nil,
 		nil,
 	)
+}
+
+// TestListarProveedoresValidaFiltrosAntesDeConsultarCRUD verifica la gramática
+// de filtros, la paginación delegada y el total recibido del CRUD.
+func TestListarProveedoresValidaFiltrosAntesDeConsultarCRUD(t *testing.T) {
+	var consultas []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		consultas = append(consultas, r.URL.Query().Get("query"))
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}],"Total":9}`)
+	}))
+	defer server.Close()
+
+	svc := servicioPrueba(server)
+	svc.Config.FilterableFields = []string{"Id", "TerceroId", "TipoRegistroId"}
+
+	resultado, err := svc.ListarProveedores(context.Background(),
+		[]string{"TerceroId:25", "Id__in:5|6"},
+		nil, 2, 1)
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if resultado.Total != 9 || len(resultado.Data) != 1 {
+		t.Fatalf("resultado inesperado: %+v", resultado)
+	}
+	if len(consultas) != 1 || consultas[0] != "TerceroId:25,Id__in:5|6" {
+		t.Fatalf("filtros no trasladados con AND: %v", consultas)
+	}
+
+	for _, filtro := range []string{
+		"NombreCompleto:Ana",
+		"Tercero.NombreCompleto:Ana",
+		"Id__unsupported:5",
+		"Id__in:",
+		"Id__in:5",
+		"Id__gt:5|6",
+		"Id__isnull:maybe",
+	} {
+		antes := len(consultas)
+		if _, err := svc.ListarProveedores(context.Background(), []string{filtro}, nil, 2, 1); err == nil {
+			t.Errorf("filtro %q debe rechazarse", filtro)
+		}
+		if len(consultas) != antes {
+			t.Errorf("filtro inválido %q consultó el CRUD", filtro)
+		}
+	}
 }
 
 // Un id no positivo devuelve ErrProveedorIDInvalido sin consultar el CRUD.
@@ -310,4 +357,43 @@ func contienePath(paths []string, objetivo string) bool {
 		}
 	}
 	return false
+}
+
+// Un listado con proveedores naturales y jurídicos en la misma página expande
+// la rama de cada proveedor según su propio TipoRegistroId.
+func TestListarProveedoresRamaPorElementoEnPaginaMixta(t *testing.T) {
+	server := servidorCRUD(t, map[string]string{
+		"/v1/proveedor/": `{"Data":[` +
+			`{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true},` +
+			`{"Id":6,"TerceroId":26,"TipoRegistroId":2,"Activo":true}],"Total":2}`,
+		"/v1/proveedor_natural":  `{"Data":[{"Id":5,"PerfilDeclarado":2}]}`,
+		"/v1/proveedor_juridico": `{"Data":[{"Id":6,"NombreComercial":"ACME"}]}`,
+	}, nil)
+	defer server.Close()
+
+	svc := servicioPrueba(server)
+	resultado, err := svc.ListarProveedores(context.Background(), nil,
+		[]string{"Id", "ProveedorNatural.Id", "ProveedorJuridico.Id"}, 10, 0)
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if len(resultado.Data) != 2 {
+		t.Fatalf("se esperaban 2 proveedores; recibido: %+v", resultado.Data)
+	}
+
+	natural := resultado.Data[0].(map[string]any)
+	if _, ok := natural["ProveedorNatural"].(map[string]any); !ok {
+		t.Errorf("el proveedor natural debe expandir ProveedorNatural: %+v", natural)
+	}
+	if _, presente := natural["ProveedorJuridico"]; presente {
+		t.Errorf("el proveedor natural no debe expandir ProveedorJuridico: %+v", natural)
+	}
+
+	juridico := resultado.Data[1].(map[string]any)
+	if _, ok := juridico["ProveedorJuridico"].(map[string]any); !ok {
+		t.Errorf("el proveedor jurídico debe expandir ProveedorJuridico: %+v", juridico)
+	}
+	if _, presente := juridico["ProveedorNatural"]; presente {
+		t.Errorf("el proveedor jurídico no debe expandir ProveedorNatural: %+v", juridico)
+	}
 }

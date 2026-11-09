@@ -104,6 +104,66 @@ El endpoint resuelve el tipo de registro de persona natural mediante el catálog
 
 Si el catálogo no permite resolver el tipo de registro de forma inequívoca, la inicialización del servicio falla explícitamente. El identificador no debe codificarse de forma fija ni suponerse igual a `1`.
 
+## Listado de proveedores
+
+### Endpoint
+
+`POST /v1/proveedor/consulta/lista`
+
+Lista proveedores con filtros opcionales, expansión de relaciones y paginación.
+Los filtros se validan antes de consultar el CRUD dueño y se combinan mediante
+AND. Solo se admiten campos filtrables de primer nivel declarados en
+`config/relaciones_proveedor.yaml`: `Id`, `TerceroId`, `TipoRegistroId` y
+`DescripcionPortafolio`. No se admiten rutas de relaciones en `query`.
+
+### Cuerpo JSON
+
+| Campo | Obligatorio | Descripción |
+|---|---|---|
+| `query` | No | Lista de condiciones `Campo[__operador]:valor`. |
+| `fields` | No | Lista de campos y relaciones permitidos que se desean expandir. |
+| `limit` | No | Tamaño de página. Por defecto es `20`; el máximo es `100`. |
+| `offset` | No | Número de registros que se omiten antes de la página. Por defecto es `0`. |
+
+Los valores negativos de `limit` u `offset` producen `400`. Un `limit` igual a
+`0` aplica el valor predeterminado; un valor superior a `100` se limita a `100`.
+
+Los operadores admitidos son `exact`, `iexact`, `contains`, `icontains`, `gt`,
+`gte`, `lt`, `lte`, `startswith`, `istartswith`, `endswith`, `iendswith`, `in`
+e `isnull`. Si se omite el operador, se utiliza la igualdad (`exact`). Para
+`__in`, los valores deben separarse con `|`, por ejemplo
+`TipoRegistroId__in:1|2`. Los filtros se combinan mediante AND. `isnull` acepta
+únicamente `true` o `false`.
+
+### Ejemplo de solicitud
+
+`POST /v1/proveedor/consulta/lista`
+
+```json
+{
+  "query": ["Id__gte:10", "TipoRegistroId__in:1|2"],
+  "fields": ["Tercero.Id"],
+  "limit": 20,
+  "offset": 0
+}
+```
+
+### Respuestas
+
+| Código | Significado |
+|---|---|
+| `200` | Listado completado sin avisos de expansión. |
+| `206` | Listado completado con avisos de expansión. |
+| `400` | Cuerpo JSON, filtro o campo inválido. |
+| `405` | Método HTTP distinto de `POST`. |
+| `502` | Error de dependencia o fallo fatal de expansión. |
+| `504` | Tiempo de espera agotado durante una dependencia. |
+
+La respuesta contiene `Data` como una lista de proveedores expandidos y
+`MetaData.Total` con el total del conjunto filtrado, independientemente del
+número de elementos de la página. Cuando hay avisos de expansión, estos se
+incluyen en `MetaData.Errors`.
+
 ## Escritura de proveedor
 
 El proveedor se escribe como **recurso raíz** mediante un cuerpo JSON anidado que

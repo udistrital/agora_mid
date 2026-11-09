@@ -139,6 +139,9 @@ type ServiceConfig struct {
 	OnRelationError string           `yaml:"on_relation_error"`
 	MaxRelatedIDs   int              `yaml:"max_related_ids"`
 	Relations       []RelationConfig `yaml:"relations"`
+	// FilterableFields contiene los nombres de columnas de primer nivel que el
+	// servicio permite utilizar en filtros de consultas de colección.
+	FilterableFields []string `yaml:"filterable_fields"`
 	// Write declara la configuración de escritura de la entidad raíz del
 	// servicio (por ejemplo proveedor). Como raíz, no propaga llave de un padre,
 	// por lo que su KeyPropagation debe quedar vacío. Es opcional: un servicio

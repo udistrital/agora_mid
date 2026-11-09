@@ -27,6 +27,8 @@ type MetaData struct {
 	// posibles sin considerar limit u offset (no el tamaño de la página
 	// devuelta). Es opcional: se omite cuando Data no es una lista o no aplica.
 	Length *int `json:"Length,omitempty"`
+	// Total es el tamaño del conjunto filtrado informado por el CRUD dueño.
+	Total *int `json:"Total,omitempty"`
 }
 
 // Response es el envoltorio OAS plano usado en todos los verbos del API.
@@ -74,6 +76,18 @@ func WithLength(success bool, status, message string, data any, length int) Resp
 func WithMetaData(success bool, status, message string, data any, warnings []RelationError, length *int) Response {
 	resp := New(success, status, message, data)
 	resp.setMetaData(warnings, length)
+	return resp
+}
+
+// WithTotal construye un envoltorio con avisos opcionales y el total del
+// conjunto filtrado de una respuesta de colección.
+func WithTotal(success bool, status, message string, data any, warnings []RelationError, total int) Response {
+	resp := New(success, status, message, data)
+	resp.setMetaData(warnings, nil)
+	if resp.MetaData == nil {
+		resp.MetaData = &MetaData{}
+	}
+	resp.MetaData.Total = &total
 	return resp
 }
 

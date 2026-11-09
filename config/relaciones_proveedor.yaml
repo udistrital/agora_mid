@@ -24,6 +24,15 @@ on_relation_error: notify
 # positivo.
 max_related_ids: 100
 
+# filterable_fields: columnas de primer nivel permitidas en los filtros del
+# listado. No admite rutas de relaciones; por ejemplo, "TerceroId" es válido,
+# mientras que "Tercero.NombreCompleto" no lo es.
+filterable_fields:
+  - Id
+  - TerceroId
+  - TipoRegistroId
+  - DescripcionPortafolio
+
 # write: configuración de escritura de la entidad raíz (proveedor). Como raíz, no
 # propaga la llave de ningún padre, por lo que key_propagation se omite.
 #   writable_fields: campos que el cliente puede enviar; cualquier otro -> 400.
