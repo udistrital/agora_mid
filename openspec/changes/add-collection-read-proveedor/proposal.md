@@ -23,6 +23,12 @@ recurso con esquema real hoy: el proveedor.
   de su envoltorio OAS plano (hermano de `Data`); el MID lo consume y lo expone en
   `MetaData.Total` de su respuesta de listado, de modo que el consumidor conozca el
   tamaño del conjunto filtrado más allá de la página devuelta.
+- Expandir cada elemento del listado con la configuración que corresponde a su tipo
+  de registro (poda de rama por elemento, igual que la lectura puntual): el motor de
+  colección selecciona el `cfg` por registro en lugar de aplicar una rama fija a toda
+  la página, de modo que una página mixta de proveedores naturales y jurídicos expande
+  la rama correcta de cada uno. (Ajuste correctivo incorporado durante la revisión del
+  PR; ver Decisión 6 en `design.md` y el grupo de tareas 9 en `tasks.md`.)
 - Fuera de alcance (deuda explícita, no se aborda aquí): filtros de segundo nivel
   (campos de relaciones en otros CRUD, que exigirían intersección y total costoso);
   el esquema de cotizaciones (consulta de solicitud, listado real con sus filtros de

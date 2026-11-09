@@ -54,6 +54,14 @@ El sistema SHALL expandir el subárbol de cada proveedor del listado según `fie
 - **WHEN** el cuerpo entrega un `fields` inválido (ruta vacía, duplicada o no permitida)
 - **THEN** el sistema responde `400 Bad Request` identificando la ruta inválida, antes de consultar el CRUD dueño
 
+#### Scenario: Listado mixto de proveedores naturales y jurídicos
+- **WHEN** el listado devuelve en la misma página proveedores con
+  `TipoRegistroId` de persona natural y de persona jurídica
+- **THEN** cada proveedor natural expande su rama `ProveedorNatural` y cada
+  proveedor jurídico expande su rama `ProveedorJuridico`, según el
+  `TipoRegistroId` de cada registro, sin aplicar a toda la página la rama de un
+  único tipo
+
 ### Requirement: Métodos permitidos en el endpoint de listado
 El sistema SHALL aceptar únicamente el método `POST` en `/v1/proveedor/consulta/lista` y SHALL responder `405 Method Not Allowed` a cualquier otro método, anunciando `POST` como método permitido.
 

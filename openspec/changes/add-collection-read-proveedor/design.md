@@ -121,6 +121,27 @@ la respuesta del MID como `MetaData.Total`, junto a los avisos de expansión exi
 - **Nota de implementación:** `decodeAPIList` hoy solo extrae `Data`; capturar `Total`
   exige extender la decodificación del envoltorio del CRUD para ese campo.
 
+### Decisión 6: El cfg de expansión se selecciona por elemento en el listado
+`helper.ListCollection` recibe una función `cfgDe func(record map[string]any)
+config.ServiceConfig` en lugar de un único `config.ServiceConfig`, y la invoca
+por cada registro antes de expandirlo. El servicio del proveedor inyecta
+`cfgDe = s.configParaTipo(TipoRegistroId del registro)`, de modo que la poda de
+rama (natural/jurídico) se decide por registro, igual que en `LeerProveedor`.
+
+- **Por qué:** mantiene la Decisión 1 (un único motor de colección que expande
+  N veces, sin duplicar la expansión) y la Decisión 2 (la lógica de esquema vive
+  en el servicio). El discriminador de rama ya viaja dentro de cada registro;
+  sólo faltaba que la poda se evaluara por elemento.
+- **Alternativa descartada (A2):** mover el bucle de expansión al servicio y que
+  éste llame `helper.Expand` por registro. Se descarta porque reimplementaría en
+  `services/` el bucle de expansión y acumulación de avisos que ya vive en
+  `ListCollection`, dejando ese helper huérfano o incoherente —exactamente la
+  divergencia que la Decisión 1 buscó evitar.
+- **Nota de implementación:** la firma de `ListCollection` cambia; su único
+  llamador actual (`ListarProveedores`) se actualiza en el mismo cambio. Un
+  recurso con configuración homogénea pasa una `cfgDe` que devuelve siempre el
+  mismo cfg.
+
 ## Risks / Trade-offs
 
 - [Expandir N elementos multiplica las consultas a los CRUD relacionados] → La
@@ -134,4 +155,7 @@ la respuesta del MID como `MetaData.Total`, junto a los avisos de expansión exi
 
 ## Open Questions
 
-Ninguna que afecte specs, enfoque o desglose de tareas.
+Ninguna pendiente. La poda de rama por tipo en el listado —inicialmente no
+contemplada en el motor de colección— quedó resuelta por la Decisión 6
+(selección de `cfg` por elemento), sin afectar el enfoque ni el alcance del
+change.

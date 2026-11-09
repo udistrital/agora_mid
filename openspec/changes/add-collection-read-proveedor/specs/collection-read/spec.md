@@ -95,3 +95,11 @@ El sistema SHALL expandir el subárbol de cada registro listado reutilizando la 
 #### Scenario: Error de relación durante la expansión del listado
 - **WHEN** la expansión de una relación de un elemento falla y la política es tolerante
 - **THEN** el elemento se conserva, la rama fallida usa `null` o `[]` y se agrega un aviso no sensible, sin abortar el listado completo
+
+#### Scenario: Cada elemento se expande con la configuración que le corresponde
+- **WHEN** la configuración del recurso selecciona la rama a expandir según un
+  campo discriminador del propio registro y la página contiene registros con
+  distinto valor de ese discriminador
+- **THEN** el sistema expande cada elemento con la configuración que corresponde
+  a su discriminador, igual que la lectura puntual, sin aplicar a toda la página
+  la configuración de un único valor
