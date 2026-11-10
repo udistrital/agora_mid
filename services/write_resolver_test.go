@@ -117,7 +117,7 @@ func TestWriteResolverCreaEInyectaAutor(t *testing.T) {
 func TestWriteResolverProveedorIdempotentePorTerceroId(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
-		"GET /v1/proveedor":    `{"Data":[{"Id":88,"TerceroId":25}]}`,
+		"GET /v1/proveedor":      `{"Data":[{"Id":88,"TerceroId":25}]}`,
 		"PATCH /v1/proveedor/88": `{"Data":{"Id":88}}`,
 	}, &capturas)
 	defer server.Close()
@@ -216,7 +216,7 @@ func TestWriteResolverUpsertPorIdDelCuerpo(t *testing.T) {
 	)
 
 	salida, err := r.Materialize(context.Background(), config.RelationConfig{}, map[string]any{
-		"Id":             float64(5),
+		"Id":              float64(5),
 		"PerfilDeclarado": float64(2),
 	}, nil)
 	if err != nil {

@@ -148,9 +148,9 @@ func (r ResolverRegistry) resolverPara(rel config.RelationConfig) (Resolver, boo
 // errorFatalExpansion envuelve un error que aborta toda la expansión en modo
 // fail. El llamador debe mapearlo a 502/504.
 type errorFatalExpansion struct {
-	path    string
+	path     string
 	servicio string
-	err     error
+	err      error
 }
 
 func (e *errorFatalExpansion) Error() string {
