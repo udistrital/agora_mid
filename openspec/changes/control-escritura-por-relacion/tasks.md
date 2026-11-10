@@ -1,0 +1,39 @@
+# Tasks
+
+## 1. Clasificación de acción en el pre-pass de validación
+
+- [ ] 1.1 Escribir la prueba (con marcador de rojo) que, sobre un árbol resuelto en el pre-pass de solo lectura, verifica que cada nodo se clasifica como creación cuando no resuelve a un registro existente y como actualización cuando sí (por `Id` o por clave natural), y confirmar que falla antes de implementar
+- [ ] 1.2 Implementar en `helper/write_engine.go` la clasificación de acción (crear vs actualizar) usando la misma resolución (Id + clave natural) que la idempotencia existente, reutilizando el estado retenido del pre-pass, y verificar que la prueba 1.1 pasa y se retira su marcador
+- [ ] 1.3 Escribir la prueba (con marcador de rojo) que distingue una actualización con cambios de una reconciliación/reenvío sin cambios de campos no modificados o derivados, confirmando que el reenvío sin cambios no se clasifica como actualización, y confirmar que falla; luego implementar y verificar que pasa
+
+## 2. Gate de política de escritura por relación
+
+- [ ] 2.1 Escribir la prueba (con marcador de rojo) de que una arista con `creatable: false` que recibe una entidad inexistente produce `400` nombrando el objeto/arista y no envía ninguna petición a los CRUD (inspección de peticiones), y confirmar que falla
+- [ ] 2.2 Escribir la prueba (con marcador de rojo) de que una arista con `updatable: false` que recibe una entidad existente con cambios produce `400` nombrando el objeto/arista y no envía ninguna petición, incluido el caso en que la entidad resuelve por clave natural, y confirmar que falla
+- [ ] 2.3 Escribir la prueba (con marcador de rojo) de que una arista `creatable: true` crea y una `updatable: true` actualiza con normalidad, y de que el reenvío sin cambios bajo `updatable: false` no se rechaza, y confirmar que falla
+- [ ] 2.4 Implementar en `helper/write_engine.go` el gate de política que consulta `creatable`/`updatable` de la arista del árbol efectivo contra la acción clasificada, y verificar que las pruebas 2.1–2.3 pasan y se retiran sus marcadores
+
+## 3. Gate y materialización de eliminación por relación
+
+- [ ] 3.1 Escribir la prueba (con marcador de rojo) de que un nodo que el árbol compuesto marca para eliminación bajo una arista `deletable: false` produce `400` nombrando el objeto/arista y no envía ninguna petición a los CRUD, y confirmar que falla
+- [ ] 3.2 Escribir la prueba (con marcador de rojo) de que un nodo marcado para eliminación bajo una arista `deletable: true` materializa la baja contra el CRUD dueño por la ruta de escritura existente (inspección de la petición enviada), y confirmar que falla
+- [ ] 3.3 Escribir la prueba (con marcador de rojo) de que el motor no infiere ninguna eliminación cuando el árbol no marca nodos para borrado, aunque falten nodos respecto al estado del CRUD, y confirmar que falla
+- [ ] 3.4 Implementar en `helper/write_engine.go` la clasificación de la acción de eliminación para un nodo marcado por el árbol compuesto, el gate por `deletable` y la materialización de la baja por la ruta de escritura existente, sin endpoint DELETE de controlador, y verificar que las pruebas 3.1–3.3 pasan y se retiran sus marcadores
+
+## 4. Regla de no-reparent / pertenencia
+
+- [ ] 4.1 Escribir la prueba (con marcador de rojo) de que un nodo con `Id` propio llegado bajo un padre cuya llave propagada difiere de la asociación actual del registro existente produce `400` nombrando el objeto/arista y no envía ninguna petición, y confirmar que falla
+- [ ] 4.2 Escribir la prueba (con marcador de rojo) de que un nodo con `Id` propio bajo el padre que ya lo posee, con llave propagada coincidente, no se trata como reparent y continúa con normalidad, y confirmar que falla
+- [ ] 4.3 Actualizar la prueba del escenario "Entidad existente con relación incompatible" para que el rechazo ocurra antes de cualquier escritura por aplicación de la regla de no-reparent (marcador de rojo si cambia el comportamiento esperado), y confirmar que falla
+- [ ] 4.4 Implementar en `helper/write_engine.go` la regla de no-reparent dentro del pre-pass, comparando la llave propagada por la arista contra la asociación actual del registro existente, y verificar que las pruebas 4.1–4.3 pasan y se retiran sus marcadores
+
+## 5. Validación total previa a toda escritura
+
+- [ ] 5.1 Escribir la prueba (con marcador de rojo) de que una violación de política (crear/actualizar/eliminar) o de no-reparent en un nodo posterior del recorrido produce `400` sobre el árbol completo sin que se haya enviado ninguna creación, actualización ni eliminación a ningún CRUD (inspección de peticiones = cero escrituras), y confirmar que falla
+- [ ] 5.2 Escribir la prueba de regresión (con marcador de rojo si aplica) que confirma que el gate de política, el gate de eliminación y el no-reparent se evalúan dentro del mismo pre-pass de solo lectura que inmutables y campos derivados, sin introducir un recorrido ni una ruta de error adicionales, y confirmar que falla
+- [ ] 5.3 Implementar la evaluación de todos los controles sobre el árbol completo antes de la primera escritura (retener el estado resuelto y decidir todos los gates antes de materializar), y verificar que las pruebas 5.1–5.2 pasan y se retiran sus marcadores
+
+## 6. Pruebas de regresión y verificación de integración
+
+- [ ] 6.1 Confirmar como cobertura/regresión que los escenarios vigentes de campo inmutable incompatible y campo de escritura no permitido siguen rechazándose antes de cualquier escritura tras los cambios, con las pruebas existentes en verde
+- [ ] 6.2 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes
