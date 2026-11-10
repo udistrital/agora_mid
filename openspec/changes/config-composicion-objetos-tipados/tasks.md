@@ -2,28 +2,30 @@
 
 ## 1. Tabla de campos tipada unificada por objeto
 
-- [ ] 1.1 Escribir pruebas (en rojo) del modelo de tabla de campos tipada por objeto: un campo lleva `type` y banderas `readable`/`writable`/`immutable`/`required`; verificar que se parsea y que un campo sin `type` produce error de modelo. Verificación: `go test ./config/...` falla en estas pruebas antes de implementar
-- [ ] 1.2 Escribir pruebas (en rojo) de validación de coherencia por campo: `immutable:true` con `writable:false` aborta; `required:true` con `writable:false` aborta; nombrar objeto y campo. Verificación: las pruebas fallan antes de implementar
-- [ ] 1.3 Implementar el tipo de tabla de campos tipada y su parseo en `config/relaciones.go` (o archivo nuevo del paquete `config`) hasta pasar 1.1. Verificación: `go test ./config/...` pasa esas pruebas
-- [ ] 1.4 Implementar la validación de coherencia por campo hasta pasar 1.2. Verificación: `go test ./config/...` pasa esas pruebas
-- [ ] 1.4a Escribir pruebas (en rojo) del vocabulario cerrado de tipos: se aceptan `boolean`, `integer`, `jsonb`, `numeric`, `string`, `timestamp`, `uuid`; un tipo fuera del conjunto aborta el arranque nombrando objeto, campo y tipo. Verificación: `go test ./config/...` falla antes de implementar
-- [ ] 1.4b Implementar la validación del vocabulario cerrado de tipos hasta pasar 1.4a. Verificación: `go test ./config/...` pasa esas pruebas
-- [ ] 1.5 Escribir pruebas (en rojo) de la proyección de la tabla tipada a la vista de lectura (campos `readable`) y a la matriz de escritura (campos `writable`/`immutable`), equivalentes a `allowed_fields` y `writable_fields`/`immutable_fields` actuales para un objeto de ejemplo. Verificación: las pruebas fallan antes de implementar
-- [ ] 1.6 Implementar las proyecciones de lectura y escritura desde la tabla tipada hasta pasar 1.5. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 1.1 Escribir pruebas (en rojo) del modelo de tabla de campos tipada por objeto: un campo lleva `type` y banderas `readable`/`writable`/`immutable`/`required`; verificar que se parsea y que un campo sin `type` produce error de modelo. Verificación: `go test ./config/...` falla en estas pruebas antes de implementar
+- [x] 1.2 Escribir pruebas (en rojo) de validación de coherencia por campo: `immutable:true` con `writable:false` aborta; `required:true` con `writable:false` aborta; nombrar objeto y campo. Verificación: las pruebas fallan antes de implementar
+- [x] 1.3 Implementar el tipo de tabla de campos tipada y su parseo en `config/relaciones.go` (o archivo nuevo del paquete `config`) hasta pasar 1.1. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 1.4 Implementar la validación de coherencia por campo hasta pasar 1.2. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 1.4a Escribir pruebas (en rojo) del vocabulario cerrado de tipos: se aceptan `boolean`, `integer`, `jsonb`, `numeric`, `string`, `timestamp`, `uuid`; un tipo fuera del conjunto aborta el arranque nombrando objeto, campo y tipo. Verificación: `go test ./config/...` falla antes de implementar
+- [x] 1.4b Implementar la validación del vocabulario cerrado de tipos hasta pasar 1.4a. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 1.5 Escribir pruebas (en rojo) de la proyección de la tabla tipada a la vista de lectura (campos `readable`) y a la matriz de escritura (campos `writable`/`immutable`), equivalentes a `allowed_fields` y `writable_fields`/`immutable_fields` actuales para un objeto de ejemplo. Verificación: las pruebas fallan antes de implementar
+- [x] 1.6 Implementar las proyecciones de lectura y escritura desde la tabla tipada hasta pasar 1.5. Verificación: `go test ./config/...` pasa esas pruebas
 
 ## 2. Objetos direccionables y referencia con semántica de arista
 
-- [ ] 2.1 Escribir pruebas (en rojo) del modelo de objeto direccionable (definición con nombre único + tabla de campos + referencias) y de la referencia de servicio que porta la arista (`direction`, `cardinality`, `key_propagation`, `policy`, `depth`, `mapped_name`). Verificación: `go test ./config/...` falla en estas pruebas
-- [ ] 2.2 Escribir pruebas (en rojo) de que un mismo objeto referenciado por dos servicios/referenciadores con aristas distintas produce nodos de árbol con aristas independientes, y de que un nombre de objeto duplicado aborta el arranque nombrando el nombre duplicado. Verificación: las pruebas fallan antes de implementar
-- [ ] 2.3 Implementar el modelo de objeto direccionable y de referencia con arista en `config/relaciones.go` hasta pasar 2.1 y 2.2. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 2.1 Escribir pruebas (en rojo) del modelo de objeto direccionable (definición con nombre único + tabla de campos + referencias) y de la referencia de servicio que porta la arista (`direction`, `cardinality`, `key_propagation`, `policy`, `depth`, `mapped_name`). Verificación: `go test ./config/...` falla en estas pruebas
+- [x] 2.2 Escribir pruebas (en rojo) de que un mismo objeto referenciado por dos servicios/referenciadores con aristas distintas produce nodos de árbol con aristas independientes, y de que un nombre de objeto duplicado aborta el arranque nombrando el nombre duplicado. Verificación: las pruebas fallan antes de implementar
+- [x] 2.3 Implementar el modelo de objeto direccionable y de referencia con arista en `config/relaciones.go` hasta pasar 2.1 y 2.2. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 2.4 Escribir pruebas (en rojo) de la llave lógica de servicio del objeto: se deriva del nombre a `snake_case` tratando las mayúsculas consecutivas como una sola sigla (`HTTPServer` → `http_server`), y una llave explícita en el objeto prevalece sobre la derivación. Verificación: `go test ./config/...` falla antes de implementar
+- [x] 2.5 Implementar la llave lógica de servicio (campo explícito del objeto + derivación `snake_case` con siglas como una palabra) y su uso al componer el nodo del árbol efectivo hasta pasar 2.4. Verificación: `go test ./config/...` pasa esas pruebas
 
 ## 3. Cargador de composición y aplanado del árbol efectivo
 
-- [ ] 3.1 Escribir pruebas (en rojo) de que el cargador resuelve referencias y produce un árbol efectivo por servicio en la forma que consumen los motores, con los campos ya proyectados a vistas de lectura y escritura. Verificación: `go test ./config/...` falla en estas pruebas
-- [ ] 3.2 Escribir pruebas (en rojo) de integridad de composición al arranque: ciclo de referencias entre objetos aborta nombrando el fragmento que cierra el ciclo; referencia colgante aborta nombrando el objeto ausente y quién lo referencia; profundidad de composición excedida aborta nombrando la referencia; objeto huérfano se reporta por su nombre y no entra a ningún árbol efectivo. Verificación: las pruebas fallan antes de implementar
-- [ ] 3.3 Implementar el cargador de composición (resolución + aplanado del árbol efectivo) en `config/relaciones_loader.go` hasta pasar 3.1. Verificación: `go test ./config/...` pasa esas pruebas
-- [ ] 3.4 Implementar la validación de integridad de composición con identidad de error por fragmento hasta pasar 3.2. Verificación: `go test ./config/...` pasa esas pruebas
-- [ ] 3.5 Escribir prueba (en rojo) que distingue la integridad de composición (falla de arranque) del ciclo de datos de expansión en tiempo de petición (aviso `cycle`, sin error HTTP), confirmando que el comportamiento de expansión en ruta no cambia. Verificación: la prueba falla antes de implementar y pasa después
+- [x] 3.1 Escribir pruebas (en rojo) de que el cargador resuelve referencias y produce un árbol efectivo por servicio en la forma que consumen los motores, con los campos ya proyectados a vistas de lectura y escritura. Verificación: `go test ./config/...` falla en estas pruebas
+- [x] 3.2 Escribir pruebas (en rojo) de integridad de composición al arranque: ciclo de referencias entre objetos aborta nombrando el fragmento que cierra el ciclo; referencia colgante aborta nombrando el objeto ausente y quién lo referencia; profundidad de composición excedida aborta nombrando la referencia; objeto huérfano se reporta por su nombre y no entra a ningún árbol efectivo. Verificación: las pruebas fallan antes de implementar
+- [x] 3.3 Implementar el cargador de composición (resolución + aplanado del árbol efectivo) en `config/relaciones_loader.go` hasta pasar 3.1. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 3.4 Implementar la validación de integridad de composición con identidad de error por fragmento hasta pasar 3.2. Verificación: `go test ./config/...` pasa esas pruebas
+- [x] 3.5 Escribir prueba (en rojo) que distingue la integridad de composición (falla de arranque) del ciclo de datos de expansión en tiempo de petición (aviso `cycle`, sin error HTTP), confirmando que el comportamiento de expansión en ruta no cambia. Verificación: la prueba falla antes de implementar y pasa después
 
 ## 4. Reescritura de la configuración del proveedor preservando el árbol efectivo
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 )
@@ -25,12 +26,12 @@ func (c Config) URLs() ServiceURLs {
 	}
 }
 
-// LoadRelaciones carga y valida todos los archivos config/relaciones_*.yaml del
+// cargarServicios carga y valida todos los archivos config/relaciones_*.yaml del
 // directorio indicado, resolviendo related_service contra urls. Un archivo
 // ausente, inválido o con una relación inconsistente devuelve un error que
 // identifica el archivo y, cuando aplica, la relación; el llamador debe abortar
 // el arranque ante ese error.
-func LoadRelaciones(dir string, urls ServiceURLs) (map[string]ServiceConfig, error) {
+func cargarServicios(dir string, urls ServiceURLs) (map[string]servicioCargado, error) {
 	patron := filepath.Join(dir, "relaciones_*.yaml")
 	rutas, err := filepath.Glob(patron)
 	if err != nil {
@@ -38,7 +39,7 @@ func LoadRelaciones(dir string, urls ServiceURLs) (map[string]ServiceConfig, err
 	}
 	sort.Strings(rutas)
 
-	configs := make(map[string]ServiceConfig, len(rutas))
+	configs := make(map[string]servicioCargado, len(rutas))
 	for _, ruta := range rutas {
 		sc, err := cargarArchivoRelaciones(ruta)
 		if err != nil {
@@ -53,7 +54,7 @@ func LoadRelaciones(dir string, urls ServiceURLs) (map[string]ServiceConfig, err
 		if err := validarServiceConfig(ruta, sc, urls); err != nil {
 			return nil, err
 		}
-		configs[sc.Service] = sc
+		configs[sc.Service] = servicioCargado{ruta: ruta, sc: sc}
 	}
 
 	return configs, nil
@@ -260,9 +261,406 @@ func validarWriteConfig(ruta, servicio, relacion string, wc WriteConfig, esRaiz 
 // arranque del proceso si la configuración está ausente, es inválida o es
 // inconsistente, imprimiendo el mensaje que identifica el archivo y la relación.
 func MustLoadRelaciones(dir string, urls ServiceURLs) map[string]ServiceConfig {
-	configs, err := LoadRelaciones(dir, urls)
+	comp, err := CargarComposicion(dir, urls)
 	if err != nil {
 		log.Fatalf("no se pudo cargar la configuración de relaciones: %v", err)
 	}
-	return configs
+	for _, nombre := range comp.Huerfanos {
+		log.Printf("objeto huérfano: %q está definido pero no lo referencia ningún servicio y no entra a ningún árbol efectivo", nombre)
+	}
+	return comp.Servicios
+}
+
+// MaxProfundidadComposicion es el número máximo de niveles de referencias anidadas
+// en el árbol efectivo de un servicio. El primer nivel son las referencias
+// declaradas por el servicio. Una referencia que quede en un nivel mayor aborta el
+// arranque.
+const MaxProfundidadComposicion = 8
+
+// servicioCargado guarda la configuración de un servicio junto con la ruta de su
+// archivo, para identificar el origen de los errores de composición.
+type servicioCargado struct {
+	ruta string
+	sc   ServiceConfig
+}
+
+// Composicion es el resultado de cargar la configuración de relaciones con su
+// composición resuelta. Servicios contiene el árbol efectivo de cada servicio, en la
+// forma que consumen los motores. Huerfanos lista, ordenados por nombre, los
+// objetos definidos que no forman parte del árbol de ningún servicio.
+type Composicion struct {
+	Servicios map[string]ServiceConfig
+	Huerfanos []string
+}
+
+// CargarComposicion carga los servicios de config/relaciones_*.yaml y el catálogo de
+// objetos de config/objetos_*.yaml, resuelve las referencias y aplana el árbol
+// efectivo de cada servicio. Un error de carga, de ubicación de objeto o de
+// composición devuelve un error que nombra el fragmento responsable.
+func CargarComposicion(dir string, urls ServiceURLs) (Composicion, error) {
+	servicios, err := cargarServicios(dir, urls)
+	if err != nil {
+		return Composicion{}, err
+	}
+
+	catalogo, err := cargarCatalogoObjetos(dir, urls)
+	if err != nil {
+		return Composicion{}, err
+	}
+	if err := validarReferenciasColgantes(servicios, catalogo); err != nil {
+		return Composicion{}, err
+	}
+	if err := validarCiclosObjetos(catalogo); err != nil {
+		return Composicion{}, err
+	}
+
+	nombres := make([]string, 0, len(servicios))
+	for nombre := range servicios {
+		nombres = append(nombres, nombre)
+	}
+	sort.Strings(nombres)
+
+	efectivos := make(map[string]ServiceConfig, len(servicios))
+	for _, nombre := range nombres {
+		cargado := servicios[nombre]
+		sc, err := componerServicio(cargado, catalogo, urls)
+		if err != nil {
+			return Composicion{}, err
+		}
+		efectivos[nombre] = sc
+	}
+
+	return Composicion{Servicios: efectivos, Huerfanos: calcularHuerfanos(servicios, catalogo)}, nil
+}
+
+// cargarCatalogoObjetos lee y valida cada config/objetos_*.yaml y construye el
+// catálogo. Cada objeto debe declarar la ubicación de su CRUD.
+func cargarCatalogoObjetos(dir string, urls ServiceURLs) (CatalogoObjetos, error) {
+	rutas, err := filepath.Glob(filepath.Join(dir, "objetos_*.yaml"))
+	if err != nil {
+		return CatalogoObjetos{}, fmt.Errorf("no se pudo listar archivos de objetos en %q: %w", dir, err)
+	}
+	sort.Strings(rutas)
+
+	objetos := make([]ObjetoDireccionable, 0, len(rutas))
+	for _, ruta := range rutas {
+		contenido, err := os.ReadFile(ruta)
+		if err != nil {
+			return CatalogoObjetos{}, fmt.Errorf("no se pudo leer el archivo de objetos %q: %w", ruta, err)
+		}
+		obj, err := DecodificarObjetoDireccionable(contenido)
+		if err != nil {
+			return CatalogoObjetos{}, fmt.Errorf("archivo de objetos %q: %w", ruta, err)
+		}
+		if err := validarUbicacionObjeto(obj, urls); err != nil {
+			return CatalogoObjetos{}, fmt.Errorf("archivo de objetos %q: %w", ruta, err)
+		}
+		objetos = append(objetos, obj)
+	}
+
+	return NuevoCatalogoObjetos(objetos)
+}
+
+// validarUbicacionObjeto comprueba que el objeto declare un CRUD existente en urls,
+// una tabla y un endpoint, y que su natural_key sea un subconjunto de los campos
+// writable.
+func validarUbicacionObjeto(obj ObjetoDireccionable, urls ServiceURLs) error {
+	if _, existe := urls[obj.RelatedAPI]; !existe {
+		return fmt.Errorf("objeto %q: related_api %q no existe en la configuración de URLs", obj.Name, obj.RelatedAPI)
+	}
+	if strings.TrimSpace(obj.RelatedTable) == "" {
+		return fmt.Errorf("objeto %q: related_table es obligatorio", obj.Name)
+	}
+	if strings.TrimSpace(obj.Endpoint) == "" {
+		return fmt.Errorf("objeto %q: endpoint es obligatorio", obj.Name)
+	}
+
+	escribibles := make(map[string]struct{})
+	for _, campo := range obj.Campos.CamposEscritura() {
+		escribibles[campo] = struct{}{}
+	}
+	for _, campo := range obj.NaturalKey {
+		if _, ok := escribibles[campo]; !ok {
+			return fmt.Errorf("objeto %q: natural_key contiene %q que no está entre los campos writable", obj.Name, campo)
+		}
+	}
+	return nil
+}
+
+// componerServicio resuelve las referencias del servicio, añade el árbol resultante
+// a sus relaciones declaradas en línea y valida el árbol efectivo con las mismas
+// reglas que una configuración en línea. Un servicio sin referencias se devuelve sin
+// cambios.
+func componerServicio(cargado servicioCargado, catalogo CatalogoObjetos, urls ServiceURLs) (ServiceConfig, error) {
+	sc := cargado.sc
+	if len(sc.Referencias) == 0 {
+		return sc, nil
+	}
+
+	nodos, err := componerNodos(catalogo, sc.Referencias, 1, "servicio "+sc.Service)
+	if err != nil {
+		return ServiceConfig{}, fmt.Errorf("archivo de relaciones %q: %w", cargado.ruta, err)
+	}
+
+	efectivo := make([]RelationConfig, 0, len(sc.Relations)+len(nodos))
+	efectivo = append(efectivo, sc.Relations...)
+	sc.Relations = append(efectivo, nodos...)
+
+	if err := validarServiceConfig(cargado.ruta, sc, urls); err != nil {
+		return ServiceConfig{}, err
+	}
+	return sc, nil
+}
+
+// componerNodos convierte cada referencia en un nodo del árbol y compone de forma
+// recursiva los hijos del objeto referenciado. nivel es la profundidad de las
+// referencias dentro del árbol, empezando en 1. origen nombra al referenciador en
+// los errores.
+func componerNodos(catalogo CatalogoObjetos, refs []ReferenciaObjeto, nivel int, origen string) ([]RelationConfig, error) {
+	nodos := make([]RelationConfig, 0, len(refs))
+	for _, ref := range refs {
+		if nivel > MaxProfundidadComposicion {
+			return nil, fmt.Errorf(
+				"profundidad de composición excedida en la referencia %q (%s): el máximo es %d niveles",
+				ref.MappedName, origen, MaxProfundidadComposicion,
+			)
+		}
+		if err := ref.Validar(); err != nil {
+			return nil, fmt.Errorf("%s: %w", origen, err)
+		}
+		obj, ok := catalogo.Objeto(ref.Objeto)
+		if !ok {
+			return nil, fmt.Errorf("referencia colgante: el objeto %q no existe; lo referencia %s", ref.Objeto, origen)
+		}
+		hijos, err := componerNodos(catalogo, obj.Referencias, nivel+1, "objeto "+obj.Name)
+		if err != nil {
+			return nil, err
+		}
+		nodos = append(nodos, construirRelacion(obj, ref.Arista, hijos))
+	}
+	return nodos, nil
+}
+
+// servicioLogico devuelve la llave lógica de servicio del objeto para el nodo
+// compuesto: el related_service declarado explícitamente, o la derivación del
+// nombre cuando se omite. Es la llave con la que el registro related_service→
+// resolver localiza el resolver del nodo, por lo que nunca es el nombre PascalCase.
+func servicioLogico(obj ObjetoDireccionable) string {
+	if explicito := strings.TrimSpace(obj.RelatedService); explicito != "" {
+		return explicito
+	}
+	return aLlaveLogicaServicio(obj.Name)
+}
+
+// aLlaveLogicaServicio convierte un nombre PascalCase o camelCase en la llave
+// lógica snake_case correspondiente (p. ej. TipoContribuyente ->
+// tipo_contribuyente). Trata una secuencia de mayúsculas consecutivas como una
+// sola sigla: inserta el separador en la frontera palabra→mayúscula (userID ->
+// user_id) y en la frontera sigla→palabra (HTTPServer -> http_server), nunca entre
+// las letras de una misma sigla. Un nombre ya en minúsculas se conserva.
+func aLlaveLogicaServicio(nombre string) string {
+	nombre = strings.TrimSpace(nombre)
+	if nombre == "" {
+		return ""
+	}
+	runas := []rune(nombre)
+	var b strings.Builder
+	b.Grow(len(nombre) + 4)
+	for i, r := range runas {
+		if i > 0 && unicode.IsUpper(r) {
+			anterior := runas[i-1]
+			// Frontera palabra→mayúscula: la minúscula/dígito previo cierra una
+			// palabra (userID -> user_id).
+			limitePalabra := !unicode.IsUpper(anterior)
+			// Frontera sigla→palabra: una mayúscula previa pertenece a una sigla y
+			// la minúscula siguiente abre una palabra nueva (HTTPServer ->
+			// http_server). Sin minúscula siguiente, la mayúscula continúa la sigla.
+			limiteSigla := unicode.IsUpper(anterior) &&
+				i+1 < len(runas) && unicode.IsLower(runas[i+1])
+			if limitePalabra || limiteSigla {
+				b.WriteByte('_')
+			}
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
+}
+
+// construirRelacion produce el RelationConfig que consumen los motores para un nodo:
+// la arista de la referencia, la ubicación del CRUD y las vistas de lectura y
+// escritura de la tabla de campos del objeto. El bloque write solo existe cuando la
+// arista propaga llave o admite algún verbo de escritura. El QueryTemplate sigue la
+// regla de las relaciones vigentes: consulta por related_field con la lista de llaves.
+func construirRelacion(obj ObjetoDireccionable, arista Arista, hijos []RelationConfig) RelationConfig {
+	rel := RelationConfig{
+		Name:            obj.Name,
+		RelatedService:  servicioLogico(obj),
+		RelatedAPI:      obj.RelatedAPI,
+		RelatedTable:    obj.RelatedTable,
+		Direction:       arista.Direction,
+		LocalField:      arista.LocalField,
+		RelatedField:    arista.RelatedField,
+		Cardinality:     arista.Cardinality,
+		Depth:           arista.Depth,
+		MappedName:      arista.MappedName,
+		Endpoint:        obj.Endpoint,
+		QueryTemplate:   arista.RelatedField + ":{ids}",
+		AllowedFields:   obj.Campos.CamposLectura(),
+		NestedRelations: hijos,
+	}
+	if arista.KeyPropagation != "" || arista.Policy.algunoAdmitido() {
+		rel.Write = &WriteConfig{
+			WritableFields:  obj.Campos.CamposEscritura(),
+			ImmutableFields: obj.Campos.CamposInmutables(),
+			NaturalKey:      obj.NaturalKey,
+			KeyPropagation:  arista.KeyPropagation,
+			Policy:          arista.Policy,
+		}
+	}
+	return rel
+}
+
+// LoadRelaciones carga y valida la configuración de relaciones y devuelve el árbol
+// efectivo de cada servicio. Los objetos huérfanos no se devuelven; use
+// CargarComposicion para obtenerlos.
+func LoadRelaciones(dir string, urls ServiceURLs) (map[string]ServiceConfig, error) {
+	comp, err := CargarComposicion(dir, urls)
+	if err != nil {
+		return nil, err
+	}
+	return comp.Servicios, nil
+}
+
+// validarReferenciasColgantes comprueba que toda referencia de servicio u objeto
+// apunte a un objeto definido. El error nombra el objeto ausente y el referenciador.
+func validarReferenciasColgantes(servicios map[string]servicioCargado, catalogo CatalogoObjetos) error {
+	nombresServicios := make([]string, 0, len(servicios))
+	for nombre := range servicios {
+		nombresServicios = append(nombresServicios, nombre)
+	}
+	sort.Strings(nombresServicios)
+
+	for _, nombre := range nombresServicios {
+		cargado := servicios[nombre]
+		for _, ref := range cargado.sc.Referencias {
+			if _, ok := catalogo.Objeto(ref.Objeto); !ok {
+				return fmt.Errorf(
+					"archivo de relaciones %q: referencia colgante: el objeto %q no existe; lo referencia el servicio %q (referencia %q)",
+					cargado.ruta, ref.Objeto, nombre, ref.MappedName,
+				)
+			}
+		}
+	}
+
+	for _, nombre := range catalogo.Nombres() {
+		obj, _ := catalogo.Objeto(nombre)
+		for _, ref := range obj.Referencias {
+			if _, ok := catalogo.Objeto(ref.Objeto); !ok {
+				return fmt.Errorf(
+					"referencia colgante: el objeto %q no existe; lo referencia el objeto %q (referencia %q)",
+					ref.Objeto, obj.Name, ref.MappedName,
+				)
+			}
+		}
+	}
+	return nil
+}
+
+// validarCiclosObjetos recorre el grafo de referencias entre objetos y aborta ante
+// el primer ciclo. El error nombra la referencia que cierra el ciclo y el camino
+// completo.
+func validarCiclosObjetos(catalogo CatalogoObjetos) error {
+	const (
+		sinVisitar = iota
+		enCamino
+		terminado
+	)
+	estado := make(map[string]int, len(catalogo.objetos))
+	var camino []string
+
+	var visitar func(nombre string) error
+	visitar = func(nombre string) error {
+		estado[nombre] = enCamino
+		camino = append(camino, nombre)
+		obj, _ := catalogo.Objeto(nombre)
+		for _, ref := range obj.Referencias {
+			switch estado[ref.Objeto] {
+			case enCamino:
+				return fmt.Errorf(
+					"ciclo de referencias: la referencia %q del objeto %q apunta a %q, que ya está en el camino %s",
+					ref.MappedName, nombre, ref.Objeto, formatearCamino(camino, ref.Objeto),
+				)
+			case sinVisitar:
+				if _, ok := catalogo.Objeto(ref.Objeto); !ok {
+					continue
+				}
+				if err := visitar(ref.Objeto); err != nil {
+					return err
+				}
+			}
+		}
+		camino = camino[:len(camino)-1]
+		estado[nombre] = terminado
+		return nil
+	}
+
+	for _, nombre := range catalogo.Nombres() {
+		if estado[nombre] != sinVisitar {
+			continue
+		}
+		if err := visitar(nombre); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// formatearCamino devuelve el tramo del camino que va desde la primera aparición de
+// cierre hasta el final, cerrado de nuevo en cierre. Ejemplo: "A -> B -> A".
+func formatearCamino(camino []string, cierre string) string {
+	inicio := 0
+	for i, nombre := range camino {
+		if nombre == cierre {
+			inicio = i
+			break
+		}
+	}
+	partes := append(append([]string(nil), camino[inicio:]...), cierre)
+	return strings.Join(partes, " -> ")
+}
+
+// calcularHuerfanos devuelve, ordenados por nombre, los objetos que no se alcanzan
+// desde ninguna referencia de servicio. Un huérfano no entra al árbol efectivo de
+// ningún servicio.
+func calcularHuerfanos(servicios map[string]servicioCargado, catalogo CatalogoObjetos) []string {
+	alcanzados := make(map[string]bool, len(catalogo.objetos))
+	var pila []string
+	for _, cargado := range servicios {
+		for _, ref := range cargado.sc.Referencias {
+			pila = append(pila, ref.Objeto)
+		}
+	}
+	for len(pila) > 0 {
+		nombre := pila[len(pila)-1]
+		pila = pila[:len(pila)-1]
+		if alcanzados[nombre] {
+			continue
+		}
+		obj, ok := catalogo.Objeto(nombre)
+		if !ok {
+			continue
+		}
+		alcanzados[nombre] = true
+		for _, ref := range obj.Referencias {
+			pila = append(pila, ref.Objeto)
+		}
+	}
+
+	huerfanos := []string{}
+	for _, nombre := range catalogo.Nombres() {
+		if !alcanzados[nombre] {
+			huerfanos = append(huerfanos, nombre)
+		}
+	}
+	return huerfanos
 }

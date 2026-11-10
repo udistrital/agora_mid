@@ -30,6 +30,25 @@ una misma definición de objeto pueda ser referenciada por varios servicios.
 - **THEN** el API no inicia y reporta un mensaje que identifica el nombre de objeto
   duplicado
 
+### Requirement: Llave lógica de servicio del objeto
+El sistema SHALL asociar a cada objeto direccionable una llave lógica de servicio
+con la que el árbol efectivo vincula el nodo a su resolver. La llave SHALL ser la
+declarada explícitamente en el objeto cuando exista; en su ausencia, el sistema
+SHALL derivarla del nombre del objeto en forma `snake_case`, tratando una secuencia
+de mayúsculas consecutivas como una sola sigla. La llave lógica NUNCA SHALL ser el
+nombre del objeto en su forma original cuando esa forma no coincide con la llave.
+
+#### Scenario: Llave lógica derivada del nombre del objeto
+- **WHEN** un objeto no declara una llave lógica de servicio explícita
+- **THEN** el árbol efectivo vincula el nodo con la llave derivada del nombre en
+  `snake_case`, con las siglas tratadas como una sola palabra
+
+#### Scenario: Llave lógica explícita prevalece sobre la derivación
+- **WHEN** un objeto declara una llave lógica de servicio distinta de la derivación
+  de su nombre
+- **THEN** el árbol efectivo vincula el nodo con la llave declarada y no con la
+  derivada del nombre
+
 ### Requirement: Tabla de campos tipada unificada por objeto
 El sistema SHALL declarar los campos de cada objeto en una única tabla por objeto,
 donde cada campo lleva su tipo y sus banderas de rol (`readable`, `writable`,

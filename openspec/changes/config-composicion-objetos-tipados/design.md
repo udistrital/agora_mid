@@ -123,6 +123,25 @@ límite de profundidad de expansión en ruta caliente sigue intacto) y a la vez 
 "punto único de fallo si la recursión de referencias va demasiado profundo" que el
 modelo de objetos direccionables introduce.
 
+### Decisión 5: La llave lógica de servicio del nodo es explícita o derivada del nombre, nunca el nombre crudo
+Cada objeto aporta una llave lógica de servicio (una propiedad del objeto, como su
+ubicación de CRUD, no de la arista). El árbol efectivo usa esa llave para que el
+registro de resolvers localice el resolver del nodo. La llave es la declarada en el
+objeto cuando existe; si se omite, se deriva del nombre a `snake_case`, tratando una
+corrida de mayúsculas como una sola sigla (p. ej. `HTTPServer` → `http_server`, no
+`h_t_t_p_server`).
+
+Por qué: el registro de resolvers se indexa por una llave lógica en minúsculas; usar
+el nombre del objeto en su forma original rompe la búsqueda del resolver en
+composición y escritura. La derivación cubre el caso común sin configuración; la
+forma explícita cubre los casos en que la llave lógica no coincide con el nombre.
+
+Alternativa considerada: usar siempre el nombre del objeto como llave. Rechazada: no
+coincide con las llaves del registro de resolvers y rompe la vinculación del nodo.
+Alternativa considerada: exigir siempre la llave explícita. Rechazada: añade
+configuración redundante al caso mayoritario en que la llave es el `snake_case` del
+nombre.
+
 ## Risks / Trade-offs
 
 - [El árbol efectivo compuesto no es byte-idéntico al inline actual] → La aceptación
