@@ -116,6 +116,27 @@ es territorio del cambio posterior de contrato de respuesta; fijar aquí solo la
 identidad por fragmento evita pintar a ese cambio en una esquina y mantiene este
 acotado a los dos controles.
 
+### Decisión 5: El pre-pass de datos por petición es trabajo nuevo de este cambio, distinto del árbol de composición ya resuelto al arranque
+`config-composicion-objetos-tipados` resuelve y aplana el árbol efectivo de
+configuración una sola vez al arranque; ese recorrido es de configuración y no se
+rehace por petición. Este cambio introduce un recorrido distinto: la resolución de
+**datos** por petición, que lee el estado actual de cada nodo en los CRUD dueños,
+lo retiene para todo el árbol y recién entonces materializa. El motor vigente no lo
+hace: valida en un recorrido puro, luego materializa en recorridos separados, y
+escribe los subárboles `fk_inbound` antes de validar las ramas `fk`/`shared_pk`.
+Hacer efectiva la garantía de cero escrituras parciales exige unificar esa
+resolución de datos en un único pre-pass de solo lectura previo a toda escritura.
+
+Por qué: clasificar la acción, gatear la política, decidir el no-reparent y gatear
+la eliminación requieren conocer el estado existente de cada nodo antes de escribir
+cualquiera; un pre-pass que resuelve y retiene es la única forma de decidir todos
+los gates antes de la primera escritura.
+
+La recuperación previa del `WriteResolver` se amplía para devolver los **campos del
+registro existente**, no solo su `Id`: la distinción entre una actualización con
+cambios y un reenvío sin cambios, y la comparación de la asociación actual para el
+no-reparent, necesitan esos campos. La recuperación sigue siendo de solo lectura.
+
 ## Risks / Trade-offs
 
 - [Retener el árbol resuelto completo antes de escribir aumenta el trabajo de
@@ -147,6 +168,16 @@ acotado a los dos controles.
   ordenación y la recuperación de una transición de varios pasos son del servicio
   llamante y del cambio posterior de contrato de respuesta; este cambio solo
   garantiza que el gate de borrado se evalúa antes de cualquier escritura.
+- [El motor vigente escribe `fk_inbound` antes de validar `fk`/`shared_pk`] → Sin el
+  pre-pass unificado, una violación en una rama descendente devolvería `400` después
+  de haber materializado un subárbol ascendente, contradiciendo la garantía de cero
+  escrituras parciales. La resolución-y-retención previa corrige ese orden; es una
+  corrección de corrección, no solo de rendimiento.
+- [La capacidad genérica de eliminación, los gates y el no-reparent son contrato
+  consumido por `absorber-modelo-58-proveedor`] → La transición de estado de ese
+  cambio materializa la baja por esta capacidad genérica gateada por `deletable`. La
+  reorganización preserva la capacidad, los gates y el no-reparent como contrato real
+  y no introduce ningún endpoint DELETE de controlador.
 
 ## Migration Plan
 

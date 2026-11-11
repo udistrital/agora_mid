@@ -67,13 +67,17 @@ sea transaccional.
   escribe sobre el texto ya reformado por 0 (árbol efectivo compuesto, roles
   tipados `writable`/`immutable`, `policy` declarada en la arista/referencia), no
   sobre el texto del spec previo a 0.
-- **Código** (fase apply, no aquí): `helper/write_engine.go` pasa a consultar la
-  política de la arista (incluido `deletable`), a aplicar la regla de no-reparent y
-  a materializar la baja de un nodo marcado por el árbol compuesto, todo dentro del
-  pre-pass de resolución previo a la escritura que ya es de solo lectura; la baja
-  usa la ruta de escritura existente, sin un endpoint DELETE de controlador.
-  `config/relaciones.go` conserva `WriteVerbPolicy` tal cual (incluido `Deletable`,
-  ahora consultado).
+- **Código** (fase apply, no aquí): `helper/write_engine.go` introduce un pre-pass
+  de datos por petición que resuelve y retiene el estado de cada nodo de todo el
+  árbol en un único recorrido de solo lectura antes de la primera escritura
+  —unificando en él el camino `fk_inbound` hoy separado— y sobre ese estado
+  retenido consulta la política de la arista (incluido `deletable`), aplica la regla
+  de no-reparent y materializa la baja de un nodo marcado por el árbol compuesto; la
+  baja usa la ruta de escritura existente, sin un endpoint DELETE de controlador. La
+  recuperación previa del `WriteResolver` se amplía para devolver los campos del
+  registro existente (no solo su `Id`), con cambio acompañante en
+  `services/write_resolver.go`. `config/relaciones.go` conserva `WriteVerbPolicy`
+  tal cual (incluido `Deletable`, ahora consultado).
 - **Comportamiento observable**: nuevas respuestas `400` deterministas (antes de
   cualquier escritura) cuando una arista intenta una acción no permitida por su
   política (crear/actualizar/eliminar) o cuando se intenta reparentar un hijo
