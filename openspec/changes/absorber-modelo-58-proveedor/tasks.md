@@ -19,6 +19,42 @@
   manual y fuera del arranque, y verificar que las pruebas 1.1–1.3 pasan y se retiran
   sus marcadores
 
+## 1b. Archivo de servicio, sidecar de servicio y profundidad por arista
+
+- [ ] 1b.1 Escribir la prueba de carga (con marcador de rojo) del quinto sidecar `service` que verifica que una entrada direccionada por tabla raíz aporta `service`, `max_depth`, `on_relation_error`, `max_related_ids` y `filterable_fields`, y que una clave que no es tabla del DBML o un `filterable_fields` que no es columna de la raíz falla identificando la entrada, y confirmar que falla
+- [ ] 1b.2 Escribir la prueba de carga (con marcador de rojo) que verifica que una entrada de cadena en `expand` o `fk_inbound` produce la profundidad por omisión y una entrada de mapa con `depth` produce esa profundidad en la arista, que una entrada de mapa mal formada falla identificándose, y que las entradas de cadena existentes siguen cargando, y confirmar que falla
+- [ ] 1b.3 Implementar el lector y validador del sidecar `service` contra el DBML y el formato de entrada de cadena-o-mapa con `depth` en `expand` y `fk_inbound`, y verificar que las pruebas 1b.1–1b.2 pasan y se retiran sus marcadores
+- [ ] 1b.4 Escribir la prueba de construcción (con marcador de rojo) que verifica que una arista cuyo padre es la raíz de un servicio aparece en las referencias del archivo de servicio y no en el objeto raíz, que el objeto raíz se construye con referencias vacía, que la política de `write` de la raíz se coloca en `write.policy` del servicio (no en el objeto ni en una arista) mientras su `natural_key` permanece en el objeto raíz, y que una arista de un objeto no raíz permanece en su objeto, y confirmar que falla
+- [ ] 1b.5 Implementar la partición de aristas por raíz y la colocación de la política de la raíz en la estructura del servicio, y verificar que la prueba 1b.4 pasa y se retira su marcador
+- [ ] 1b.6 Escribir la prueba de escritura (con marcador de rojo) que verifica que se emite `relaciones_<servicio>.yaml` en el subdirectorio del CRUD de la raíz, con `service`, `raiz`, `write.policy`, los cuatro parámetros de servicio y las referencias de la raíz, idéntico byte a byte entre dos ejecuciones, y confirmar que falla
+- [ ] 1b.7 Implementar el escritor del archivo de servicio integrándolo en la ejecución del generador, añadir el sidecar `service` como entrada versionada junto al DBML con comentarios de formato, actualizar el README del generador con el quinto sidecar y la profundidad por arista, y verificar que la prueba 1b.6 pasa, que el generador se ejecuta a mano con la entrada nueva y produce el objeto raíz con referencias vacía, y se retiran los marcadores
+
+## 1c. Mapeo de ubicaciones, limpieza de salida y precedencia de fk_inbound
+
+- [ ] 1c.1 Escribir la prueba (con marcador de rojo) que verifica que una tabla del esquema `ubicaciones` produce un objeto con `related_api` igual a `ubicaciones`, y confirmar que falla
+- [ ] 1c.2 Escribir la prueba (con marcador de rojo) que verifica que al regenerar se eliminan los YAML con encabezado generado que ya no corresponden, se conservan los archivos sin encabezado, y confirmar que falla
+- [ ] 1c.3 Implementar el mapeo de `ubicaciones` al CRUD homónimo y la limpieza de la salida generada antes de escribir, y verificar que las pruebas 1c.1–1c.2 pasan y se retiran sus marcadores
+- [ ] 1c.4 Escribir la prueba que fija la precedencia de `fk_inbound` sobre `expand` cuando una FK aparece en ambos, y verificar que pasa; la decisión ya la cumplía el código, por lo que esta prueba no fue roja antes de implementar
+- [ ] 1c.5 Regenerar `utils/generador_configuracion/salida` dos veces con el comando del generador y verificar que el conjunto de archivos y los bytes coinciden, que `objetos_proveedor.yaml` tiene `referencias: []` y que existe `relaciones_proveedor.yaml`
+- [ ] 1c.6 Escribir la prueba que verifica que una entrada de `service` sin `service` falla identificándose, y que una raíz de un esquema sin CRUD falla identificándose, y verificar que pasa contra la implementación actual
+- [ ] 1c.7 Documentar en el README del generador el requisito de esquemas con CRUD y la limpieza de la salida, y verificar que el README coincide con el comportamiento de `Generar`
+
+## 1d. Configuración del CRUD de ubicaciones en el cargador
+
+- [ ] 1d.1 Declarar `ubicaciones_crud_url` en `conf/app.conf` y
+  `AGORA_MID_UBICACIONES_CRUD_URL` en `.env.example` como la URL base del CRUD de
+  ubicaciones
+- [ ] 1d.2 Documentar `AGORA_MID_UBICACIONES_CRUD_URL` en la lista de variables de
+  entorno del `README.md` y añadir `ubicaciones` a los valores de `related_api` en
+  `config/README.md`
+- [ ] 1d.3 Escribir la prueba (con marcador de rojo) que verifica que el cargador
+  resuelve un objeto con `related_api: ubicaciones` contra `ubicaciones_crud_url` y
+  que un árbol con esa API carga sin rechazarse como API desconocida, y confirmar que
+  falla contra la configuración actual
+- [ ] 1d.4 Añadir `UbicacionesCRUDURL` a `config.Config`, leer `ubicaciones_crud_url`
+  en `config.Load` y mapear `ubicaciones` en `Config.URLs`, y verificar que la prueba
+  1d.3 pasa y se retira su marcador
+
 ## 2. Configuración del árbol #58 y tabla de campos tipada
 
 - [ ] 2.1 Escribir la prueba de carga (con marcador de rojo) que verifica que el árbol efectivo del proveedor compuesto al arranque contiene las entidades del modelo extendido (`estado_proveedor`, `documento`, `perfil_proveedor` 1-N, `titulo_proveedor_natural`, `actividad_economica_proveedor`, `representacion`, `persona_juridica_tipo_entidad`) con su cardinalidad, y confirmar que falla contra la configuración actual

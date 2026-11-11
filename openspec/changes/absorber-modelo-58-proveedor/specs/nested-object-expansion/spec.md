@@ -1,5 +1,26 @@
 # Spec Delta
 
+## MODIFIED Requirements
+
+### Requirement: Distinción entre API externa y servicio lógico
+El sistema SHALL distinguir, en la configuración de cada relación, entre el campo `related_api` que identifica el servicio externo (la API que resuelve la URL base contra `conf/app.conf`, con valores `terceros`, `parametros`, `gestion_personas_crud` o `ubicaciones`) y el campo `related_service` que nombra el servicio o recurso lógico relacionado del dominio y no resuelve URLs.
+
+#### Scenario: related_api resuelve la URL base
+- **WHEN** una relación declara `related_api: terceros`
+- **THEN** la URL base de la consulta se resuelve a partir de la API `terceros` configurada en `conf/app.conf`, independientemente del valor de `related_service`
+
+#### Scenario: related_api de ubicaciones resuelve su URL base
+- **WHEN** una relación declara `related_api: ubicaciones`
+- **THEN** la URL base se resuelve a partir de la API `ubicaciones` configurada en `conf/app.conf` (`ubicaciones_crud_url`), y la carga no la rechaza como API desconocida
+
+#### Scenario: related_api obligatorio y válido
+- **WHEN** una relación omite `related_api`, lo deja vacío o declara una API que no existe en la configuración de URLs
+- **THEN** el API no inicia y reporta un mensaje que identifica el archivo y la relación con el valor de `related_api` inválido
+
+#### Scenario: related_service no resuelve URLs
+- **WHEN** una relación declara un `related_service` como nombre lógico distinto de cualquier API
+- **THEN** la validación solo exige que `related_service` no esté vacío y no lo compara contra las URLs externas
+
 ## ADDED Requirements
 
 ### Requirement: Proyección aplanada por PK compartida

@@ -103,29 +103,48 @@ Por qué: `estado_id` es el valor de catálogo que identifica el estado; reenvia
 misma intención no debe acumular filas de historia ni romper el reenvío idempotente
 del resto del árbol.
 
-### Decisión 5: La configuración se genera desde el DBML con cuatro sidecars de intención, no a mano
+### Decisión 5: La configuración se genera desde el DBML con cinco sidecars de intención, no a mano
 Un generador en su propia subcarpeta bajo `utils/` (ejecución manual, fuera del
 arranque) produce los archivos de configuración a partir del DBML (estructura:
-tablas, columnas, tipos, FK) y cuatro sidecars de intención agrupados por capacidad, direccionados como
+tablas, columnas, tipos, FK) y cinco sidecars de intención agrupados por capacidad, direccionados como
 `esquema.tabla[.columna]`: `expand` (qué FK se vuelven aristas), `write` (política
-CRUD por objeto, con `natural_key` opcional), `fk_inbound` (aristas de llave entrante)
-y `blacklist` (columnas excluidas). La emisión es determinista (orden fijo de objetos,
+CRUD por objeto, con `natural_key` opcional), `fk_inbound` (aristas de llave entrante),
+`blacklist` (columnas excluidas) y `service` (parámetros de servicio por tabla raíz).
+Las entradas de `expand` y `fk_inbound` admiten una forma de cadena (profundidad por
+omisión) o un mapa con `depth`. La emisión es determinista (orden fijo de objetos,
 campos y entradas de lista) y cada entrada de sidecar se valida contra el DBML: una
 entrada sin correspondencia falla identificándose.
 
+Solo los esquemas con CRUD (`proveedores` como `gestion_personas_crud`, `terceros`,
+`parametros` y `ubicaciones`) generan objetos. Antes de escribir, el generador
+elimina la salida generada anterior; si la construcción falla, la salida previa queda
+intacta.
+
+El generador emite dos clases de archivo, como las que el cargador consume: objetos
+direccionables y, por cada entrada del sidecar `service`, un archivo de servicio
+`relaciones_<servicio>.yaml`. La raíz de un servicio es decisión del sidecar
+`service`: sus aristas se trasladan al archivo de servicio, su política de escritura
+(del sidecar `write`) se emite en `write.policy` del archivo de servicio, y el objeto
+raíz se emite con su lista de referencias vacía. La `natural_key` de la raíz
+permanece en el objeto raíz. Los objetos no raíz conservan sus aristas y la política
+de escritura de un objeto no raíz se emite sobre las aristas que lo apuntan.
+
 Las entradas de la generación comparten ubicación con el generador: el DBML y los
-cuatro sidecars viven en esa misma subcarpeta bajo `utils/`, fuera del árbol `config/`
+cinco sidecars viven en esa misma subcarpeta bajo `utils/`, fuera del árbol `config/`
 en el que el generador escribe su salida. Todo lo de generación —herramienta,
 modelo e intención— tiene el mismo propósito y vive junto; la salida generada es lo
 único que entra a `config/`.
 
 Por qué: la estructura del DBML no expresa la intención (expandir vs. plano, qué se
-escribe, qué se excluye, identidad del registro). Poner esa intención en mapas
-legibles y versionados, en vez de en heurísticas del generador, hace la regeneración
-repetible y la depuración directa. El DBML no declara llaves únicas, de modo que la
-`natural_key` no puede derivarse y se declara en `write`. El MID nunca interpreta DBML
-en tiempo de ejecución: la salida generada es el contrato, y debe pasar las pruebas de
-carga del árbol #58 como cualquier configuración.
+escribe, qué se excluye, identidad del registro, parámetros de servicio). Poner esa
+intención en mapas legibles y versionados, en vez de en heurísticas del generador,
+hace la regeneración repetible y la depuración directa. El DBML no declara llaves
+únicas, de modo que la `natural_key` no puede derivarse y se declara en `write`. El
+cargador expande un servicio desde las referencias del archivo de servicio y no tiene
+campo de política en el objeto, por lo que las aristas y la política de la raíz solo
+son cargables en el archivo de servicio. El MID nunca interpreta DBML en tiempo de
+ejecución: la salida generada es el contrato, y debe pasar las pruebas de carga del
+árbol #58 como cualquier configuración.
 
 Alternativa considerada: heurísticas en el generador (por esquema o por nombre de
 columna) sin sidecars. Rechazada: las excepciones quedarían ocultas en código y una
@@ -159,8 +178,11 @@ un mapa.
   disposición por subdirectorio de CRUD que aporta `config-estructura-directorios-por-api`;
   se puebla la tabla de campos tipada por objeto. No hay migración de datos.
 - Herramienta: el generador se agrega en su propia subcarpeta bajo `utils/`, y el DBML
-  y los cuatro sidecars se ubican en esa misma subcarpeta como entradas de generación
+  y los cinco sidecars se ubican en esa misma subcarpeta como entradas de generación
   versionadas, fuera del árbol `config/`.
+- Salida: regenerar elimina la salida generada anterior (archivos YAML con el encabezado
+  de generado) antes de escribir la nueva. Los archivos ajenos no se tocan. No hay
+  migración de datos.
 - Código: se retira el camino de autoría por contexto de petición y se adopta el campo
   de cuerpo `UsuarioModificacionId`; el servicio de escritura compone la transición de
   estado sobre el motor genérico.

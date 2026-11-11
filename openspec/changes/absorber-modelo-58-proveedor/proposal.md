@@ -53,11 +53,18 @@ el control de escritura por relación de `control-escritura-por-relacion`.
   único requisito de `openapi-publication` que lo nombra.
 - **La configuración se genera desde el DBML.** La configuración de relaciones deja
   de escribirse a mano y se produce con un generador (herramienta de `utils/`,
-  ejecución manual) a partir del DBML más cuatro *sidecars* de intención: `expand`
-  (qué FK se expanden), `write` (política CRUD por objeto, con `natural_key`
-  opcional), `fk_inbound` (aristas de llave entrante, poco frecuentes) y `blacklist`
-  (columnas que no llegan a la configuración). La salida es determinista y se valida
-  contra el DBML.
+  ejecución manual) a partir del DBML más cinco *sidecars* de intención: `expand`
+  (qué FK se expanden, con profundidad por arista opcional), `write` (política CRUD
+  por objeto, con `natural_key` opcional), `fk_inbound` (aristas de llave entrante,
+  poco frecuentes, con profundidad por arista opcional), `blacklist` (columnas que no
+  llegan a la configuración) y `service` (parámetros de servicio por tabla raíz:
+  nombre, `max_depth`, `on_relation_error`, `max_related_ids`, `filterable_fields`).
+  El generador emite el catálogo de objetos y, por cada servicio, el archivo de
+  servicio `relaciones_<servicio>.yaml`: las aristas de la raíz y su política de
+  escritura viven en el archivo de servicio, y el objeto raíz queda sin referencias.
+  La salida es determinista y se valida contra el DBML. Solo los CRUD
+  `gestion_personas_crud`, `terceros`, `parametros` y `ubicaciones` generan objetos, y
+  cada regeneración elimina la salida generada anterior.
 
 ## Capabilities
 
