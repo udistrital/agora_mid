@@ -110,6 +110,26 @@ type WriteOptions struct {
 	OnRelationError string
 }
 
+// Fases de eventoEscritura que el motor reporta al observador interno de las pruebas.
+const (
+	// faseLectura indica la recuperación por lectura (GET) del registro de un nodo.
+	faseLectura = "lectura"
+	// faseDecision indica que los controles de un nodo recuperado se validaron con éxito.
+	faseDecision = "decision"
+	// faseEscritura indica una escritura o baja enviada a un CRUD dueño.
+	faseEscritura = "escritura"
+)
+
+// eventoEscritura describe una acción del motor de escritura para la observación interna.
+type eventoEscritura struct {
+	// Fase es faseLectura, faseDecision o faseEscritura.
+	Fase string
+	// Ruta es la ruta del nodo en el cuerpo, con la misma notación que los errores.
+	Ruta string
+	// Servicio es el servicio dueño del nodo. Vacío en la raíz se resuelve al servicio raíz.
+	Servicio string
+}
+
 // WriteResult es el resultado de una escritura en cascada: el subárbol con los
 // identificadores materializados y los avisos acumulados para MetaData.Errors.
 type WriteResult struct {
@@ -162,6 +182,20 @@ type motorEscritura struct {
 	// retenido guarda, por identidad de nodo, el estado recuperado en el pre-pass.
 	// Vive solo durante una invocación de Write y se descarta al terminar.
 	retenido map[string]nodoRetenido
+	// observador recibe los eventos de fase de writeObservado; nil no emite.
+	observador func(eventoEscritura)
+}
+
+// observar emite un evento de fase al observador, si lo hay. Un servicio vacío se
+// resuelve al servicio de la entidad raíz.
+func (me *motorEscritura) observar(fase, ruta, servicio string) {
+	if me.observador == nil {
+		return
+	}
+	if servicio == "" {
+		servicio = me.servicioRaiz
+	}
+	me.observador(eventoEscritura{Fase: fase, Ruta: ruta, Servicio: servicio})
 }
 
 // Write materializa un cuerpo anidado en cascada a partir de la configuración de
@@ -172,8 +206,10 @@ type motorEscritura struct {
 //
 // Validación previa sin materializar: antes de cualquier escritura, el cuerpo
 // completo se valida y aplana contra las políticas de escritura declaradas; un
-// campo no escribible o un intento de modificar un inmutable devuelve
-// *ErrorEscritura (que el llamador mapea a 400) sin materializar nada.
+// campo no escribible devuelve *ErrorEscritura. Después, el pre-pass de solo lectura
+// recupera el estado de todo el árbol: un campo inmutable que difiere del registro
+// existente o una violación de política o de no-reparent devuelve *ErrorEscritura
+// (que el llamador mapea a 400) sin materializar nada.
 //
 // Semántica de fallo espejo de la lectura: en modo notify una relación no
 // bloqueante que falla conserva lo ya materializado y agrega un aviso no
@@ -189,6 +225,20 @@ func Write(
 	cfg config.ServiceConfig,
 	registry WriteResolverRegistry,
 	options WriteOptions,
+) (WriteResult, error) {
+	return writeObservado(ctx, body, cfg, registry, options, nil)
+}
+
+// writeObservado implementa Write y reporta al observador, si no es nil, cada lectura,
+// decisión validada y escritura en el orden en que ocurren. Solo lo usan las pruebas del
+// paquete para verificar que la validación precede a las escrituras.
+func writeObservado(
+	ctx context.Context,
+	body map[string]any,
+	cfg config.ServiceConfig,
+	registry WriteResolverRegistry,
+	options WriteOptions,
+	observador func(eventoEscritura),
 ) (WriteResult, error) {
 	if cfg.Write == nil {
 		return WriteResult{}, fmt.Errorf("write: el servicio %q no declara configuración de escritura", cfg.Service)
@@ -223,6 +273,7 @@ func Write(
 		onRelError:   onRelError,
 		servicioRaiz: cfg.Service,
 		retenido:     make(map[string]nodoRetenido),
+		observador:   observador,
 	}
 
 	// Pre-pass de solo lectura sobre todo el árbol: recupera y retiene el estado de
@@ -262,8 +313,9 @@ func Write(
 
 // validarNivel valida y aplana recursivamente un nivel del cuerpo contra la
 // configuración de escritura de la entidad y las relaciones hijas, sin
-// materializar. Rechaza con *ErrorEscritura un campo no escribible, un intento de
-// modificar un inmutable en actualización y una relación no declarada escribible.
+// materializar. Rechaza con *ErrorEscritura un campo no escribible y una relación no
+// declarada escribible. La comparación de inmutables contra el registro existente es
+// del pre-pass (validarInmutables), no de este recorrido de forma.
 //
 // Además de los campos escribibles declarados, reconoce los campos relacionales
 // derivados permitidos en este nivel sin exigir que estén en writable_fields:
@@ -283,7 +335,6 @@ func validarNivel(
 	derivadosInyectados map[string]struct{},
 ) error {
 	escribibles := conjunto(wc.WritableFields)
-	inmutables := conjunto(wc.ImmutableFields)
 	porMapped := indexarPorMapped(relaciones)
 
 	// Campos derivados reconocibles en este nivel: los inyectados por el padre más
@@ -365,9 +416,6 @@ func validarNivel(
 
 		if !contiene(escribibles, clave) {
 			return &ErrorEscritura{Path: rutaCampo, Motivo: "campo no escribible"}
-		}
-		if verb == WriteVerbUpdate && contiene(inmutables, clave) {
-			return &ErrorEscritura{Path: rutaCampo, Motivo: "campo inmutable; no puede modificarse"}
 		}
 	}
 
@@ -692,6 +740,7 @@ func (me *motorEscritura) prepass(
 	plano := aplanarParametros(nodo, wc.WritableFields, relNivel, camposDerivadosInternos(rel, relNivel))
 	keys := valoresClaveNatural(plano, wc.NaturalKey)
 	registro, err := res.Recuperar(me.ctx, rel, plano, keys)
+	me.observar(faseLectura, ruta, rel.RelatedService)
 	if err != nil {
 		if esRaiz {
 			return &errorFatalEscritura{path: "(raíz)", servicio: me.servicioRaiz, err: err}
@@ -702,8 +751,15 @@ func (me *motorEscritura) prepass(
 		me.retenido[claveNodo(nodo)] = nodoRetenido{omitido: true}
 		return nil
 	}
+	if err := validarInmutables(plano, registro, wc, camposDerivadosInternos(rel, relNivel), me.verb, ruta); err != nil {
+		return err
+	}
 	if esMarcaEliminar(nodo) {
-		return me.prepassEliminar(nodo, rel, wc, relNivel, ruta, registro)
+		if err := me.prepassEliminar(nodo, rel, wc, relNivel, ruta, registro); err != nil {
+			return err
+		}
+		me.observar(faseDecision, ruta, rel.RelatedService)
+		return nil
 	}
 
 	accion := clasificarAccion(plano, registro, wc.WritableFields, camposDerivadosInternos(rel, relNivel))
@@ -724,6 +780,7 @@ func (me *motorEscritura) prepass(
 		}
 	}
 
+	me.observar(faseDecision, ruta, rel.RelatedService)
 	return me.prepassHijos(nodo, relNivel, esRaiz, ruta, llaveDelNodo(nodo, registro))
 }
 
@@ -760,6 +817,38 @@ func (me *motorEscritura) prepassEliminar(
 		return nil
 	}
 	me.retenido[claveNodo(nodo)] = nodoRetenido{registro: registro, accion: AccionEliminar}
+	return nil
+}
+
+// validarInmutables rechaza, en actualización, un campo inmutable reenviado cuyo valor
+// difiere del registro existente. Un valor igual al almacenado no es una modificación.
+// Sin registro existente no hay valor previo que modificar, y los campos derivados se
+// conciliaron aparte, así que ambos casos se omiten.
+//
+// ruta identifica el nodo; devuelve *ErrorEscritura con el campo responsable.
+func validarInmutables(
+	plano map[string]any,
+	registro map[string]any,
+	wc config.WriteConfig,
+	derivados map[string]struct{},
+	verb string,
+	ruta string,
+) error {
+	if verb != WriteVerbUpdate || registro == nil || registro["Id"] == nil {
+		return nil
+	}
+	for _, campo := range wc.ImmutableFields {
+		if contiene(derivados, campo) {
+			continue
+		}
+		valor, presente := plano[campo]
+		if !presente {
+			continue
+		}
+		if cadenaONula(valor) != cadenaONula(registro[campo]) {
+			return &ErrorEscritura{Path: unirRuta(ruta, campo), Motivo: "campo inmutable; no puede modificarse"}
+		}
+	}
 	return nil
 }
 
@@ -933,6 +1022,7 @@ func (me *motorEscritura) eliminarEntidad(
 	ruta string,
 ) error {
 	id := me.retenido[claveNodo(elem)].registro["Id"]
+	me.observar(faseEscritura, ruta, rel.RelatedService)
 	if err := res.Eliminar(me.ctx, rel, id); err != nil {
 		return me.manejarErrorRelacion(rel, ruta)
 	}
@@ -1040,6 +1130,7 @@ func (me *motorEscritura) materializarEntidad(
 		}
 	}
 	keys := valoresClaveNatural(plano, wc.NaturalKey)
+	me.observar(faseEscritura, ruta, rel.RelatedService)
 	return res.Materialize(me.ctx, rel, plano, keys)
 }
 

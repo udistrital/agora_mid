@@ -1965,3 +1965,331 @@ func TestWriteEliminarEnFKInboundRechaza(t *testing.T) {
 		t.Errorf("no debe haber escrituras; llamadas=%+v", llamadas)
 	}
 }
+
+// resolverConRegistros entrega, por Id, el registro existente que Recuperar devuelve, y
+// registra cada lectura en eventos. Un Id que no está en porID no tiene registro en el CRUD;
+// sin Id no hay registro.
+type resolverConRegistros struct {
+	*resolverFalso
+	porID map[float64]map[string]any
+}
+
+func (r *resolverConRegistros) Recuperar(
+	_ context.Context,
+	_ config.RelationConfig,
+	payload map[string]any,
+	_ []string,
+) (map[string]any, error) {
+	if r.eventos != nil {
+		*r.eventos = append(*r.eventos, "R:"+r.servicio)
+	}
+	v, ok := payload["Id"]
+	if !ok || v == nil {
+		return nil, nil
+	}
+	return r.porID[aFloat(v)], nil
+}
+
+// escenarioTardio construye el registro de un árbol raíz (100) con hijos existentes 300, 301
+// (de otro padre) y 302, junto con las llamadas, lecturas y bajas capturadas.
+func escenarioTardio(llamadas *[]registroMaterializacion, eventos *[]string, bajas *[]string) WriteResolverRegistry {
+	raiz := &resolverConRegistros{
+		resolverFalso: &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: llamadas, eventos: eventos},
+		porID: map[float64]map[string]any{
+			100: {"Id": float64(100), "Descripcion": "p", "TerceroId": float64(25)},
+		},
+	}
+	hijo := &resolverConRegistros{
+		resolverFalso: &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: llamadas, eventos: eventos, eliminaciones: bajas},
+		porID: map[float64]map[string]any{
+			300: {"Id": float64(300), "Valor": "a", "PadreId": float64(100)},
+			301: {"Id": float64(301), "Valor": "b", "PadreId": float64(999)},
+			302: {"Id": float64(302), "Valor": "c", "PadreId": float64(100)},
+		},
+	}
+	return NewWriteResolverRegistry(raiz, map[string]WriteResolver{
+		"detalle": &resolverFalso{servicio: "detalle", siguienteID: 200, llamadas: llamadas, eventos: eventos},
+		"hijo":    hijo,
+	})
+}
+
+// Cada control de escritura (política de crear, actualizar y eliminar, no-reparent,
+// inmutable y campo derivado) rechaza con 400 cuando la violación está en un hijo posterior
+// del recorrido, después de nodos que sí se escribirían. El rechazo llega como
+// *ErrorEscritura sobre el árbol completo, sin creaciones, actualizaciones ni bajas en los
+// CRUD. Las lecturas esperadas indican que el pre-pass recupera cada nodo una sola vez; los
+// rechazos previos al pre-pass (inmutable) no leen nada.
+func TestWriteViolacionTardiaNoEscribeNada(t *testing.T) {
+	todas := config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true}
+	casos := []struct {
+		nombre    string
+		pol       config.WriteVerbPolicy
+		inmutable bool
+		hijos     []any
+		lecturas  int
+	}{
+		{
+			nombre:   "creacion no permitida en el ultimo hijo",
+			pol:      config.WriteVerbPolicy{Creatable: false, Updatable: true, Deletable: true},
+			hijos:    []any{map[string]any{"Id": float64(300), "Valor": "z"}, map[string]any{"Valor": "nuevo"}},
+			lecturas: 3,
+		},
+		{
+			nombre:   "actualizacion no permitida en el ultimo hijo",
+			pol:      config.WriteVerbPolicy{Creatable: true, Updatable: false, Deletable: true},
+			hijos:    []any{map[string]any{"Valor": "nuevo"}, map[string]any{"Id": float64(300), "Valor": "z"}},
+			lecturas: 3,
+		},
+		{
+			nombre:   "baja no permitida en el ultimo hijo",
+			pol:      config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: false},
+			hijos:    []any{map[string]any{"Id": float64(300), "Valor": "z"}, map[string]any{"Id": float64(302), "_Eliminar": true}},
+			lecturas: 3,
+		},
+		{
+			nombre:   "reparent del ultimo hijo",
+			pol:      todas,
+			hijos:    []any{map[string]any{"Id": float64(300), "Valor": "z"}, map[string]any{"Id": float64(301), "Valor": "b"}},
+			lecturas: 3,
+		},
+		{
+			nombre:   "campo derivado en conflicto en el ultimo hijo",
+			pol:      todas,
+			hijos:    []any{map[string]any{"Id": float64(300), "Valor": "z", "PadreId": float64(555)}},
+			lecturas: 2,
+		},
+		{
+			nombre:    "campo inmutable en el ultimo hijo",
+			pol:       todas,
+			inmutable: true,
+			hijos:     []any{map[string]any{"Id": float64(300)}, map[string]any{"Id": float64(302), "Valor": "w"}},
+			lecturas:  3,
+		},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.nombre, func(t *testing.T) {
+			var llamadas []registroMaterializacion
+			var eventos []string
+			var bajas []string
+			registry := escenarioTardio(&llamadas, &eventos, &bajas)
+			cfg := cfgConPoliticaHijo(caso.pol)
+			if caso.inmutable {
+				cfg.Relations[1].Write.ImmutableFields = []string{"Valor"}
+			}
+			body := map[string]any{
+				"Id":          float64(100),
+				"TerceroId":   float64(25),
+				"Descripcion": "p cambiada",
+				"Hijo":        caso.hijos,
+			}
+
+			_, err := Write(context.Background(), body, cfg, registry, WriteOptions{Verb: WriteVerbUpdate})
+
+			ee := comoErrorEscritura(err)
+			if ee == nil {
+				t.Fatalf("se esperaba *ErrorEscritura por la violación del último nodo; err=%v", err)
+			}
+			if !contieneTexto(ee.Path, "Hijo") {
+				t.Errorf("el error debe nombrar la arista Hijo; path=%q", ee.Path)
+			}
+			lecturas := 0
+			for _, ev := range eventos {
+				if strings.HasPrefix(ev, "R:") {
+					lecturas++
+				}
+				if strings.HasPrefix(ev, "M:") {
+					t.Errorf("un 400 no debe materializar ninguna entidad; eventos=%v", eventos)
+				}
+			}
+			if lecturas != caso.lecturas {
+				t.Errorf("el pre-pass debe recuperar cada nodo visitado exactamente una vez (esperadas %d); lecturas=%d eventos=%v",
+					caso.lecturas, lecturas, eventos)
+			}
+			if len(llamadas) != 0 {
+				t.Errorf("un 400 no debe enviar creaciones, actualizaciones ni bajas; llamadas=%+v", llamadas)
+			}
+			if len(bajas) != 0 {
+				t.Errorf("un 400 no debe enviar bajas; bajas=%v", bajas)
+			}
+		})
+	}
+}
+
+// En un árbol válido con creaciones, actualizaciones y nodos sin cambios, todas las lecturas
+// del pre-pass (una por nodo visitado) ocurren antes de la primera escritura a un CRUD.
+func TestWriteTodasLasLecturasAntesDeEscribir(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var eventos []string
+	var bajas []string
+	registry := escenarioTardio(&llamadas, &eventos, &bajas)
+	body := map[string]any{
+		"Id":          float64(100),
+		"TerceroId":   float64(25),
+		"Descripcion": "p cambiada",
+		"Hijo": []any{
+			map[string]any{"Id": float64(300), "Valor": "z"},
+			map[string]any{"Valor": "nuevo"},
+			map[string]any{"Id": float64(302), "Valor": "c"},
+		},
+	}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true}),
+		registry, WriteOptions{Verb: WriteVerbUpdate})
+	if err != nil {
+		t.Fatalf("un árbol válido no debe fallar: %v", err)
+	}
+
+	ultimaLectura, primeraEscritura, lecturas := -1, -1, 0
+	for i, ev := range eventos {
+		switch {
+		case strings.HasPrefix(ev, "R:"):
+			lecturas++
+			ultimaLectura = i
+		case strings.HasPrefix(ev, "M:") && primeraEscritura < 0:
+			primeraEscritura = i
+		}
+	}
+	if lecturas != 4 {
+		t.Errorf("la raíz y sus tres hijos deben recuperarse una vez cada uno; lecturas=%d eventos=%v", lecturas, eventos)
+	}
+	if primeraEscritura < 0 {
+		t.Fatalf("un árbol válido con cambios debe materializar escrituras; eventos=%v", eventos)
+	}
+	if ultimaLectura > primeraEscritura {
+		t.Errorf("todas las lecturas deben preceder a la primera escritura; eventos=%v", eventos)
+	}
+}
+
+// Un campo inmutable reenviado con el mismo valor que el registro existente no es una
+// modificación: la escritura continúa y no se rechaza.
+func TestWriteInmutableReenvioIgualAlAlmacenadoSeAcepta(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var eventos []string
+	var bajas []string
+	registry := escenarioTardio(&llamadas, &eventos, &bajas)
+	cfg := cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true})
+	cfg.Relations[1].Write.ImmutableFields = []string{"Valor"}
+	body := map[string]any{
+		"Id":          float64(100),
+		"TerceroId":   float64(25),
+		"Descripcion": "p cambiada",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "Valor": "a"}},
+	}
+
+	if _, err := Write(context.Background(), body, cfg, registry, WriteOptions{Verb: WriteVerbUpdate}); err != nil {
+		t.Fatalf("un inmutable con el valor almacenado no debe rechazarse: %v", err)
+	}
+	if len(llamadas) == 0 {
+		t.Errorf("la escritura debe continuar y materializar el cambio de la raíz")
+	}
+}
+
+// El motor emite un evento por fase y nodo. En un árbol válido, todas las lecturas y decisiones
+// ocurren antes de la primera escritura, y cada nodo se recupera y decide exactamente una vez.
+func TestWriteObservaFasesAntesDeEscribir(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var eventos []string
+	var bajas []string
+	registry := escenarioTardio(&llamadas, &eventos, &bajas)
+	var observados []eventoEscritura
+	body := map[string]any{
+		"Id":          float64(100),
+		"TerceroId":   float64(25),
+		"Descripcion": "p cambiada",
+		"Hijo": []any{
+			map[string]any{"Id": float64(300), "Valor": "z"},
+			map[string]any{"Valor": "nuevo"},
+			map[string]any{"Id": float64(302), "Valor": "c"},
+		},
+	}
+
+	_, err := writeObservado(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true}),
+		registry, WriteOptions{Verb: WriteVerbUpdate}, func(e eventoEscritura) { observados = append(observados, e) })
+	if err != nil {
+		t.Fatalf("un árbol válido no debe fallar: %v", err)
+	}
+
+	if n := contarFase(observados, faseLectura); n != 4 {
+		t.Errorf("cada nodo debe recuperarse una vez (4 nodos); lecturas=%d", n)
+	}
+	if n := contarFase(observados, faseDecision); n != 4 {
+		t.Errorf("cada nodo debe decidirse una vez (4 nodos); decisiones=%d", n)
+	}
+	primeraEscritura := primerIndiceFase(observados, faseEscritura)
+	if primeraEscritura < 0 {
+		t.Fatalf("un árbol válido con cambios debe materializar escrituras; eventos=%+v", observados)
+	}
+	if ultimaDecision := ultimoIndiceFase(observados, faseDecision); ultimaDecision > primeraEscritura {
+		t.Errorf("toda decisión debe preceder a la primera escritura; eventos=%+v", observados)
+	}
+	if ultimaLectura := ultimoIndiceFase(observados, faseLectura); ultimaLectura > primeraEscritura {
+		t.Errorf("toda lectura debe preceder a la primera escritura; eventos=%+v", observados)
+	}
+}
+
+// Con una violación en un nodo posterior, el motor decide sobre todos los nodos antes de
+// rechazar y no emite ninguna escritura.
+func TestWriteObservaViolacionTardiaSinEscrituras(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var eventos []string
+	var bajas []string
+	registry := escenarioTardio(&llamadas, &eventos, &bajas)
+	var observados []eventoEscritura
+	body := map[string]any{
+		"Id":          float64(100),
+		"TerceroId":   float64(25),
+		"Descripcion": "p cambiada",
+		"Hijo": []any{
+			map[string]any{"Id": float64(300), "Valor": "z"},
+			map[string]any{"Id": float64(301), "Valor": "b"},
+		},
+	}
+
+	_, err := writeObservado(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true}),
+		registry, WriteOptions{Verb: WriteVerbUpdate}, func(e eventoEscritura) { observados = append(observados, e) })
+	if comoErrorEscritura(err) == nil {
+		t.Fatalf("se esperaba *ErrorEscritura por el reparent; err=%v", err)
+	}
+	if n := contarFase(observados, faseEscritura); n != 0 {
+		t.Errorf("un 400 no debe emitir escrituras; escrituras=%d eventos=%+v", n, observados)
+	}
+	if n := contarFase(observados, faseDecision); n != 2 {
+		t.Errorf("solo los nodos validados con éxito emiten decisión (raíz y primer hijo); decisiones=%d", n)
+	}
+}
+
+// contarFase cuenta los eventos de una fase.
+func contarFase(eventos []eventoEscritura, fase string) int {
+	n := 0
+	for _, e := range eventos {
+		if e.Fase == fase {
+			n++
+		}
+	}
+	return n
+}
+
+// primerIndiceFase devuelve la posición del primer evento de la fase, o -1.
+func primerIndiceFase(eventos []eventoEscritura, fase string) int {
+	for i, e := range eventos {
+		if e.Fase == fase {
+			return i
+		}
+	}
+	return -1
+}
+
+// ultimoIndiceFase devuelve la posición del último evento de la fase, o -1.
+func ultimoIndiceFase(eventos []eventoEscritura, fase string) int {
+	ultimo := -1
+	for i, e := range eventos {
+		if e.Fase == fase {
+			ultimo = i
+		}
+	}
+	return ultimo
+}

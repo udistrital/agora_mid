@@ -35,11 +35,11 @@
 
 ## 6. Garantía de validación total previa a toda escritura
 
-- [ ] 6.1 Escribir la prueba (con marcador de rojo) de que una violación de política (crear/actualizar/eliminar) o de no-reparent en un nodo posterior del recorrido produce `400` sobre el árbol completo sin que se haya enviado ninguna creación, actualización ni eliminación a ningún CRUD (inspección de peticiones = cero escrituras), y confirmar que falla
-- [ ] 6.2 Escribir la prueba de regresión (con marcador de rojo si aplica) que confirma que el gate de política, el gate de eliminación y el no-reparent se evalúan dentro del mismo pre-pass de solo lectura que inmutables y campos derivados, sin introducir un recorrido ni una ruta de error adicionales, y confirmar que falla
-- [ ] 6.3 Verificar que todos los controles se evalúan sobre el árbol completo antes de la primera escritura reutilizando el estado retenido por el pre-pass, y verificar que las pruebas 6.1–6.2 pasan y se retiran sus marcadores
+- [x] 6.1 Escribir la prueba (con marcador de rojo) de que una violación de política (crear/actualizar/eliminar) o de no-reparent en un nodo posterior del recorrido produce `400` sobre el árbol completo sin que se haya enviado ninguna creación, actualización ni eliminación a ningún CRUD (inspección de peticiones = cero escrituras), y confirmar que falla
+- [x] 6.2 Escribir la prueba de regresión (con marcador de rojo si aplica) que confirma que el gate de política, el gate de eliminación y el no-reparent se evalúan dentro del mismo pre-pass de solo lectura que inmutables y campos derivados, sin introducir un recorrido ni una ruta de error adicionales, y confirmar que falla
+- [x] 6.3 Verificar que todos los controles se evalúan sobre el árbol completo antes de la primera escritura reutilizando el estado retenido por el pre-pass, y verificar que las pruebas 6.1–6.2 pasan y se retiran sus marcadores
 
 ## 7. Pruebas de regresión y verificación de integración
 
-- [ ] 7.1 Confirmar como cobertura/regresión que los escenarios vigentes de campo inmutable incompatible y campo de escritura no permitido siguen rechazándose antes de cualquier escritura tras los cambios, con las pruebas existentes en verde
-- [ ] 7.2 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes
+- [x] 7.1 Confirmar como cobertura/regresión que los escenarios vigentes de campo inmutable incompatible y campo de escritura no permitido siguen rechazándose antes de cualquier escritura tras los cambios, con las pruebas existentes en verde
+- [x] 7.2 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes
