@@ -41,17 +41,17 @@
 
 ## 1d. Configuración del CRUD de ubicaciones en el cargador
 
-- [ ] 1d.1 Declarar `ubicaciones_crud_url` en `conf/app.conf` y
+- [x] 1d.1 Declarar `ubicaciones_crud_url` en `conf/app.conf` y
   `AGORA_MID_UBICACIONES_CRUD_URL` en `.env.example` como la URL base del CRUD de
   ubicaciones
-- [ ] 1d.2 Documentar `AGORA_MID_UBICACIONES_CRUD_URL` en la lista de variables de
+- [x] 1d.2 Documentar `AGORA_MID_UBICACIONES_CRUD_URL` en la lista de variables de
   entorno del `README.md` y añadir `ubicaciones` a los valores de `related_api` en
   `config/README.md`
-- [ ] 1d.3 Escribir la prueba (con marcador de rojo) que verifica que el cargador
+- [x] 1d.3 Escribir la prueba (con marcador de rojo) que verifica que el cargador
   resuelve un objeto con `related_api: ubicaciones` contra `ubicaciones_crud_url` y
   que un árbol con esa API carga sin rechazarse como API desconocida, y confirmar que
   falla contra la configuración actual
-- [ ] 1d.4 Añadir `UbicacionesCRUDURL` a `config.Config`, leer `ubicaciones_crud_url`
+- [x] 1d.4 Añadir `UbicacionesCRUDURL` a `config.Config`, leer `ubicaciones_crud_url`
   en `config.Load` y mapear `ubicaciones` en `Config.URLs`, y verificar que la prueba
   1d.3 pasa y se retira su marcador
 

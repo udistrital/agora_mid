@@ -44,7 +44,7 @@ referencias: []
 | Clave | Obligatoria | Descripción |
 | --- | --- | --- |
 | `name` | Sí | Nombre único del objeto en el catálogo. |
-| `related_api` | Sí | CRUD que almacena el objeto. Debe existir en `conf/app.conf` (`terceros`, `parametros` o `gestion_personas_crud`). |
+| `related_api` | Sí | CRUD que almacena el objeto. Debe existir en `conf/app.conf` (`terceros`, `parametros`, `gestion_personas_crud` o `ubicaciones`). |
 | `related_table` | Sí | Tabla del CRUD. |
 | `endpoint` | Sí | Ruta del recurso en el CRUD. |
 | `related_service` | No | Llave lógica del nodo. Si se omite, se deriva del nombre en `snake_case` (`TipoContribuyente` → `tipo_contribuyente`). Las siglas cuentan como una palabra (`HTTPServer` → `http_server`). |

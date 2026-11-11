@@ -12,6 +12,7 @@ type Config struct {
 	TercerosCRUDURL        string
 	ParametrosCRUDURL      string
 	GestionPersonasCRUDURL string
+	UbicacionesCRUDURL     string
 }
 
 // Load lee la configuración desde conf/app.conf y expande variables de entorno.
@@ -43,5 +44,6 @@ func Load() Config {
 		TercerosCRUDURL:        values["terceros_crud_url"],
 		ParametrosCRUDURL:      values["parametros_crud_url"],
 		GestionPersonasCRUDURL: values["gestion_personas_crud_url"],
+		UbicacionesCRUDURL:     values["ubicaciones_crud_url"],
 	}
 }

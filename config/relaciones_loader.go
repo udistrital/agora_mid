@@ -25,6 +25,7 @@ func (c Config) URLs() ServiceURLs {
 		"terceros":              c.TercerosCRUDURL,
 		"parametros":            c.ParametrosCRUDURL,
 		"gestion_personas_crud": c.GestionPersonasCRUDURL,
+		"ubicaciones":           c.UbicacionesCRUDURL,
 	}
 }
 
