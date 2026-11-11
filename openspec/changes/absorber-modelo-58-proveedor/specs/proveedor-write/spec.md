@@ -91,18 +91,3 @@ baja del estado previo se expresa en el árbol que el servicio entrega al motor.
 - **WHEN** una transición de estado crea el nuevo estado y da de baja el previo
 - **THEN** el MID crea primero el nuevo estado y da de baja el previo después, de
   modo que un fallo intermedio no deja al proveedor sin estado activo
-
-### Requirement: Referencias de un salto en la escritura
-El sistema SHALL aceptar `representacion.representante_id` y
-`cuenta_bancaria.contacto_id` como llaves foráneas planas a profundidad 0, sin
-materializar ni reconciliar la entidad referenciada.
-
-#### Scenario: Representante como FK plana
-- **WHEN** el cuerpo de una `representacion` incluye `RepresentanteId`
-- **THEN** el MID lo envía al CRUD dueño como FK, sin crear ni actualizar el tercero
-  representante
-
-#### Scenario: Contacto de la cuenta bancaria como FK plana
-- **WHEN** el cuerpo de una `cuenta_bancaria` incluye `ContactoId`
-- **THEN** el MID lo envía al CRUD dueño como FK, sin crear ni actualizar el
-  contacto referenciado

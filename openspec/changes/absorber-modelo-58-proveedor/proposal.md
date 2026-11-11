@@ -43,25 +43,35 @@ el control de escritura por relación de `control-escritura-por-relacion`.
   mismo `estado_id` ya activo es un no-op idempotente. La baja del estado previo se
   expresa en el árbol que el servicio entrega al motor y se materializa por la
   capacidad genérica de eliminación de `control-escritura-por-relacion`.
-- **Referencias de un salto sin expansión.** `representacion.representante_id`
-  (hacia un tercero que es el representante) y `cuenta_bancaria.contacto_id` (hacia
-  un contacto hermano) se aceptan como llaves foráneas planas a profundidad 0, sin
-  materializar ni expandir la entidad referenciada.
+- **El MID expande cualquier esquema; escribe solo en `terceros` y `proveedores`.**
+  La expansión de lectura puede recorrer entidades de cualquier CRUD (`parametros`,
+  `ubicaciones`, `terceros`); la materialización de escritura se restringe a los CRUD
+  de `terceros` y `proveedores`. Qué FK se expande y qué FK queda como identificador
+  plano lo decide el *sidecar* de la generación, no una regla fija por campo.
 - **Renombre del campo de auditoría en la documentación.** El nombre del campo de
   auditoría de autor cambia de `AutorModificacionId` a `UsuarioModificacionId` en el
   único requisito de `openapi-publication` que lo nombra.
+- **La configuración se genera desde el DBML.** La configuración de relaciones deja
+  de escribirse a mano y se produce con un generador (herramienta de `utils/`,
+  ejecución manual) a partir del DBML más cuatro *sidecars* de intención: `expand`
+  (qué FK se expanden), `write` (política CRUD por objeto, con `natural_key`
+  opcional), `fk_inbound` (aristas de llave entrante, poco frecuentes) y `blacklist`
+  (columnas que no llegan a la configuración). La salida es determinista y se valida
+  contra el DBML.
 
 ## Capabilities
 
 ### New Capabilities
-<!-- Ninguna. -->
+- `config-generation`: Un generador determinista que transforma el modelo DBML y un
+  conjunto de *sidecars* de intención en los archivos de configuración de
+  relaciones. El generador vive fuera del arranque y se ejecuta manualmente.
 
 ### Modified Capabilities
 - `proveedor-write`: El contrato de escritura absorbe el árbol #58 completo (nuevas
   entidades, campos de especialización aplanados y enrutados por PK compartida,
   `consentimiento`); `UsuarioModificacionId` escribible por cuerpo y auditoría
-  restante rechazada; transición de `estado_proveedor` con baja del activo previo;
-  `representacion`/`cuenta_bancaria.contacto_id` como FK planas de profundidad 0.
+  restante rechazada; transición de `estado_proveedor` con baja del activo previo. La
+  escritura se materializa solo en los CRUD de `terceros` y `proveedores`.
 - `proveedor-read`: La expansión cubre el árbol #58 completo y aplana los campos de
   la especialización (`proveedor_natural`/`proveedor_juridico`) dentro del proveedor
   según `tipo_proveedor`, de un salto y solo en la dirección proveedor->
@@ -76,13 +86,18 @@ el control de escritura por relación de `control-escritura-por-relacion`.
 ## Impact
 
 - **Dependencia de planeación**: se apila sobre `config-composicion-objetos-tipados`
-  (objetos direccionables + tabla de campos tipada) y
-  `control-escritura-por-relacion` (política por relación, no-reparent y la
-  capacidad genérica de eliminación dirigida por el árbol que la transición de
-  estado consume).
-- **Configuración** (fase apply): `config/relaciones_proveedor.yaml` se reescribe al
-  árbol #58 en la forma de objetos direccionables + referencias; se puebla la tabla
-  de campos tipada por objeto.
+  (objetos direccionables + tabla de campos tipada), `control-escritura-por-relacion`
+  (política por relación, no-reparent y la capacidad genérica de eliminación dirigida
+  por el árbol que la transición de estado consume) y
+  `config-estructura-directorios-por-api`, que debe estar aplicado: la configuración
+  generada se escribe en la disposición por subdirectorio de CRUD.
+- **Herramienta** (fase apply): el generador se agrega bajo `utils/` para ejecución
+  manual; no forma parte de la preparación de arranque y el MID nunca interpreta DBML
+  en tiempo de ejecución.
+- **Configuración** (fase apply): la configuración del proveedor se **genera** desde
+  el DBML y los sidecars al árbol #58 en la forma de objetos direccionables +
+  referencias, sobre la disposición por subdirectorio de CRUD; se puebla la tabla de
+  campos tipada por objeto.
 - **Código** (fase apply): se retira el camino de autoría desde el contexto de
   petición y se sustituye por el campo de cuerpo `UsuarioModificacionId`; el servicio
   de escritura del proveedor compone la transición de `estado_proveedor` (crear el

@@ -15,12 +15,6 @@ entidades del modelo extendido: `estado_proveedor`, `documento`,
 - **THEN** la respuesta anida cada colección bajo su `mapped_name` como lista,
   respetando su cardinalidad
 
-#### Scenario: Referencias de un salto sin expansión en lectura
-- **WHEN** una entidad del árbol referencia otra por una FK a profundidad 0 (por
-  ejemplo `representacion.representante_id` o `cuenta_bancaria.contacto_id`)
-- **THEN** la referencia se entrega como identificador plano y la entidad
-  referenciada no se expande
-
 ### Requirement: Aplanado de la especialización en la lectura del proveedor
 El sistema SHALL proyectar los campos de la especialización del proveedor
 (`proveedor_natural` o `proveedor_juridico`, según `tipo_proveedor`) dentro del

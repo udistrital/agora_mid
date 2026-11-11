@@ -37,9 +37,3 @@ entidades del modelo extendido: `estado_proveedor`, `documento`, `perfil_proveed
   `PerfilProveedor` o `EstadoProveedor`)
 - **THEN** la relación se entrega como lista bajo su `mapped_name`, respetando su
   cardinalidad y los campos `readable` del objeto
-
-#### Scenario: Referencia de un salto sin expansión
-- **WHEN** una entidad declara una FK a profundidad 0 hacia otra entidad (por
-  ejemplo `representacion.representante_id` o `cuenta_bancaria.contacto_id`)
-- **THEN** la referencia se entrega como identificador plano y la entidad
-  referenciada no se expande

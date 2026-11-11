@@ -28,13 +28,16 @@ fuente.
   auditoría.
 - Transición de `estado_proveedor` con baja del activo previo, expresada por el
   servicio y materializada por la capacidad genérica de eliminación del motor.
+- Configuración generada de forma determinista desde el DBML y los sidecars de
+  intención, verificable contra el DBML, con la herramienta fuera del arranque.
 
 **Non-Goals:**
 - Proyección inversa (expandir desde `proveedor_juridico` y traer los campos del
   proveedor): fuera de alcance.
-- Materializar el tercero representante como subárbol de escritura:
-  `representacion.representante_id` es una FK plana a profundidad 0; igual para
-  `cuenta_bancaria.contacto_id`.
+- Materializar como subárbol de escritura las entidades de CRUD ajenos a `terceros`
+  y `proveedores`: la escritura se restringe a esos dos CRUD. Qué FK se expande en
+  lectura y qué FK queda como identificador plano lo decide el sidecar `expand` de la
+  generación, no una regla fija por campo.
 - Definir el sobre de respuesta o el manejo de fallo parcial *durante* la
   materialización (incluida la recuperación de una transición de estado a medio
   camino): pertenece al cambio posterior de contrato de respuesta.
@@ -100,6 +103,35 @@ Por qué: `estado_id` es el valor de catálogo que identifica el estado; reenvia
 misma intención no debe acumular filas de historia ni romper el reenvío idempotente
 del resto del árbol.
 
+### Decisión 5: La configuración se genera desde el DBML con cuatro sidecars de intención, no a mano
+Un generador en su propia subcarpeta bajo `utils/` (ejecución manual, fuera del
+arranque) produce los archivos de configuración a partir del DBML (estructura:
+tablas, columnas, tipos, FK) y cuatro sidecars de intención agrupados por capacidad, direccionados como
+`esquema.tabla[.columna]`: `expand` (qué FK se vuelven aristas), `write` (política
+CRUD por objeto, con `natural_key` opcional), `fk_inbound` (aristas de llave entrante)
+y `blacklist` (columnas excluidas). La emisión es determinista (orden fijo de objetos,
+campos y entradas de lista) y cada entrada de sidecar se valida contra el DBML: una
+entrada sin correspondencia falla identificándose.
+
+Las entradas de la generación comparten ubicación con el generador: el DBML y los
+cuatro sidecars viven en esa misma subcarpeta bajo `utils/`, fuera del árbol `config/`
+en el que el generador escribe su salida. Todo lo de generación —herramienta,
+modelo e intención— tiene el mismo propósito y vive junto; la salida generada es lo
+único que entra a `config/`.
+
+Por qué: la estructura del DBML no expresa la intención (expandir vs. plano, qué se
+escribe, qué se excluye, identidad del registro). Poner esa intención en mapas
+legibles y versionados, en vez de en heurísticas del generador, hace la regeneración
+repetible y la depuración directa. El DBML no declara llaves únicas, de modo que la
+`natural_key` no puede derivarse y se declara en `write`. El MID nunca interpreta DBML
+en tiempo de ejecución: la salida generada es el contrato, y debe pasar las pruebas de
+carga del árbol #58 como cualquier configuración.
+
+Alternativa considerada: heurísticas en el generador (por esquema o por nombre de
+columna) sin sidecars. Rechazada: las excepciones quedarían ocultas en código y una
+regeneración sorpresiva obligaría a depurar el criterio del generador en vez de leer
+un mapa.
+
 ## Risks / Trade-offs
 
 - [El cliente puede afirmar el autor de la modificación] → Aceptado por decisión del
@@ -122,9 +154,13 @@ del resto del árbol.
 
 ## Migration Plan
 
-- Configuración: `config/relaciones_proveedor.yaml` se reescribe al árbol #58 en la
-  forma de objetos direccionables + referencias; se puebla la tabla de campos tipada
-  por objeto. No hay migración de datos.
+- Configuración: la configuración del proveedor se **genera** desde el DBML y los
+  sidecars al árbol #58 en forma de objetos direccionables + referencias, sobre la
+  disposición por subdirectorio de CRUD que aporta `config-estructura-directorios-por-api`;
+  se puebla la tabla de campos tipada por objeto. No hay migración de datos.
+- Herramienta: el generador se agrega en su propia subcarpeta bajo `utils/`, y el DBML
+  y los cuatro sidecars se ubican en esa misma subcarpeta como entradas de generación
+  versionadas, fuera del árbol `config/`.
 - Código: se retira el camino de autoría por contexto de petición y se adopta el campo
   de cuerpo `UsuarioModificacionId`; el servicio de escritura compone la transición de
   estado sobre el motor genérico.
