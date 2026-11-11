@@ -7,7 +7,10 @@ Permite que cualquier servicio del API resuelva y entregue entidades relacionada
 ## Requirements
 
 ### Requirement: Expansión declarativa de relaciones
-El sistema SHALL expandir relaciones hacia otros CRUD únicamente a partir de configuración versionada por servicio, cargada al arranque, y nunca a partir de endpoints o URLs provistos por el cliente.
+El sistema SHALL expandir relaciones hacia otros CRUD únicamente a partir del árbol
+efectivo compuesto por servicio (ver `config-composition`), cargado y aplanado al
+arranque, y nunca a partir de endpoints o URLs provistos por el cliente. El expansor
+consume el árbol ya compuesto y no resuelve referencias de objetos por sí mismo.
 
 #### Scenario: Relación singular encontrada
 - **WHEN** se expande una relación con `cardinality: one` y el CRUD devuelve un registro coincidente por `related_field`
@@ -22,7 +25,7 @@ El sistema SHALL expandir relaciones hacia otros CRUD únicamente a partir de co
 - **THEN** `mapped_name` siempre es una lista; vacía `[]` si no hay resultados y con todos los elementos cuando los hay
 
 #### Scenario: Configuración inválida impide el arranque
-- **WHEN** un archivo de relaciones está ausente, es inválido o declara una relación inconsistente
+- **WHEN** un archivo de configuración está ausente, es inválido o declara una relación inconsistente
 - **THEN** el API no inicia y reporta un mensaje que identifica el archivo y la relación
 
 ### Requirement: Distinción entre API externa y servicio lógico
@@ -45,7 +48,9 @@ El sistema SHALL aceptar un parámetro `fields` con rutas separadas por comas (p
 ejemplo `Id,Tercero.Id,Tercero.NombreCompleto`) y resolver cada ruta según su
 último segmento: una ruta que termina en una relación entrega esa relación
 completa (su subárbol expandido por configuración hasta la profundidad efectiva);
-una ruta que termina en un campo escalar entrega solo ese escalar.
+una ruta que termina en un campo escalar entrega solo ese escalar. Los campos
+seleccionables de cada objeto son los que la tabla de campos tipada unificada
+(ver `config-composition`) marca con el rol `readable`.
 
 #### Scenario: Selección de campos base y anidados
 - **WHEN** la solicitud incluye `fields=Id,Tercero.Id,Tercero.NombreCompleto`
@@ -108,11 +113,11 @@ una ruta que termina en un campo escalar entrega solo ese escalar.
 
 #### Scenario: Ausencia de fields expande por configuración
 - **WHEN** la solicitud no incluye `fields`
-- **THEN** se recuperan los `allowed_fields` configurados y las relaciones
-  permitidas hasta la profundidad efectiva
+- **THEN** se recuperan los campos marcados `readable` en la tabla de campos tipada
+  del objeto y las relaciones permitidas hasta la profundidad efectiva
 
 #### Scenario: Campo no permitido rechaza la expansión
-- **WHEN** `fields` incluye una ruta fuera de cualquier `allowed_fields` o una
+- **WHEN** `fields` incluye una ruta fuera de cualquier campo marcado `readable` o una
   ruta vacía o duplicada
 - **THEN** el sistema responde `400 Bad Request`, no inicia la expansión e
   identifica la ruta inválida
@@ -153,16 +158,17 @@ que esa precedencia afecte el tratamiento de sus relaciones hermanas.
 
 ### Requirement: Id implícito en las entidades expandidas
 El sistema SHALL conservar el `Id` de toda entidad expandida de forma implícita,
-sin exigir que la configuración lo declare en `allowed_fields`, de modo que toda
-entidad anidada sea identificable y seleccionable por defecto.
+sin exigir que la tabla de campos tipada del objeto marque `Id` como `readable`, de
+modo que toda entidad anidada sea identificable y seleccionable por defecto.
 
 #### Scenario: Id presente sin declararlo en allowed_fields
-- **WHEN** una relación se expande y su `allowed_fields` no incluye `Id`
+- **WHEN** una relación se expande y la tabla de campos de su objeto no marca `Id`
+  como `readable`
 - **THEN** la entidad anidada se entrega con su `Id` de todas formas
 
 #### Scenario: Id seleccionable aunque no esté en allowed_fields
 - **WHEN** `fields` incluye la ruta del `Id` de una relación (por ejemplo
-  `Tercero.Id`) y `allowed_fields` de esa relación no lista `Id`
+  `Tercero.Id`) y la tabla de campos de ese objeto no marca `Id` como `readable`
 - **THEN** la ruta se acepta como válida y el `Id` se incluye, sin rechazarla como
   campo no permitido
 
@@ -187,12 +193,12 @@ El sistema SHALL cargar al arranque una lista negra global de campos desde el
 archivo único `config/global_blacklist.yaml`, cuyas entradas se expresan de forma
 jerárquica `related_api -> related_table -> [field]` con la palabra reservada
 `ANY` como comodín en cualquier nivel. La lista negra suprime cada campo listado
-de la respuesta de expansión y gana sobre `allowed_fields` y sobre el `Id`
-implícito.
+de la respuesta de expansión y gana sobre el rol `readable` de la tabla de campos
+tipada y sobre el `Id` implícito.
 
 #### Scenario: Campo vetado se suprime pese a allowed_fields
-- **WHEN** un campo está declarado en `allowed_fields` de una relación y también
-  figura en la lista negra para su `related_api` y `related_table`
+- **WHEN** un campo está marcado `readable` en la tabla de campos de un objeto y
+  también figura en la lista negra para su `related_api` y `related_table`
 - **THEN** el campo se omite de la entidad expandida
 
 #### Scenario: Id implícito vetado se suprime
