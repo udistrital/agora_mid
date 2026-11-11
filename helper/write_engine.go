@@ -66,6 +66,11 @@ type WriteResolver interface {
 		payload map[string]any,
 		keys []string,
 	) (map[string]any, error)
+
+	// Eliminar da de baja, en el CRUD dueño, el registro con el Id dado. El motor la
+	// invoca solo para un nodo marcado con _Eliminar cuya arista admite deletable, y
+	// nunca por inferencia a partir de nodos ausentes.
+	Eliminar(ctx context.Context, rel config.RelationConfig, id any) error
 }
 
 // WriteResolverRegistry asocia un related_service con el WriteResolver que lo
@@ -300,6 +305,20 @@ func validarNivel(
 	for clave, valor := range entidad {
 		rutaCampo := unirRuta(ruta, clave)
 
+		// La marca _Eliminar es reservada: debe ser booleana y no puede aplicarse a la
+		// raíz, que no es una arista con política de eliminación. No es un campo del
+		// objeto, así que no se valida como escribible ni se envía al CRUD.
+		if clave == campoEliminar {
+			marca, esBool := valor.(bool)
+			if !esBool {
+				return &ErrorEscritura{Path: rutaCampo, Motivo: motivoMarcaEliminarNoBooleana}
+			}
+			if marca && ruta == "" {
+				return &ErrorEscritura{Path: rutaCampo, Motivo: motivoMarcaEliminarEnRaiz}
+			}
+			continue
+		}
+
 		// Un campo que corresponde a una relación hija escribible se valida como
 		// subárbol, no como campo propio. La relación aporta el campo derivado de
 		// sus hijos (fk -> related_field).
@@ -385,6 +404,9 @@ func validarRelacionAnidada(
 	inyectados := derivadosDescendentes(rel)
 	switch v := valor.(type) {
 	case map[string]any:
+		if rel.Write.KeyPropagation == config.KeyPropagationFKInbound && esMarcaEliminar(v) {
+			return &ErrorEscritura{Path: ruta, Motivo: motivoEliminarFKInbound}
+		}
 		return validarNivel(v, wc, nested, verb, ruta, inyectados)
 	case []any:
 		for i := range v {
@@ -486,6 +508,9 @@ const (
 	// escribibles coinciden con los almacenados. Es una reconciliación, no una
 	// actualización.
 	AccionSinCambios AccionEscritura = "sin_cambios"
+	// AccionEliminar indica que el nodo está marcado con _Eliminar y su registro existente
+	// se da de baja. No se materializa como creación ni actualización.
+	AccionEliminar AccionEscritura = "eliminar"
 )
 
 // clasificarAccion decide la acción de un nodo. Sin registro existente, o con un
@@ -513,6 +538,54 @@ func clasificarAccion(
 		}
 	}
 	return AccionSinCambios
+}
+
+// Motivos de rechazo de la política de escritura por relación. No exponen valores
+// del cuerpo ni del CRUD.
+const (
+	motivoCreacionNoPermitida      = "la política de la relación no permite crear esta entidad (creatable: false)"
+	motivoActualizacionNoPermitida = "la política de la relación no permite actualizar esta entidad (updatable: false)"
+)
+
+// campoEliminar es la marca reservada que el servicio llamante pone sobre un objeto
+// lógico para pedir su baja. No pertenece al objeto: el motor la valida como booleana
+// y la retira de todo lo que envía a los CRUD.
+const campoEliminar = "_Eliminar"
+
+// Motivos de rechazo de la marca _Eliminar. No exponen valores del cuerpo ni del CRUD.
+const (
+	motivoMarcaEliminarNoBooleana       = "la marca _Eliminar debe ser booleana"
+	motivoMarcaEliminarEnRaiz           = "la raíz no admite eliminación por la marca _Eliminar"
+	motivoEliminacionNoPermitida        = "la política de la relación no permite eliminar esta entidad (deletable: false)"
+	motivoEliminarSinIdConClaveDerivada = "sin Id, la clave natural incluye un campo derivado de la relación; no se puede identificar el registro a eliminar"
+	motivoEliminarFKInbound             = "la eliminación por marca no aplica a una entidad referenciada por FK ascendente (fk_inbound)"
+)
+
+// esMarcaEliminar informa si el objeto lógico lleva la marca _Eliminar en true.
+func esMarcaEliminar(nodo map[string]any) bool {
+	marca, ok := nodo[campoEliminar].(bool)
+	return ok && marca
+}
+
+// validarPoliticaAccion aplica la política de verbos de la arista a la acción que el
+// pre-pass clasificó para el nodo. Crear exige creatable y actualizar exige updatable.
+// Una acción sin cambios no materializa ninguna escritura y no se gatea, de modo que
+// el reenvío de una entidad existente sin cambios no se rechaza.
+//
+// ruta identifica la arista en el error. Devuelve *ErrorEscritura si la acción no está
+// permitida por la política, y nil en otro caso.
+func validarPoliticaAccion(accion AccionEscritura, pol config.WriteVerbPolicy, ruta string) error {
+	switch accion {
+	case AccionCrear:
+		if !pol.Creatable {
+			return &ErrorEscritura{Path: ruta, Motivo: motivoCreacionNoPermitida}
+		}
+	case AccionActualizar:
+		if !pol.Updatable {
+			return &ErrorEscritura{Path: ruta, Motivo: motivoActualizacionNoPermitida}
+		}
+	}
+	return nil
 }
 
 // cadenaONula normaliza un valor para comparar campos: nil equivale a la cadena vacía.
@@ -629,8 +702,20 @@ func (me *motorEscritura) prepass(
 		me.retenido[claveNodo(nodo)] = nodoRetenido{omitido: true}
 		return nil
 	}
+	if esMarcaEliminar(nodo) {
+		return me.prepassEliminar(nodo, rel, wc, relNivel, ruta, registro)
+	}
+
 	accion := clasificarAccion(plano, registro, wc.WritableFields, camposDerivadosInternos(rel, relNivel))
 	me.retenido[claveNodo(nodo)] = nodoRetenido{registro: registro, accion: accion}
+
+	// La política de la arista gatea la acción materializada. La raíz no es una
+	// arista y no tiene política por relación.
+	if !esRaiz {
+		if err := validarPoliticaAccion(accion, wc.Policy, ruta); err != nil {
+			return err
+		}
+	}
 
 	if !esRaiz && rel.Write != nil && rel.Write.KeyPropagation != config.KeyPropagationFKInbound {
 		if campo, ok := rel.CampoDerivado(); ok &&
@@ -640,6 +725,53 @@ func (me *motorEscritura) prepass(
 	}
 
 	return me.prepassHijos(nodo, relNivel, esRaiz, ruta, llaveDelNodo(nodo, registro))
+}
+
+// prepassEliminar decide la baja de un nodo marcado con _Eliminar. Exige deletable en
+// la arista y, sin Id, rechaza una clave natural que incluya un campo derivado de la
+// relación, porque el registro no podría identificarse. Si el nodo no tiene registro
+// que borrar, se omite con un aviso no bloqueante. El subárbol de un nodo marcado no
+// se recorre: la baja no escribe sus hijos ni los infiere.
+//
+// Devuelve *ErrorEscritura por una marca no permitida o no identificable. El registro
+// retenido, cuando existe, lo usa materializarValorRelacion para emitir el DELETE.
+func (me *motorEscritura) prepassEliminar(
+	nodo map[string]any,
+	rel config.RelationConfig,
+	wc config.WriteConfig,
+	relNivel []config.RelationConfig,
+	ruta string,
+	registro map[string]any,
+) error {
+	if !wc.Policy.Deletable {
+		return &ErrorEscritura{Path: ruta, Motivo: motivoEliminacionNoPermitida}
+	}
+	if nodo["Id"] == nil && claveIncluyeDerivado(wc.NaturalKey, camposDerivadosInternos(rel, relNivel)) {
+		return &ErrorEscritura{Path: ruta, Motivo: motivoEliminarSinIdConClaveDerivada}
+	}
+	if registro == nil || registro["Id"] == nil {
+		me.retenido[claveNodo(nodo)] = nodoRetenido{omitido: true}
+		me.agregarAviso(responses.RelationError{
+			Path:    ruta,
+			Service: rel.RelatedService,
+			Message: "no hay registro que eliminar; la baja se omite",
+			Kind:    KindEliminacionOmitida,
+		})
+		return nil
+	}
+	me.retenido[claveNodo(nodo)] = nodoRetenido{registro: registro, accion: AccionEliminar}
+	return nil
+}
+
+// claveIncluyeDerivado informa si la clave natural incluye algún campo derivado de la
+// relación, cuyo valor solo se conoce al materializar el padre.
+func claveIncluyeDerivado(claveNatural []string, derivados map[string]struct{}) bool {
+	for _, campo := range claveNatural {
+		if contiene(derivados, campo) {
+			return true
+		}
+	}
+	return false
 }
 
 // prepassHijos aplica el pre-pass a las relaciones hijas de un nodo ya recuperado.
@@ -791,6 +923,22 @@ func (me *motorEscritura) materializarInbound(
 	return nil
 }
 
+// eliminarEntidad da de baja el registro retenido por el pre-pass para un nodo marcado,
+// mediante el método de eliminación del WriteResolver de su relación. Un fallo se trata
+// con la política de error de relación, igual que una materialización fallida.
+func (me *motorEscritura) eliminarEntidad(
+	res WriteResolver,
+	rel config.RelationConfig,
+	elem map[string]any,
+	ruta string,
+) error {
+	id := me.retenido[claveNodo(elem)].registro["Id"]
+	if err := res.Eliminar(me.ctx, rel, id); err != nil {
+		return me.manejarErrorRelacion(rel, ruta)
+	}
+	return nil
+}
+
 // materializarValorRelacion materializa el valor de una relación, que puede ser
 // un objeto (1-1) o una lista (1-N), propagando la llave del padre a cada
 // elemento antes de materializarlo.
@@ -805,6 +953,11 @@ func (me *motorEscritura) materializarValorRelacion(
 	procesar := func(elem map[string]any, ruta string) error {
 		if me.omitido(elem) {
 			return nil
+		}
+		// Un nodo marcado para baja se da de baja por el método de eliminación y su
+		// subárbol no se materializa.
+		if me.accionDe(elem) == AccionEliminar {
+			return me.eliminarEntidad(res, rel, elem, ruta)
 		}
 		// Conciliar la llave del padre con el campo derivado del hijo ANTES de
 		// materializar: un conflicto de entidad existente aborta con *ErrorEscritura

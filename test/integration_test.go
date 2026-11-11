@@ -589,10 +589,13 @@ func TestIntegracionConflictoFKAscendenteExistente400(t *testing.T) {
 	if env.Status != "400" || env.Success {
 		t.Errorf("envoltorio inesperado para un conflicto: %+v", env)
 	}
-	// No debe materializarse el proveedor en conflicto (ni POST ni PATCH).
-	post, patch, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
-	if post != 0 || patch != 0 {
-		t.Errorf("no debe materializarse el proveedor en conflicto; POST=%d PATCH=%d capturas=%+v", post, patch, crud.Capturas())
+	// El rechazo ocurre antes de cualquier escritura: ningún CRUD recibe POST, PATCH
+	// ni DELETE, incluido el tercero que la FK ascendente referencia. Solo se permiten
+	// lecturas (GET) durante el pre-pass.
+	for _, c := range crud.Capturas() {
+		if c.Metodo != http.MethodGet {
+			t.Errorf("un 400 por conflicto no debe escribir en ningún CRUD; petición=%s %s capturas=%+v", c.Metodo, c.Path, crud.Capturas())
+		}
 	}
 }
 

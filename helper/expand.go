@@ -29,6 +29,9 @@ const (
 	// autoritativa y lo reporta sin exponer datos remotos. Es distinto de
 	// KindRelation, reservado a fallos remotos tolerados.
 	KindFieldNormalization = "field_normalization"
+	// KindEliminacionOmitida marca un nodo marcado para eliminación que no tiene
+	// registro que borrar: la baja se omite sin bloquear la escritura.
+	KindEliminacionOmitida = "eliminacion_omitida"
 )
 
 // KindOrigen identifica el subsistema que emite un tipo de aviso. Distinguir el
@@ -61,6 +64,7 @@ var catalogoKinds = map[string]KindOrigen{
 	KindCycle:              KindOrigenExpansion,
 	KindGenericResolver:    KindOrigenExpansion,
 	KindFieldNormalization: KindOrigenEscritura,
+	KindEliminacionOmitida: KindOrigenEscritura,
 }
 
 // KindsDeAviso devuelve las constantes de tipo de aviso declaradas, derivadas del

@@ -258,6 +258,32 @@ func (r *EntityWriteResolver) buscarPorClaveNatural(
 	return nil, nil
 }
 
+// Eliminar da de baja el registro con el Id dado mediante DELETE sobre el recurso del
+// CRUD dueño. Devuelve error si el Id no es válido o el CRUD rechaza la baja. No
+// consulta el CRUD antes de borrar: la decisión de existencia la toma el motor en el
+// pre-pass.
+func (r *EntityWriteResolver) Eliminar(
+	ctx context.Context,
+	_ config.RelationConfig,
+	id any,
+) error {
+	base, ok := r.urls[r.relatedAPI]
+	if !ok || strings.TrimSpace(base) == "" {
+		return fmt.Errorf("write-resolver: no hay URL base para %q", r.relatedAPI)
+	}
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	endpoint := "/" + strings.TrimLeft(strings.TrimSpace(r.endpoint), "/")
+
+	idRegistro := idEntero(id)
+	if idRegistro <= 0 {
+		return errors.New("write-resolver: el registro a eliminar no tiene un Id válido")
+	}
+	if _, err := r.client.Delete(ctx, fmt.Sprintf("%s%s/%d", base, endpoint, idRegistro), nil); err != nil {
+		return fmt.Errorf("write-resolver: eliminación falló: %w", err)
+	}
+	return nil
+}
+
 // decodeAPIRecord decodifica la respuesta de lectura de un único registro, acepta
 // el sobre estándar de los CRUD ({"Data": {...}}) y un objeto JSON directo.
 func decodeAPIRecord(raw json.RawMessage) (map[string]any, error) {

@@ -388,3 +388,28 @@ func TestWriteResolverMaterializeNoRelee(t *testing.T) {
 		}
 	}
 }
+
+// Eliminar da de baja el registro con el Id dado mediante DELETE sobre el recurso del
+// CRUD dueño, sin emitir POST ni PATCH.
+func TestWriteResolverEliminaPorDELETE(t *testing.T) {
+	var capturas []peticionCapturada
+	server := crudSimulado(t, map[string]string{
+		"DELETE /v1/proveedor_natural/5": `{}`,
+	}, &capturas)
+	defer server.Close()
+
+	r := NewEntityWriteResolver(
+		clients.HTTPClient{Client: server.Client()},
+		urlsDe(server),
+		"gestion_personas_crud",
+		endpointProveedorNatural,
+		nil,
+	)
+
+	if err := r.Eliminar(context.Background(), config.RelationConfig{}, float64(5)); err != nil {
+		t.Fatalf("Eliminar no debe fallar: %v", err)
+	}
+	if len(capturas) != 1 || capturas[0].metodo != http.MethodDelete {
+		t.Errorf("Eliminar debe emitir exactamente un DELETE; capturas=%+v", capturas)
+	}
+}

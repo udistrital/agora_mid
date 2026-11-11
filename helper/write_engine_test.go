@@ -46,6 +46,16 @@ type resolverFalso struct {
 	sinRegistro bool
 	// registro, si no es nil, es el registro existente que Recuperar devuelve.
 	registro map[string]any
+	// eliminaciones, si no es nil, registra el Id de cada baja solicitada a Eliminar.
+	eliminaciones *[]string
+}
+
+// Eliminar registra la baja solicitada y devuelve fallarCon si está configurado.
+func (r *resolverFalso) Eliminar(_ context.Context, _ config.RelationConfig, id any) error {
+	if r.eliminaciones != nil {
+		*r.eliminaciones = append(*r.eliminaciones, aCadena(id))
+	}
+	return r.fallarCon
 }
 
 func (r *resolverFalso) Recuperar(
@@ -949,6 +959,20 @@ func TestInvarianteKindEscritura(t *testing.T) {
 		recolectar(res.Warnings)
 	}
 
+	// Nodo marcado para baja sin registro que borrar -> eliminacion_omitida.
+	{
+		var ll []registroMaterializacion
+		cfg := cfgEscritura()
+		cfg.Relations[1].Write.NaturalKey = []string{"Valor"}
+		hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll, sinRegistro: true}
+		body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Valor": "a", "_Eliminar": true}}}
+		res, err := Write(context.Background(), body, cfg, registryConHijo(&ll, hijo), WriteOptions{})
+		if err != nil {
+			t.Fatalf("la baja omitida de un nodo sin registro no debe fallar: %v", err)
+		}
+		recolectar(res.Warnings)
+	}
+
 	// Toda constante de origen escritura debe haber sido emitida por alguna ruta
 	// ejercida; de lo contrario quedaría declarada pero muerta.
 	for _, k := range KindsDeAviso() {
@@ -1461,5 +1485,483 @@ func TestWriteReenvioSinCambiosNoMaterializaYConservaRegistro(t *testing.T) {
 	hijos := res.Data["Hijo"].([]any)
 	if aFloat(hijos[0].(map[string]any)["Id"]) != 300 {
 		t.Errorf("el hijo sin cambios debe conservar su registro con Id 300; hijo=%+v", hijos[0])
+	}
+}
+
+// cfgConPoliticaHijo devuelve la configuración de cfgEscritura con la política de la
+// arista Hijo reemplazada por pol.
+func cfgConPoliticaHijo(pol config.WriteVerbPolicy) config.ServiceConfig {
+	cfg := cfgEscritura()
+	cfg.Relations[1].Write.Policy = pol
+	return cfg
+}
+
+// registryConHijo construye el registro de cfgEscritura usando el resolver de Hijo
+// que entrega el llamador, para controlar lo que Recuperar devuelve para esa arista.
+func registryConHijo(llamadas *[]registroMaterializacion, hijo WriteResolver) WriteResolverRegistry {
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: llamadas}
+	esp := map[string]WriteResolver{
+		"detalle": &resolverFalso{servicio: "detalle", siguienteID: 200, llamadas: llamadas},
+		"hijo":    hijo,
+	}
+	return NewWriteResolverRegistry(raiz, esp)
+}
+
+// comoErrorEscritura devuelve el *ErrorEscritura contenido en err, o nil si err no lo
+// contiene.
+func comoErrorEscritura(err error) *ErrorEscritura {
+	var ee *ErrorEscritura
+	if errors.As(err, &ee) {
+		return ee
+	}
+	return nil
+}
+
+// Una arista con creatable: false que recibe una entidad sin registro existente
+// (crearía una nueva) se rechaza con *ErrorEscritura que nombra la arista, y no se
+// envía ninguna escritura a los CRUD.
+func TestWriteCreatableFalseRechazaCreacion(t *testing.T) {
+	var llamadas []registroMaterializacion
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &llamadas, sinRegistro: true}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Valor": "a"}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: false, Updatable: true}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbCreate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil {
+		t.Fatalf("se esperaba *ErrorEscritura por creación no permitida; err=%v", err)
+	}
+	if !contieneTexto(ee.Path, "Hijo") {
+		t.Errorf("el error debe nombrar la arista Hijo; path=%q", ee.Path)
+	}
+	if len(llamadas) != 0 {
+		t.Errorf("no debe enviarse ninguna escritura a los CRUD; llamadas=%+v", llamadas)
+	}
+}
+
+// Una arista con creatable: false también rechaza la creación de una entidad
+// referenciada por fk_inbound, antes de escribir la raíz.
+func TestWriteCreatableFalseRechazaReferidaInbound(t *testing.T) {
+	var llamadas []registroMaterializacion
+	cfg := cfgEscrituraInbound()
+	cfg.Relations[0].Write.Policy = config.WriteVerbPolicy{Creatable: false, Updatable: true}
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &llamadas}
+	referida := &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &llamadas, sinRegistro: true}
+	registry := NewWriteResolverRegistry(raiz, map[string]WriteResolver{"referida": referida})
+	body := map[string]any{"Descripcion": "p", "Referida": map[string]any{"Nombre": "Ana"}}
+
+	_, err := Write(context.Background(), body, cfg, registry, WriteOptions{Verb: WriteVerbCreate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil {
+		t.Fatalf("se esperaba *ErrorEscritura por creación fk_inbound no permitida; err=%v", err)
+	}
+	if !contieneTexto(ee.Path, "Referida") {
+		t.Errorf("el error debe nombrar la arista Referida; path=%q", ee.Path)
+	}
+	if len(llamadas) != 0 {
+		t.Errorf("no debe enviarse ninguna escritura a los CRUD; llamadas=%+v", llamadas)
+	}
+}
+
+// Una arista con updatable: false que recibe una entidad existente con cambios en
+// sus campos escribibles se rechaza con *ErrorEscritura, sin escrituras.
+func TestWriteUpdatableFalseRechazaCambioExistente(t *testing.T) {
+	var llamadas []registroMaterializacion
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(555), "Valor": "viejo", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Id": float64(555), "Valor": "nuevo"}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: false}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil {
+		t.Fatalf("se esperaba *ErrorEscritura por actualización no permitida; err=%v", err)
+	}
+	if !contieneTexto(ee.Path, "Hijo") {
+		t.Errorf("el error debe nombrar la arista Hijo; path=%q", ee.Path)
+	}
+	if len(llamadas) != 0 {
+		t.Errorf("no debe enviarse ninguna escritura a los CRUD; llamadas=%+v", llamadas)
+	}
+}
+
+// Con updatable: false, una entidad que resuelve por clave natural a un registro
+// existente con un campo escribible distinto se rechaza sin escrituras, aunque el
+// payload no traiga Id.
+func TestWriteUpdatableFalseRechazaCambioPorClaveNatural(t *testing.T) {
+	var llamadas []registroMaterializacion
+	cfg := cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: false})
+	cfg.Relations[1].Write.WritableFields = []string{"Codigo", "Valor"}
+	cfg.Relations[1].Write.NaturalKey = []string{"Codigo"}
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(555), "Codigo": "A", "Valor": "viejo", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Codigo": "A", "Valor": "nuevo"}}}
+
+	_, err := Write(context.Background(), body, cfg, registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	if ee := comoErrorEscritura(err); ee == nil {
+		t.Fatalf("se esperaba *ErrorEscritura por actualización por clave natural no permitida; err=%v", err)
+	}
+	if len(llamadas) != 0 {
+		t.Errorf("no debe enviarse ninguna escritura a los CRUD; llamadas=%+v", llamadas)
+	}
+}
+
+// Con creatable: true, una entidad sin registro existente se crea normalmente.
+func TestWriteCreatableTrueCreaEntidadNueva(t *testing.T) {
+	var llamadas []registroMaterializacion
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &llamadas, sinRegistro: true}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Valor": "a"}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbCreate})
+
+	if err != nil {
+		t.Fatalf("una creación permitida no debe fallar: %v", err)
+	}
+	if !huboMaterializacion(llamadas, "hijo") {
+		t.Errorf("la entidad hijo debe materializarse con creatable: true; llamadas=%+v", llamadas)
+	}
+}
+
+// Con updatable: true, una entidad existente con cambios se actualiza normalmente.
+func TestWriteUpdatableTrueActualizaEntidadExistente(t *testing.T) {
+	var llamadas []registroMaterializacion
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(555), "Valor": "viejo", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Id": float64(555), "Valor": "nuevo"}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	if err != nil {
+		t.Fatalf("una actualización permitida no debe fallar: %v", err)
+	}
+	if !huboMaterializacion(llamadas, "hijo") {
+		t.Errorf("la entidad hijo debe actualizarse con updatable: true; llamadas=%+v", llamadas)
+	}
+}
+
+// Con updatable: false, el reenvío de una entidad existente sin cambios en sus campos
+// escribibles no se rechaza y no se reescribe.
+func TestWriteUpdatableFalseReenvioSinCambiosNoSeRechaza(t *testing.T) {
+	var llamadas []registroMaterializacion
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(555), "Valor": "a", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Id": float64(555), "Valor": "a"}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: false}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	if err != nil {
+		t.Fatalf("un reenvío sin cambios no debe rechazarse con updatable: false: %v", err)
+	}
+	if huboMaterializacion(llamadas, "hijo") {
+		t.Errorf("un reenvío sin cambios no debe reescribir la entidad hijo; llamadas=%+v", llamadas)
+	}
+}
+
+// Con creatable: false, una entidad existente con cambios en sus campos se actualiza
+// si updatable: true: la política de creación no bloquea la actualización.
+func TestWriteCreatableFalseNoBloqueaActualizacion(t *testing.T) {
+	var llamadas []registroMaterializacion
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(555), "Valor": "viejo", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Id": float64(555), "Valor": "nuevo"}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: false, Updatable: true}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	if err != nil {
+		t.Fatalf("creatable: false no debe bloquear una actualización permitida: %v", err)
+	}
+	if !huboMaterializacion(llamadas, "hijo") {
+		t.Errorf("la actualización permitida debe materializarse; llamadas=%+v", llamadas)
+	}
+}
+
+// huboMaterializacion informa si alguna escritura de llamadas corresponde al servicio.
+func huboMaterializacion(llamadas []registroMaterializacion, servicio string) bool {
+	for _, c := range llamadas {
+		if c.servicio == servicio {
+			return true
+		}
+	}
+	return false
+}
+
+// Con una raíz nueva (sin Id, sin llave que propagar), un hijo con Id propio que ya
+// pertenece a otro padre se rechaza con *ErrorEscritura que nombra la arista, sin
+// escrituras.
+func TestWriteReparentConRaizNuevaRechazaSinEscribir(t *testing.T) {
+	var llamadas []registroMaterializacion
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &llamadas, sinRegistro: true}
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(300), "Valor": "x", "PadreId": float64(999)},
+	}
+	registry := NewWriteResolverRegistry(raiz, map[string]WriteResolver{
+		"detalle": &resolverFalso{servicio: "detalle", siguienteID: 200, llamadas: &llamadas},
+		"hijo":    hijo,
+	})
+	body := map[string]any{
+		"TerceroId":   float64(25),
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "Valor": "x"}},
+	}
+
+	_, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{Verb: WriteVerbCreate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil {
+		t.Fatalf("se esperaba *ErrorEscritura por reparent con raíz nueva; err=%v", err)
+	}
+	if !contieneTexto(ee.Path, "Hijo") {
+		t.Errorf("el error debe nombrar la arista Hijo; path=%q", ee.Path)
+	}
+	if len(llamadas) != 0 {
+		t.Errorf("un 400 por reparent no debe escribir en ningún CRUD; llamadas=%+v", llamadas)
+	}
+}
+
+// Un hijo con Id propio bajo el padre que ya lo posee, con la llave propagada igual a
+// su asociación almacenada, no es reparent: se valida y se actualiza con normalidad,
+// y conserva la llave del padre.
+func TestWriteHijoBajoSuPadreConLlaveCoincidenteNoEsReparent(t *testing.T) {
+	var llamadas []registroMaterializacion
+	raiz := &resolverFalso{
+		servicio: "raiz", siguienteID: 100, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(100), "Descripcion": "p"},
+	}
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas,
+		registro: map[string]any{"Id": float64(300), "Valor": "x", "PadreId": float64(100)},
+	}
+	registry := NewWriteResolverRegistry(raiz, map[string]WriteResolver{
+		"detalle": &resolverFalso{servicio: "detalle", siguienteID: 200, llamadas: &llamadas},
+		"hijo":    hijo,
+	})
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "Valor": "z"}},
+	}
+
+	_, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{Verb: WriteVerbUpdate})
+
+	if err != nil {
+		t.Fatalf("un hijo bajo su padre legítimo con llave coincidente no debe rechazarse: %v", err)
+	}
+	var payloadHijo map[string]any
+	for _, c := range llamadas {
+		if c.servicio == "hijo" {
+			payloadHijo = c.payload
+		}
+	}
+	if payloadHijo == nil {
+		t.Fatalf("el hijo con cambios debe actualizarse; llamadas=%+v", llamadas)
+	}
+	if v, ok := payloadHijo["PadreId"].(float64); !ok || v != 100 {
+		t.Errorf("el hijo debe conservar la llave de su padre (100) numérica; payload=%+v", payloadHijo)
+	}
+}
+
+// Un nodo marcado con _Eliminar bajo una arista con deletable: false se rechaza por la
+// política de la arista, antes de cualquier baja o escritura.
+func TestWriteEliminarBajoDeletableFalseRechazaSinEscribir(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var bajas []string
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas, eliminaciones: &bajas,
+		registro: map[string]any{"Id": float64(555), "Valor": "a", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Id": float64(555), "_Eliminar": true}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: false}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil {
+		t.Fatalf("se esperaba *ErrorEscritura por eliminación no permitida; err=%v", err)
+	}
+	if !contieneTexto(ee.Path, "Hijo") || !contieneTexto(ee.Motivo, "deletable") {
+		t.Errorf("el error debe nombrar la arista Hijo y la política deletable; path=%q motivo=%q", ee.Path, ee.Motivo)
+	}
+	if len(llamadas) != 0 || len(bajas) != 0 {
+		t.Errorf("no debe haber escrituras ni bajas; llamadas=%+v bajas=%v", llamadas, bajas)
+	}
+}
+
+// Un nodo marcado con _Eliminar bajo una arista con deletable: true se da de baja con
+// la operación de borrado del CRUD dueño, y no se materializa como creación ni
+// actualización.
+func TestWriteEliminarBajoDeletableTrueBorraPorCRUD(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var bajas []string
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas, eliminaciones: &bajas,
+		registro: map[string]any{"Id": float64(555), "Valor": "a", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Id": float64(555), "_Eliminar": true}}}
+
+	_, err := Write(context.Background(), body,
+		cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true}),
+		registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	if err != nil {
+		t.Fatalf("una baja permitida no debe fallar: %v", err)
+	}
+	if len(bajas) != 1 || bajas[0] != "555" {
+		t.Errorf("la baja debe solicitarse al CRUD dueño para el Id 555; bajas=%v", bajas)
+	}
+	if huboMaterializacion(llamadas, "hijo") {
+		t.Errorf("el nodo marcado no debe materializarse como creación o actualización; llamadas=%+v", llamadas)
+	}
+}
+
+// Sin nodos marcados, el motor no infiere ninguna baja aunque el CRUD tenga registros
+// que el cuerpo no trae.
+func TestWriteSinMarcaNoInfiereEliminacion(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var bajas []string
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas, eliminaciones: &bajas,
+		registro: map[string]any{"Id": float64(555), "Valor": "a", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25)}
+
+	_, err := Write(context.Background(), body, cfgEscritura(), registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	if err != nil {
+		t.Fatalf("un cuerpo sin marcas no debe fallar: %v", err)
+	}
+	if len(bajas) != 0 {
+		t.Errorf("el motor no debe inferir bajas sin marca; bajas=%v", bajas)
+	}
+}
+
+// La marca _Eliminar debe ser booleana; otro tipo se rechaza con 400 antes de escribir.
+func TestWriteEliminarNoBooleanaRechaza(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var bajas []string
+	hijo := &resolverFalso{
+		servicio: "hijo", siguienteID: 300, llamadas: &llamadas, eliminaciones: &bajas,
+		registro: map[string]any{"Id": float64(555), "Valor": "a", "PadreId": float64(100)},
+	}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Id": float64(555), "_Eliminar": "si"}}}
+
+	_, err := Write(context.Background(), body, cfgEscritura(), registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil || !contieneTexto(ee.Motivo, "booleana") {
+		t.Fatalf("se esperaba *ErrorEscritura por marca no booleana; err=%v", err)
+	}
+	if len(llamadas) != 0 || len(bajas) != 0 {
+		t.Errorf("no debe haber escrituras ni bajas; llamadas=%+v bajas=%v", llamadas, bajas)
+	}
+}
+
+// La raíz no es una arista con política de eliminación: marcarla se rechaza con 400.
+func TestWriteEliminarEnRaizRechaza(t *testing.T) {
+	var llamadas []registroMaterializacion
+	body := map[string]any{"TerceroId": float64(25), "_Eliminar": true}
+
+	_, err := Write(context.Background(), body, cfgEscritura(), registryFalso(&llamadas, nil), WriteOptions{Verb: WriteVerbCreate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil || !contieneTexto(ee.Motivo, "raíz") {
+		t.Fatalf("se esperaba *ErrorEscritura por marca en la raíz; err=%v", err)
+	}
+	if len(llamadas) != 0 {
+		t.Errorf("no debe haber escrituras; llamadas=%+v", llamadas)
+	}
+}
+
+// Sin Id, si la clave natural incluye un campo derivado de la relación padre, la
+// búsqueda puede fallar y la baja quedaría mal identificada: se rechaza con 400.
+func TestWriteEliminarSinIdConClaveDerivadaRechaza(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var bajas []string
+	cfg := cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true})
+	cfg.Relations[1].Write.NaturalKey = []string{"Valor", "PadreId"}
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &llamadas, eliminaciones: &bajas, sinRegistro: true}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Valor": "a", "_Eliminar": true}}}
+
+	_, err := Write(context.Background(), body, cfg, registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil || !contieneTexto(ee.Motivo, "clave") {
+		t.Fatalf("se esperaba *ErrorEscritura por clave derivada sin Id; err=%v", err)
+	}
+	if len(llamadas) != 0 || len(bajas) != 0 {
+		t.Errorf("no debe haber escrituras ni bajas; llamadas=%+v bajas=%v", llamadas, bajas)
+	}
+}
+
+// Sin Id y sin coincidencia por una clave natural propia del nodo, no hay nada que
+// borrar: la baja se omite con un aviso no bloqueante, sin error ni escritura.
+func TestWriteEliminarSinRegistroEsAvisoNoBloqueante(t *testing.T) {
+	var llamadas []registroMaterializacion
+	var bajas []string
+	cfg := cfgConPoliticaHijo(config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true})
+	cfg.Relations[1].Write.NaturalKey = []string{"Valor"}
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &llamadas, eliminaciones: &bajas, sinRegistro: true}
+	body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Valor": "a", "_Eliminar": true}}}
+
+	res, err := Write(context.Background(), body, cfg, registryConHijo(&llamadas, hijo), WriteOptions{Verb: WriteVerbUpdate})
+
+	if err != nil {
+		t.Fatalf("un nodo marcado sin registro no debe bloquear la escritura: %v", err)
+	}
+	if len(bajas) != 0 || huboMaterializacion(llamadas, "hijo") {
+		t.Errorf("no debe haber baja ni escritura del nodo; bajas=%v llamadas=%+v", bajas, llamadas)
+	}
+	avisos := 0
+	for _, w := range res.Warnings {
+		if w.Kind == KindEliminacionOmitida && w.Path == "Hijo[0]" {
+			avisos++
+		}
+	}
+	if avisos != 1 {
+		t.Errorf("se esperaba 1 aviso eliminacion_omitida en Hijo[0]; warnings=%+v", res.Warnings)
+	}
+}
+
+// fk_inbound referencia una entidad que se materializa antes que la raíz; su baja no
+// se admite con la marca, porque dejaría la FK local de la raíz apuntando a nada.
+func TestWriteEliminarEnFKInboundRechaza(t *testing.T) {
+	var llamadas []registroMaterializacion
+	cfg := cfgEscrituraInbound()
+	cfg.Relations[0].Write.Policy = config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true}
+	body := map[string]any{"Descripcion": "p", "Referida": map[string]any{"Id": float64(200), "Nombre": "Ana", "_Eliminar": true}}
+
+	_, err := Write(context.Background(), body, cfg, registryInbound(&llamadas), WriteOptions{Verb: WriteVerbUpdate})
+
+	ee := comoErrorEscritura(err)
+	if ee == nil || !contieneTexto(ee.Motivo, "ascendente") {
+		t.Fatalf("se esperaba *ErrorEscritura por marca en una relación fk_inbound; err=%v", err)
+	}
+	if len(llamadas) != 0 {
+		t.Errorf("no debe haber escrituras; llamadas=%+v", llamadas)
 	}
 }
