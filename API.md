@@ -191,9 +191,10 @@ lectura.
 ### Cuerpo anidado
 
 El cuerpo es un objeto JSON con el proveedor raíz y sus entidades anidadas. Solo
-se admiten los **campos escribibles declarados por relación** en
-`config/relaciones_proveedor.yaml` (bloque `write`); cualquier otro campo
-responde `400` sin materializar nada.
+se admiten los **campos escribibles declarados por objeto** en la tabla de campos de
+`config/objetos_*.yaml` (rol `writable`; el proveedor raíz está en
+`config/objetos_proveedor.yaml`); cualquier otro campo responde `400` sin materializar
+nada.
 
 | Nodo | Cardinalidad | Campos escribibles | Reglas |
 |---|---|---|---|

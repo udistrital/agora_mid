@@ -159,8 +159,13 @@ type ServiceConfig struct {
 	// Write declara la configuración de escritura de la entidad raíz del
 	// servicio (por ejemplo proveedor). Como raíz, no propaga llave de un padre,
 	// por lo que su KeyPropagation debe quedar vacío. Es opcional: un servicio
-	// solo de lectura no lo declara.
+	// solo de lectura no lo declara. Cuando Raiz está declarada, los campos
+	// escribibles, inmutables y la clave natural provienen del objeto raíz, y
+	// Write solo puede declarar la política.
 	Write *WriteConfig `yaml:"write"`
+	// Raiz nombra el objeto direccionable que representa la entidad raíz del
+	// servicio. Su tabla de campos alimenta los campos de Write al arranque.
+	Raiz string `yaml:"raiz"`
 }
 
 // Arista describe la semántica de una relación entre un referenciador (un servicio

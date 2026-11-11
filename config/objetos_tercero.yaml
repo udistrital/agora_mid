@@ -1,0 +1,61 @@
+# Definición del objeto Tercero: datos de identidad de la persona.
+#
+# name: nombre único del objeto en el catálogo.
+# related_service: llave lógica del nodo; si se omite se deriva del nombre (tercero).
+# related_api: CRUD que almacena el objeto (clave de conf/app.conf: terceros).
+# related_table: tabla del CRUD. endpoint: ruta del recurso en ese CRUD.
+# campos: tabla de campos tipada. type es el tipo de almacenamiento. readable
+#   expone el campo en lectura; writable permite enviarlo en escritura.
+# referencias: objetos que este objeto referencia. La arista (direction, depth,
+#   key_propagation, policy, etc.) se declara en cada referencia.
+name: Tercero
+related_api: terceros
+related_table: tercero
+endpoint: /v1/tercero
+campos:
+  - name: NombreCompleto
+    type: string
+    readable: true
+    writable: true
+  - name: PrimerNombre
+    type: string
+    writable: true
+  - name: SegundoNombre
+    type: string
+    writable: true
+  - name: PrimerApellido
+    type: string
+    writable: true
+  - name: SegundoApellido
+    type: string
+    writable: true
+  - name: FechaNacimiento
+    type: timestamp
+    writable: true
+  - name: TipoContribuyenteId
+    type: integer
+    readable: true
+    writable: true
+referencias:
+  # DatosIdentificacion: documentos del tercero. Su FK TerceroId recibe la llave del
+  # tercero (key_propagation fk).
+  - objeto: DatosIdentificacion
+    direction: related_to_local
+    local_field: Id
+    related_field: TerceroId
+    cardinality: many
+    depth: 1
+    mapped_name: DatosIdentificacion
+    key_propagation: fk
+    policy:
+      creatable: true
+      updatable: true
+      deletable: false
+  # TipoContribuyente: clasificación del tercero, referenciada por Id local.
+  - objeto: TipoContribuyente
+    direction: local_to_related
+    local_field: TipoContribuyenteId
+    related_field: Id
+    cardinality: one
+    depth: 1
+    mapped_name: TipoContribuyente

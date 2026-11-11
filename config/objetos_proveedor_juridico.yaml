@@ -1,0 +1,47 @@
+# Definición del objeto ProveedorJuridico: detalle de persona jurídica del proveedor.
+#
+# name: nombre único del objeto en el catálogo.
+# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
+# related_table: tabla del CRUD.
+# endpoint: ruta del recurso en ese CRUD.
+# campos: tabla de campos tipada. Cada campo declara:
+#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
+#     timestamp o uuid). Obligatorio.
+#   readable: el campo se entrega en lectura.
+#   writable: el cliente puede enviar el campo en una escritura.
+#   immutable: el campo no cambia tras la creación. Exige writable.
+# referencias: objetos que este objeto referencia. [] indica que no referencia
+#   ninguno.
+#
+# La llave de propagación con el proveedor (shared_pk) se declara en la referencia
+# del servicio, no aquí.
+name: ProveedorJuridico
+related_api: gestion_personas_crud
+related_table: proveedor_juridico
+endpoint: /v1/proveedor_juridico
+campos:
+  - name: NombreComercial
+    type: string
+    readable: true
+    writable: true
+  - name: MatriculaMercantil
+    type: string
+    readable: true
+    writable: true
+  - name: FechaConstitucion
+    type: timestamp
+    readable: true
+    writable: true
+  - name: FechaRenovacion
+    type: timestamp
+    writable: true
+  - name: ReportaBeneficiosFinales
+    type: boolean
+    writable: true
+  - name: CotizaBolsa
+    type: boolean
+    writable: true
+  - name: RequiereRevisorFiscal
+    type: boolean
+    writable: true
+referencias: []

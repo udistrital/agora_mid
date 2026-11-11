@@ -29,16 +29,16 @@
 
 ## 4. Reescritura de la configuración del proveedor preservando el árbol efectivo
 
-- [ ] 4.1 Escribir prueba de equivalencia (en rojo) que compara el árbol efectivo compuesto del servicio `proveedor` contra el árbol de relaciones esperado (equivalente al inline actual), nodo a nodo, incluyendo propagación de llave y campos de lectura/escritura por objeto. Verificación: `go test ./config/...` falla antes de reescribir la configuración
-- [ ] 4.2 Reescribir `config/relaciones_proveedor.yaml` de árbol inline a definiciones de objeto direccionables + referencias de servicio, preservando el árbol efectivo. Verificación: la prueba 4.1 pasa
-- [ ] 4.3 Actualizar los comentarios inline de la configuración del proveedor para documentar la forma de objetos direccionables + referencias y la tabla de campos tipada. Verificación: revisión de que cada objeto y referencia lleva comentario explicativo coherente con el nuevo formato
+- [x] 4.1 Escribir prueba de equivalencia (en rojo) que compara el árbol efectivo compuesto del servicio `proveedor` contra el árbol de relaciones esperado (equivalente al inline actual), nodo a nodo, incluyendo propagación de llave y campos de lectura/escritura por objeto. Verificación: `go test ./config/...` falla antes de reescribir la configuración
+- [x] 4.2 Reescribir `config/relaciones_proveedor.yaml` de árbol inline a definiciones de objeto direccionables + referencias de servicio, preservando el árbol efectivo. Verificación: la prueba 4.1 pasa
+- [x] 4.3 Actualizar los comentarios inline de la configuración del proveedor para documentar la forma de objetos direccionables + referencias y la tabla de campos tipada. Verificación: revisión de que cada objeto y referencia lleva comentario explicativo coherente con el nuevo formato
 
 ## 5. Equivalencia de comportamiento de lectura y escritura del proveedor
 
-- [ ] 5.1 Escribir pruebas de equivalencia de lectura (en rojo) que ejercitan la expansión del proveedor (sin `fields`, con `fields`, con lista negra, Id implícito) sobre el árbol efectivo compuesto y verifican salida idéntica a la del comportamiento vigente. Verificación: `go test ./...` falla antes de que los motores consuman el árbol compuesto
-- [ ] 5.2 Escribir pruebas de equivalencia de escritura (en rojo) que ejercitan la cascada del proveedor (natural, jurídico, contacto, cuenta bancaria, propagación de llave, campo inmutable derivado, idempotencia por clave natural) sobre el árbol efectivo compuesto y verifican comportamiento idéntico. Verificación: `go test ./...` falla antes de conectar el árbol compuesto
-- [ ] 5.3 Conectar los motores de `helper/expand.go` y `helper/write_engine.go` para que consuman el árbol efectivo compuesto por el cargador, sin cambiar su lógica. Verificación: las pruebas 5.1 y 5.2 pasan y la suite completa `go test ./...` queda verde
-- [ ] 5.4 Ejecutar `go build ./...` y `go test ./...` completos y confirmar que no hay regresiones en ningún paquete. Verificación: ambos comandos terminan sin error
+- [x] 5.1 Escribir pruebas de equivalencia de lectura (en rojo) que ejercitan la expansión del proveedor (sin `fields`, con `fields`, con lista negra, Id implícito) sobre el árbol efectivo compuesto y verifican salida idéntica a la del comportamiento vigente. Verificación: `go test ./...` falla antes de que los motores consuman el árbol compuesto
+- [x] 5.2 Escribir pruebas de equivalencia de escritura (en rojo) que ejercitan la cascada del proveedor (natural, jurídico, contacto, cuenta bancaria, propagación de llave, campo inmutable derivado, idempotencia por clave natural) sobre el árbol efectivo compuesto y verifican comportamiento idéntico. Verificación: `go test ./...` falla antes de conectar el árbol compuesto
+- [x] 5.3 Conectar los motores de `helper/expand.go` y `helper/write_engine.go` para que consuman el árbol efectivo compuesto por el cargador, sin cambiar su lógica. Verificación: las pruebas 5.1 y 5.2 pasan y la suite completa `go test ./...` queda verde
+- [x] 5.4 Ejecutar `go build ./...` y `go test ./...` completos y confirmar que no hay regresiones en ningún paquete. Verificación: ambos comandos terminan sin error
 
 ## 6. Documentación del formato de configuración
 

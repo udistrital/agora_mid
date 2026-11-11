@@ -1,0 +1,45 @@
+# Definición del objeto DatosIdentificacion: documentos de identidad de un tercero.
+#
+# name: nombre único del objeto en el catálogo.
+# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
+# related_table: tabla del CRUD.
+# endpoint: ruta del recurso en ese CRUD.
+# natural_key: campos que identifican un documento existente en la escritura
+#   idempotente. Deben ser writable.
+# campos: tabla de campos tipada. Cada campo declara:
+#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
+#     timestamp o uuid). Obligatorio.
+#   readable: el campo se entrega en lectura.
+#   writable: el cliente puede enviar el campo en una escritura.
+#   immutable: el campo no cambia tras la creación. Exige writable.
+# referencias: objetos que este objeto referencia. [] indica que no referencia
+#   ninguno.
+name: DatosIdentificacion
+related_api: terceros
+related_table: datos_identificacion
+endpoint: /v1/datos_identificacion
+natural_key:
+  - Numero
+  - TipoDocumentoId
+campos:
+  - name: Numero
+    type: string
+    readable: true
+    writable: true
+    immutable: true
+  - name: TipoDocumentoId
+    type: integer
+    readable: true
+    writable: true
+    immutable: true
+  - name: DigitoVerificacion
+    type: integer
+    writable: true
+  - name: CiudadExpedicion
+    type: integer
+    readable: true
+    writable: true
+  - name: FechaExpedicion
+    type: timestamp
+    writable: true
+referencias: []

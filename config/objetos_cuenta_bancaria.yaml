@@ -1,0 +1,48 @@
+# Definición del objeto CuentaBancaria: cuenta bancaria del proveedor.
+#
+# name: nombre único del objeto en el catálogo.
+# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
+# related_table: tabla del CRUD.
+# endpoint: ruta del recurso en ese CRUD.
+# campos: tabla de campos tipada. Cada campo declara:
+#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
+#     timestamp o uuid). Obligatorio.
+#   readable: el campo se entrega en lectura.
+#   writable: el cliente puede enviar el campo en una escritura.
+#   immutable: el campo no cambia tras la creación. Exige writable.
+# referencias: objetos que este objeto referencia. [] indica que no referencia
+#   ninguno.
+#
+# Las columnas terminadas en Id son identificadores planos de catálogos o
+# ubicaciones; no declaran relación con otro objeto. La FK ProveedorId que une la
+# cuenta con el proveedor se declara en la referencia del servicio, no aquí.
+name: CuentaBancaria
+related_api: gestion_personas_crud
+related_table: cuenta_bancaria
+endpoint: /v1/cuenta_bancaria
+campos:
+  - name: EntidadBancariaId
+    type: integer
+    readable: true
+    writable: true
+  - name: TipoCuentaId
+    type: integer
+    readable: true
+    writable: true
+  - name: NumeroCuenta
+    type: string
+    readable: true
+    writable: true
+  - name: NombreTitular
+    type: string
+    readable: true
+    writable: true
+  - name: CiudadAperturaId
+    type: integer
+    readable: true
+    writable: true
+  - name: EsPrincipal
+    type: boolean
+    readable: true
+    writable: true
+referencias: []

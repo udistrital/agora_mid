@@ -18,6 +18,29 @@ func localizarArchivoProveedor(t *testing.T) string {
 	return ruta
 }
 
+// archivosProveedor devuelve los archivos de configuración del proveedor: el
+// archivo de relaciones indicado y las definiciones de objeto del directorio real.
+// Así las referencias del proveedor pueden resolverse.
+func archivosProveedor(t *testing.T, relaciones string) map[string]string {
+	t.Helper()
+	rutas, err := filepath.Glob("objetos_*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rutas) == 0 {
+		t.Fatal("no se encontraron definiciones de objeto en config/objetos_*.yaml")
+	}
+	archivos := map[string]string{"relaciones_proveedor.yaml": relaciones}
+	for _, ruta := range rutas {
+		contenido, err := os.ReadFile(ruta)
+		if err != nil {
+			t.Fatal(err)
+		}
+		archivos[filepath.Base(ruta)] = string(contenido)
+	}
+	return archivos
+}
+
 // El archivo real relaciones_proveedor.yaml se carga y valida sin error, y su
 // árbol del núcleo se interpreta correctamente.
 func TestRelacionesProveedorCargaYValida(t *testing.T) {
@@ -25,20 +48,14 @@ func TestRelacionesProveedorCargaYValida(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	ruta := filepath.Join(dir, "relaciones_proveedor.yaml")
-	if err := os.WriteFile(ruta, contenido, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	configs, err := LoadRelaciones(dir, urlsPrueba())
+	comp, err := escribirComposicion(t, archivosProveedor(t, string(contenido)))
 	if err != nil {
 		t.Fatalf("relaciones_proveedor.yaml debe cargar y validar sin error: %v", err)
 	}
 
-	sc, ok := configs["proveedor"]
+	sc, ok := comp.Servicios["proveedor"]
 	if !ok {
-		t.Fatalf("no se cargó el servicio proveedor; configs=%+v", configs)
+		t.Fatalf("no se cargó el servicio proveedor; servicios=%+v", comp.Servicios)
 	}
 	if sc.MaxDepth <= 0 || sc.MaxRelatedIDs <= 0 {
 		t.Errorf("max_depth y max_related_ids deben ser positivos: %+v", sc)
@@ -71,18 +88,12 @@ func TestRelacionesProveedorDeclaraCamposFiltrables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	ruta := filepath.Join(dir, "relaciones_proveedor.yaml")
-	if err := os.WriteFile(ruta, contenido, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	configs, err := LoadRelaciones(dir, urlsPrueba())
+	comp, err := escribirComposicion(t, archivosProveedor(t, string(contenido)))
 	if err != nil {
 		t.Fatalf("relaciones_proveedor.yaml debe cargar y validar sin error: %v", err)
 	}
 
-	sc := configs["proveedor"]
+	sc := comp.Servicios["proveedor"]
 	esperados := []string{"Id", "TerceroId", "TipoRegistroId", "DescripcionPortafolio"}
 	if len(sc.FilterableFields) != len(esperados) {
 		t.Fatalf("campos filtrables inesperados: got=%v want=%v", sc.FilterableFields, esperados)
@@ -113,34 +124,28 @@ func TestRelacionesProveedorNoNombraImplementaciones(t *testing.T) {
 	}
 }
 
-// Una relación mal declarada en el archivo del proveedor aborta la carga con un
-// mensaje que identifica el archivo y la relación afectada.
+// Una arista mal declarada en la referencia del proveedor aborta la carga con un
+// mensaje que identifica el archivo, el objeto referenciado y el campo afectado.
 func TestRelacionesProveedorMalformadaAborta(t *testing.T) {
 	contenido, err := os.ReadFile(localizarArchivoProveedor(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Corromper la dirección de la relación Contacto.
+	// Corromper la dirección de la referencia a Contacto.
 	corrupto := strings.Replace(
 		string(contenido),
-		"direction: related_to_local\n    local_field: Id\n    related_field: ProveedorId\n    cardinality: many\n    depth: 1\n    mapped_name: Contacto",
-		"direction: hacia_cualquier_lado\n    local_field: Id\n    related_field: ProveedorId\n    cardinality: many\n    depth: 1\n    mapped_name: Contacto",
+		"  - objeto: Contacto\n    direction: related_to_local",
+		"  - objeto: Contacto\n    direction: hacia_cualquier_lado",
 		1,
 	)
 	if corrupto == string(contenido) {
-		t.Fatal("no se pudo corromper la relación Contacto para la prueba")
+		t.Fatal("no se pudo corromper la referencia Contacto para la prueba")
 	}
 
-	dir := t.TempDir()
-	ruta := filepath.Join(dir, "relaciones_proveedor.yaml")
-	if err := os.WriteFile(ruta, []byte(corrupto), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = LoadRelaciones(dir, urlsPrueba())
+	_, err = escribirComposicion(t, archivosProveedor(t, corrupto))
 	if err == nil {
-		t.Fatal("una relación mal declarada debe abortar la carga")
+		t.Fatal("una arista mal declarada debe abortar la carga")
 	}
 	msg := err.Error()
 	for _, frag := range []string{"relaciones_proveedor.yaml", "Contacto", "direction"} {

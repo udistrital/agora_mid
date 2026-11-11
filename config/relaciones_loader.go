@@ -387,13 +387,23 @@ func validarUbicacionObjeto(obj ObjetoDireccionable, urls ServiceURLs) error {
 	return nil
 }
 
-// componerServicio resuelve las referencias del servicio, añade el árbol resultante
-// a sus relaciones declaradas en línea y valida el árbol efectivo con las mismas
-// reglas que una configuración en línea. Un servicio sin referencias se devuelve sin
-// cambios.
+// componerServicio resuelve la raíz y las referencias del servicio, añade el árbol
+// resultante a sus relaciones declaradas en línea y valida el árbol efectivo con las
+// mismas reglas que una configuración en línea. Un servicio sin raíz ni referencias
+// se devuelve sin cambios.
 func componerServicio(cargado servicioCargado, catalogo CatalogoObjetos, urls ServiceURLs) (ServiceConfig, error) {
 	sc := cargado.sc
+	if sc.Raiz != "" {
+		if err := aplicarRaiz(&sc, catalogo); err != nil {
+			return ServiceConfig{}, fmt.Errorf("archivo de relaciones %q: %w", cargado.ruta, err)
+		}
+	}
 	if len(sc.Referencias) == 0 {
+		if sc.Raiz != "" {
+			if err := validarServiceConfig(cargado.ruta, sc, urls); err != nil {
+				return ServiceConfig{}, err
+			}
+		}
 		return sc, nil
 	}
 
@@ -410,6 +420,33 @@ func componerServicio(cargado servicioCargado, catalogo CatalogoObjetos, urls Se
 		return ServiceConfig{}, err
 	}
 	return sc, nil
+}
+
+// aplicarRaiz toma los campos escribibles, inmutables y la clave natural del objeto
+// raíz y los coloca en el bloque write del servicio. La política de escritura se
+// conserva tal como se declaró en línea. Un write que ya declara campos aborta,
+// porque la tabla de campos del objeto es la única fuente de esos campos.
+func aplicarRaiz(sc *ServiceConfig, catalogo CatalogoObjetos) error {
+	obj, ok := catalogo.Objeto(sc.Raiz)
+	if !ok {
+		return fmt.Errorf("servicio %q: raiz %q no existe en el catálogo de objetos", sc.Service, sc.Raiz)
+	}
+
+	var w WriteConfig
+	if sc.Write != nil {
+		w = *sc.Write
+	}
+	if len(w.WritableFields) > 0 || len(w.ImmutableFields) > 0 || len(w.NaturalKey) > 0 {
+		return fmt.Errorf(
+			"servicio %q: write no debe declarar writable_fields, immutable_fields ni natural_key cuando raiz es %q; esos campos vienen de la tabla de campos del objeto",
+			sc.Service, sc.Raiz,
+		)
+	}
+	w.WritableFields = obj.Campos.CamposEscritura()
+	w.ImmutableFields = obj.Campos.CamposInmutables()
+	w.NaturalKey = append([]string(nil), obj.NaturalKey...)
+	sc.Write = &w
+	return nil
 }
 
 // componerNodos convierte cada referencia en un nodo del árbol y compone de forma
@@ -636,6 +673,9 @@ func calcularHuerfanos(servicios map[string]servicioCargado, catalogo CatalogoOb
 	alcanzados := make(map[string]bool, len(catalogo.objetos))
 	var pila []string
 	for _, cargado := range servicios {
+		if cargado.sc.Raiz != "" {
+			pila = append(pila, cargado.sc.Raiz)
+		}
 		for _, ref := range cargado.sc.Referencias {
 			pila = append(pila, ref.Objeto)
 		}

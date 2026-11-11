@@ -1,0 +1,23 @@
+# Definición del objeto TipoContribuyente: clasificación del tercero.
+#
+# name: nombre único del objeto en el catálogo.
+# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
+# related_table: tabla del CRUD.
+# endpoint: ruta del recurso en ese CRUD.
+# campos: tabla de campos tipada. Cada campo declara:
+#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
+#     timestamp o uuid). Obligatorio.
+#   readable: el campo se entrega en lectura.
+#   writable: el cliente puede enviar el campo en una escritura.
+#   immutable: el campo no cambia tras la creación. Exige writable.
+# referencias: objetos que este objeto referencia. [] indica que no referencia
+#   ninguno.
+name: TipoContribuyente
+related_api: terceros
+related_table: tipo_contribuyente
+endpoint: /v1/tipo_contribuyente
+campos:
+  - name: Nombre
+    type: string
+    readable: true
+referencias: []
