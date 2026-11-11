@@ -8,7 +8,7 @@ import (
 
 // Árbol inline de referencia del servicio proveedor, previo a la composición por
 // objetos direccionables. Es la base con la que se compara el árbol compuesto.
-const archivoBaseInlineProveedor = "testdata/relaciones_proveedor_inline.yaml"
+const archivoBaseInlineProveedor = "../test/fixtures/relaciones_proveedor_inline.yaml"
 
 // cargarBaseInlineProveedor carga el árbol inline de referencia como único archivo
 // de relaciones y devuelve el servicio proveedor.

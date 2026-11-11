@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -26,14 +28,13 @@ func (c Config) URLs() ServiceURLs {
 	}
 }
 
-// cargarServicios carga y valida todos los archivos config/relaciones_*.yaml del
-// directorio indicado, resolviendo related_service contra urls. Un archivo
-// ausente, inválido o con una relación inconsistente devuelve un error que
+// cargarServicios carga y valida todos los archivos relaciones_*.yaml del árbol de
+// directorios indicado, a cualquier profundidad, resolviendo related_service contra
+// urls. Un archivo ausente, inválido o con una relación inconsistente devuelve un error que
 // identifica el archivo y, cuando aplica, la relación; el llamador debe abortar
 // el arranque ante ese error.
 func cargarServicios(dir string, urls ServiceURLs) (map[string]servicioCargado, error) {
-	patron := filepath.Join(dir, "relaciones_*.yaml")
-	rutas, err := filepath.Glob(patron)
+	rutas, err := descubrirArchivos(dir, "relaciones_")
 	if err != nil {
 		return nil, fmt.Errorf("no se pudo listar archivos de relaciones en %q: %w", dir, err)
 	}
@@ -58,6 +59,34 @@ func cargarServicios(dir string, urls ServiceURLs) (map[string]servicioCargado, 
 	}
 
 	return configs, nil
+}
+
+// descubrirArchivos recorre recursivamente dir y devuelve las rutas de los archivos
+// cuyo nombre empieza por prefijo y termina en .yaml, sin importar la profundidad de
+// sus subdirectorios. El orden lo fija el llamador. Un dir inexistente no es un
+// error: no hay archivos que descubrir, igual que con el glob de un nivel.
+func descubrirArchivos(dir, prefijo string) ([]string, error) {
+	var rutas []string
+	err := filepath.WalkDir(dir, func(ruta string, entrada fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entrada.IsDir() {
+			return nil
+		}
+		nombre := entrada.Name()
+		if strings.HasPrefix(nombre, prefijo) && strings.HasSuffix(nombre, ".yaml") {
+			rutas = append(rutas, ruta)
+		}
+		return nil
+	})
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return rutas, nil
 }
 
 func cargarArchivoRelaciones(ruta string) (ServiceConfig, error) {
@@ -293,8 +322,8 @@ type Composicion struct {
 	Huerfanos []string
 }
 
-// CargarComposicion carga los servicios de config/relaciones_*.yaml y el catálogo de
-// objetos de config/objetos_*.yaml, resuelve las referencias y aplana el árbol
+// CargarComposicion carga los servicios de relaciones_*.yaml y el catálogo de objetos de
+// objetos_*.yaml, descubiertos recursivamente bajo dir, resuelve las referencias y aplana el árbol
 // efectivo de cada servicio. Un error de carga, de ubicación de objeto o de
 // composición devuelve un error que nombra el fragmento responsable.
 func CargarComposicion(dir string, urls ServiceURLs) (Composicion, error) {
@@ -333,10 +362,11 @@ func CargarComposicion(dir string, urls ServiceURLs) (Composicion, error) {
 	return Composicion{Servicios: efectivos, Huerfanos: calcularHuerfanos(servicios, catalogo)}, nil
 }
 
-// cargarCatalogoObjetos lee y valida cada config/objetos_*.yaml y construye el
-// catálogo. Cada objeto debe declarar la ubicación de su CRUD.
+// cargarCatalogoObjetos lee y valida cada objetos_*.yaml del árbol de directorios
+// indicado, a cualquier profundidad, y construye el catálogo. Cada objeto debe declarar
+// la ubicación de su CRUD.
 func cargarCatalogoObjetos(dir string, urls ServiceURLs) (CatalogoObjetos, error) {
-	rutas, err := filepath.Glob(filepath.Join(dir, "objetos_*.yaml"))
+	rutas, err := descubrirArchivos(dir, "objetos_")
 	if err != nil {
 		return CatalogoObjetos{}, fmt.Errorf("no se pudo listar archivos de objetos en %q: %w", dir, err)
 	}
