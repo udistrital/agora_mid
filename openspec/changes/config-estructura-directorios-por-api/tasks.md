@@ -32,14 +32,14 @@
 
 ## 3. Traslado de los archivos de configuración y convenciones
 
-- [ ] 3.1 Mover los `objetos_*.yaml` y `relaciones_*.yaml` existentes del directorio
+- [x] 3.1 Mover los `objetos_*.yaml` y `relaciones_*.yaml` existentes del directorio
   plano a subdirectorios por CRUD bajo el directorio raíz de configuración, y verificar
   que la suite del paquete `config` sigue en verde con la nueva disposición
-- [ ] 3.2 Trasladar el `README.md` de convenciones al directorio raíz de configuración y
+- [x] 3.2 Trasladar el `README.md` de convenciones al directorio raíz de configuración y
   actualizar su descripción a la disposición por subdirectorios, y verificar que las
   pruebas que validan el README (si existen) quedan coherentes con el contenido movido
 
 ## 4. Verificación de integración
 
-- [ ] 4.1 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa
+- [x] 4.1 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa
   sin marcadores de rojo remanentes

@@ -8,27 +8,30 @@ import (
 )
 
 // localizarArchivoProveedor devuelve la ruta del archivo de configuración real
-// del proveedor dentro del paquete config.
+// del proveedor dentro del árbol de config, en su subdirectorio por CRUD.
 func localizarArchivoProveedor(t *testing.T) string {
 	t.Helper()
-	ruta := "relaciones_proveedor.yaml"
-	if _, err := os.Stat(ruta); err != nil {
-		t.Fatalf("no se encontró relaciones_proveedor.yaml: %v", err)
+	rutas, err := descubrirArchivos(".", "relaciones_proveedor")
+	if err != nil {
+		t.Fatal(err)
 	}
-	return ruta
+	if len(rutas) != 1 {
+		t.Fatalf("se esperaba un único relaciones_proveedor.yaml bajo config, hay %d: %v", len(rutas), rutas)
+	}
+	return rutas[0]
 }
 
 // archivosProveedor devuelve los archivos de configuración del proveedor: el
-// archivo de relaciones indicado y las definiciones de objeto del directorio real.
+// archivo de relaciones indicado y las definiciones de objeto de todo el árbol real.
 // Así las referencias del proveedor pueden resolverse.
 func archivosProveedor(t *testing.T, relaciones string) map[string]string {
 	t.Helper()
-	rutas, err := filepath.Glob("objetos_*.yaml")
+	rutas, err := descubrirArchivos(".", "objetos_")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rutas) == 0 {
-		t.Fatal("no se encontraron definiciones de objeto en config/objetos_*.yaml")
+		t.Fatal("no se encontraron definiciones de objeto bajo config/")
 	}
 	archivos := map[string]string{"relaciones_proveedor.yaml": relaciones}
 	for _, ruta := range rutas {

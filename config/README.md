@@ -7,6 +7,23 @@ Hay dos tipos de archivo:
 - `objetos_<nombre>.yaml`: un objeto direccionable por archivo.
 - `relaciones_<servicio>.yaml`: la configuración de un servicio, con sus referencias.
 
+## Disposición de archivos
+
+Los archivos se agrupan en un subdirectorio por CRUD, bajo este directorio raíz. El nombre del subdirectorio es el valor de `related_api` de los objetos que contiene. El archivo `relaciones_<servicio>.yaml` va en el subdirectorio del CRUD que expone el servicio. El cargador recorre todo el árbol a cualquier profundidad, así que la carpeta sirve para organizar y no cambia la composición: mover un archivo entre subdirectorios deja el árbol efectivo igual. Los nombres de objeto siguen siendo únicos en todo el catálogo, sin importar la carpeta.
+
+```text
+config/   (extracto)
+├── README.md
+├── global_blacklist.yaml
+├── gestion_personas_crud/
+│   ├── objetos_contacto.yaml
+│   ├── objetos_proveedor.yaml
+│   └── relaciones_proveedor.yaml
+└── terceros/
+    ├── objetos_tercero.yaml
+    └── objetos_tipo_contribuyente.yaml
+```
+
 ## Objetos direccionables
 
 Un objeto es una entidad con nombre único. Puede referenciarse desde varios servicios u otros objetos.
