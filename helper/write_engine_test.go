@@ -38,6 +38,14 @@ type resolverFalso struct {
 	// recuperaciones cuenta cuántas veces se invocó Recuperar, para verificar que
 	// el pre-pass recupera por lectura antes de materializar.
 	recuperaciones *int
+	// eventos, si no es nil, registra en orden cada lectura ("R:<servicio>") y
+	// cada escritura ("M:<servicio>") para verificar el orden del pre-pass.
+	eventos *[]string
+	// sinRegistro, si es true, hace que Recuperar no encuentre registro existente
+	// cuando el payload no trae Id: la entidad se creará.
+	sinRegistro bool
+	// registro, si no es nil, es el registro existente que Recuperar devuelve.
+	registro map[string]any
 }
 
 func (r *resolverFalso) Recuperar(
@@ -45,25 +53,34 @@ func (r *resolverFalso) Recuperar(
 	_ config.RelationConfig,
 	payload map[string]any,
 	_ []string,
-) (int, error) {
+) (map[string]any, error) {
 	if r.recuperaciones != nil {
 		*r.recuperaciones++
 	}
+	if r.eventos != nil {
+		*r.eventos = append(*r.eventos, "R:"+r.servicio)
+	}
 	if r.fallarRecuperarCon != nil {
-		return 0, r.fallarRecuperarCon
+		return nil, r.fallarRecuperarCon
+	}
+	if r.registro != nil {
+		return r.registro, nil
 	}
 	// Un Id propio en el payload es el identificador autoritativo del registro
 	// existente.
 	if v, ok := payload["Id"]; ok && v != nil {
-		return int(aFloat(v)), nil
+		return map[string]any{"Id": aFloat(v)}, nil
+	}
+	if r.sinRegistro {
+		return nil, nil
 	}
 	// Sin Id propio, el Id autoritativo es el que el registro existente tendría al
 	// resolverse por clave natural. Si no se configuró uno, se usa el Id que la
 	// materialización asignaría, simulando la creación idempotente.
 	if r.idRecuperado > 0 {
-		return int(r.idRecuperado), nil
+		return map[string]any{"Id": r.idRecuperado}, nil
 	}
-	return int(r.siguienteID), nil
+	return map[string]any{"Id": r.siguienteID}, nil
 }
 
 // aFloat normaliza a float64 un valor numérico de Id para el resolver de prueba.
@@ -89,6 +106,9 @@ func (r *resolverFalso) Materialize(
 	nombre := rel.RelatedService
 	if nombre == "" {
 		nombre = r.servicio
+	}
+	if r.eventos != nil {
+		*r.eventos = append(*r.eventos, "M:"+nombre)
 	}
 	*r.llamadas = append(*r.llamadas, registroMaterializacion{
 		servicio: nombre,
@@ -1099,5 +1119,347 @@ func TestWriteInboundFalloRecuperacionEstricto(t *testing.T) {
 	}
 	if contieneTexto(err.Error(), "crud caído") {
 		t.Errorf("el error fatal no debe exponer el mensaje interno del CRUD; err=%v", err)
+	}
+}
+
+// cfgEscrituraInboundConHijo extiende la configuración fk_inbound con una relación
+// hija descendente por FK (Hijo, con PadreId) para ejercitar nodos posteriores.
+func cfgEscrituraInboundConHijo() config.ServiceConfig {
+	cfg := cfgEscrituraInbound()
+	cfg.Relations = append(cfg.Relations, config.RelationConfig{
+		Name:           "Hijo",
+		RelatedService: "hijo",
+		MappedName:     "Hijo",
+		RelatedField:   "PadreId",
+		Cardinality:    config.CardinalityMany,
+		Write: &config.WriteConfig{
+			WritableFields: []string{"Valor"},
+			KeyPropagation: config.KeyPropagationFK,
+			Policy:         config.WriteVerbPolicy{Creatable: true, Updatable: true},
+		},
+	})
+	return cfg
+}
+
+// registryInboundConHijo construye el registro de raíz (100), referida (200) e
+// hijo (300), registrando las materializaciones en ll.
+func registryInboundConHijo(ll *[]registroMaterializacion, eventos *[]string) WriteResolverRegistry {
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: ll, eventos: eventos}
+	esp := map[string]WriteResolver{
+		"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: ll, eventos: eventos},
+		"hijo":     &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: ll, eventos: eventos},
+	}
+	return NewWriteResolverRegistry(raiz, esp)
+}
+
+// Una llave incompatible en un nodo hijo posterior del recorrido debe rechazar la
+// escritura antes de materializar cualquier entidad, incluida la referida que el
+// nodo raíz recupera antes que el hijo.
+func TestWriteViolacionEnNodoPosteriorNoEscribeNada(t *testing.T) {
+	var ll []registroMaterializacion
+	registry := registryInboundConHijo(&ll, nil)
+
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"Referida":    map[string]any{"Nombre": "Ana"},
+		"Hijo":        []any{map[string]any{"Id": float64(300), "PadreId": float64(999), "Valor": "x"}},
+	}
+
+	_, err := Write(context.Background(), body, cfgEscrituraInboundConHijo(), registry, WriteOptions{Verb: WriteVerbUpdate})
+	var ee *ErrorEscritura
+	if !errors.As(err, &ee) {
+		t.Fatalf("se esperaba *ErrorEscritura por la llave incompatible del hijo; err=%v", err)
+	}
+	if len(ll) != 0 {
+		t.Errorf("un 400 no debe dejar escrituras previas; se materializó: %+v", ll)
+	}
+}
+
+// El pre-pass de solo lectura recupera cada nodo del árbol (raíz, referida fk_inbound
+// e hijo) exactamente una vez, y todas esas lecturas ocurren antes de la primera
+// escritura.
+func TestWritePrePassRecuperaTodoElArbolAntesDeEscribir(t *testing.T) {
+	var ll []registroMaterializacion
+	var eventos []string
+	registry := registryInboundConHijo(&ll, &eventos)
+
+	body := map[string]any{
+		"Descripcion": "p",
+		"Referida":    map[string]any{"Nombre": "Ana"},
+		"Hijo":        []any{map[string]any{"Valor": "x"}},
+	}
+
+	if _, err := Write(context.Background(), body, cfgEscrituraInboundConHijo(), registry, WriteOptions{}); err != nil {
+		t.Fatalf("no debe fallar: %v", err)
+	}
+
+	primeraEscritura := -1
+	for i, e := range eventos {
+		if strings.HasPrefix(e, "M:") {
+			primeraEscritura = i
+			break
+		}
+	}
+	if primeraEscritura < 0 {
+		t.Fatalf("se esperaban escrituras; eventos=%v", eventos)
+	}
+	for _, servicio := range []string{"raiz", "referida", "hijo"} {
+		n := 0
+		for _, e := range eventos[:primeraEscritura] {
+			if e == "R:"+servicio {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Errorf("el pre-pass debe recuperar %q exactamente una vez antes de la primera escritura; eventos=%v", servicio, eventos)
+		}
+	}
+}
+
+// El pre-pass clasifica la acción de cada nodo a partir del estado retenido: crear
+// cuando no resuelve a un registro existente y actualizar cuando sí, por Id propio o
+// por clave natural.
+func TestPrePassClasificaCrearOActualizarPorResolucion(t *testing.T) {
+	var ll []registroMaterializacion
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll, sinRegistro: true}
+	referida := &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll, idRecuperado: 200}
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll, sinRegistro: true}
+	registry := NewWriteResolverRegistry(raiz, map[string]WriteResolver{"referida": referida, "hijo": hijo})
+
+	body := map[string]any{
+		"Descripcion": "p",
+		"Referida":    map[string]any{"Nombre": "Ana"},
+		"Hijo": []any{
+			map[string]any{"Id": float64(300), "Valor": "x"},
+			map[string]any{"Valor": "y"},
+		},
+	}
+	me := prepassDe(t, body, cfgEscrituraInboundConHijo(), registry)
+
+	hijos := body["Hijo"].([]any)
+	casos := []struct {
+		nombre string
+		nodo   map[string]any
+		want   AccionEscritura
+	}{
+		{"raíz sin registro", body, AccionCrear},
+		{"referida resuelta por clave natural", body["Referida"].(map[string]any), AccionActualizar},
+		{"hijo con Id propio", hijos[0].(map[string]any), AccionActualizar},
+		{"hijo sin registro", hijos[1].(map[string]any), AccionCrear},
+	}
+	for _, c := range casos {
+		if got := me.accionDe(c.nodo); got != c.want {
+			t.Errorf("%s: acción=%q, se esperaba %q", c.nombre, got, c.want)
+		}
+	}
+}
+
+// Un reenvío cuyos campos escribibles coinciden con el registro retenido no se
+// clasifica como actualización; los campos derivados no se comparan.
+func TestPrePassReenvioSinCambiosNoEsActualizacion(t *testing.T) {
+	var ll []registroMaterializacion
+	raiz := &resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll,
+		registro: map[string]any{"Id": float64(100), "Descripcion": "p", "RefId": float64(200)}}
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll,
+		registro: map[string]any{"Id": float64(300), "Valor": "x"}}
+	registry := NewWriteResolverRegistry(raiz, map[string]WriteResolver{
+		"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll},
+		"hijo":     hijo,
+	})
+
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "PadreId": float64(100), "Valor": "x"}},
+	}
+	me := prepassDe(t, body, cfgEscrituraInboundConHijo(), registry)
+	hijoNodo := body["Hijo"].([]any)[0].(map[string]any)
+	if got := me.accionDe(hijoNodo); got != AccionSinCambios {
+		t.Errorf("reenvío sin cambios: acción=%q, se esperaba %q", got, AccionSinCambios)
+	}
+	if got := me.accionDe(body); got != AccionSinCambios {
+		t.Errorf("raíz reenviada sin cambios: acción=%q, se esperaba %q", got, AccionSinCambios)
+	}
+}
+
+// Un campo escribible que difiere del registro retenido convierte el reenvío en una
+// actualización con cambios.
+func TestPrePassCambioEnCampoEscribibleEsActualizacion(t *testing.T) {
+	var ll []registroMaterializacion
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll,
+		registro: map[string]any{"Id": float64(300), "Valor": "x"}}
+	registry := NewWriteResolverRegistry(
+		&resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll},
+		map[string]WriteResolver{"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll}, "hijo": hijo},
+	)
+	body := map[string]any{
+		"Id":   float64(100),
+		"Hijo": []any{map[string]any{"Id": float64(300), "PadreId": float64(100), "Valor": "z"}},
+	}
+	me := prepassDe(t, body, cfgEscrituraInboundConHijo(), registry)
+	hijoNodo := body["Hijo"].([]any)[0].(map[string]any)
+	if got := me.accionDe(hijoNodo); got != AccionActualizar {
+		t.Errorf("campo escribible cambiado: acción=%q, se esperaba %q", got, AccionActualizar)
+	}
+}
+
+// La materialización usa el Id del registro retenido por el pre-pass en lugar de
+// volver a buscarlo: la entidad existente se envía con su Id.
+func TestWriteMaterializaConIdDelRegistroRetenido(t *testing.T) {
+	var ll []registroMaterializacion
+	hijo := &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll,
+		registro: map[string]any{"Id": float64(555), "Valor": "x"}}
+	registry := NewWriteResolverRegistry(
+		&resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll},
+		map[string]WriteResolver{"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll}, "hijo": hijo},
+	)
+	// Valor distinto del registro retenido: el hijo es una actualización y se escribe.
+	body := map[string]any{
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Valor": "y"}},
+	}
+	if _, err := Write(context.Background(), body, cfgEscrituraInboundConHijo(), registry, WriteOptions{}); err != nil {
+		t.Fatalf("no debe fallar: %v", err)
+	}
+	var enviado *registroMaterializacion
+	for i := range ll {
+		if ll[i].servicio == "hijo" {
+			enviado = &ll[i]
+		}
+	}
+	if enviado == nil {
+		t.Fatalf("se esperaba materializar el hijo; llamadas=%+v", ll)
+	}
+	if aFloat(enviado.payload["Id"]) != 555 {
+		t.Errorf("la materialización debe usar el Id retenido 555; payload=%+v", enviado.payload)
+	}
+}
+
+// prepassDe ejecuta solo el pre-pass sobre el cuerpo y devuelve el motor con el estado
+// retenido, para verificar la clasificación de cada nodo antes de cualquier escritura.
+func prepassDe(t *testing.T, body map[string]any, cfg config.ServiceConfig, registry WriteResolverRegistry) *motorEscritura {
+	t.Helper()
+	me := &motorEscritura{
+		ctx:          context.Background(),
+		registry:     registry,
+		onRelError:   config.OnRelationErrorNotify,
+		servicioRaiz: cfg.Service,
+		retenido:     make(map[string]nodoRetenido),
+	}
+	if err := me.prepass(body, registry.resolverRaiz(), config.RelationConfig{}, *cfg.Write, cfg.Relations, "", nil); err != nil {
+		t.Fatalf("el pre-pass no debe fallar: %v", err)
+	}
+	return me
+}
+
+// Un hijo existente cuya asociación almacenada apunta a otro padre no puede ser
+// reasociado por el motor aunque el reenvío omita la FK: el 400 se decide antes de
+// cualquier escritura.
+func TestWriteReparentPorAsociacionAlmacenadaSinFKReenviada(t *testing.T) {
+	var ll []registroMaterializacion
+	registry := NewWriteResolverRegistry(
+		&resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll, registro: map[string]any{"Id": float64(100), "Descripcion": "p"}},
+		map[string]WriteResolver{
+			"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll},
+			"hijo": &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll,
+				registro: map[string]any{"Id": float64(300), "Valor": "x", "PadreId": float64(999)}},
+		},
+	)
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "Valor": "z"}},
+	}
+	_, err := Write(context.Background(), body, cfgEscrituraInboundConHijo(), registry, WriteOptions{Verb: WriteVerbUpdate})
+	var ee *ErrorEscritura
+	if !errors.As(err, &ee) {
+		t.Fatalf("se esperaba *ErrorEscritura por reparent de hijo existente; err=%v", err)
+	}
+	if len(ll) != 0 {
+		t.Errorf("un 400 por reparent no debe escribir; se materializó: %+v", ll)
+	}
+}
+
+// Un reenvío con FK propagada distinta de la asociación almacenada de un hijo
+// existente es un reparent, aunque la FK reenviada coincida con la del padre
+// materializado.
+func TestWriteReparentPorFKReenviadaDistintaDeAlmacenada(t *testing.T) {
+	var ll []registroMaterializacion
+	registry := NewWriteResolverRegistry(
+		&resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll, registro: map[string]any{"Id": float64(100), "Descripcion": "p"}},
+		map[string]WriteResolver{
+			"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll},
+			"hijo": &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll,
+				registro: map[string]any{"Id": float64(300), "Valor": "x", "PadreId": float64(999)}},
+		},
+	)
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "PadreId": float64(100), "Valor": "z"}},
+	}
+	_, err := Write(context.Background(), body, cfgEscrituraInboundConHijo(), registry, WriteOptions{Verb: WriteVerbUpdate})
+	var ee *ErrorEscritura
+	if !errors.As(err, &ee) {
+		t.Fatalf("se esperaba *ErrorEscritura por FK reenviada distinta de la almacenada; err=%v", err)
+	}
+	if len(ll) != 0 {
+		t.Errorf("un 400 por reparent no debe escribir; se materializó: %+v", ll)
+	}
+}
+
+// Regresión: un hijo existente que ya pertenece al padre y reenvía sin FK se actualiza
+// con normalidad, sin tratarse como reparent.
+func TestWriteHijoExistenteEnSuPadreNoEsReparent(t *testing.T) {
+	var ll []registroMaterializacion
+	registry := NewWriteResolverRegistry(
+		&resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll, registro: map[string]any{"Id": float64(100), "Descripcion": "p"}},
+		map[string]WriteResolver{
+			"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll},
+			"hijo": &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll,
+				registro: map[string]any{"Id": float64(300), "Valor": "x", "PadreId": float64(100)}},
+		},
+	)
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "Valor": "z"}},
+	}
+	if _, err := Write(context.Background(), body, cfgEscrituraInboundConHijo(), registry, WriteOptions{Verb: WriteVerbUpdate}); err != nil {
+		t.Fatalf("un hijo existente en su padre no debe rechazarse: %v", err)
+	}
+}
+
+// Un nodo clasificado sin cambios no se escribe: ningún PATCH ni POST, pero el árbol
+// resultante conserva su registro existente con su Id.
+func TestWriteReenvioSinCambiosNoMaterializaYConservaRegistro(t *testing.T) {
+	var ll []registroMaterializacion
+	registry := NewWriteResolverRegistry(
+		&resolverFalso{servicio: "raiz", siguienteID: 100, llamadas: &ll, registro: map[string]any{"Id": float64(100), "Descripcion": "p"}},
+		map[string]WriteResolver{
+			"referida": &resolverFalso{servicio: "referida", siguienteID: 200, llamadas: &ll},
+			"hijo": &resolverFalso{servicio: "hijo", siguienteID: 300, llamadas: &ll,
+				registro: map[string]any{"Id": float64(300), "Valor": "x", "PadreId": float64(100)}},
+		},
+	)
+	body := map[string]any{
+		"Id":          float64(100),
+		"Descripcion": "p",
+		"Hijo":        []any{map[string]any{"Id": float64(300), "PadreId": float64(100), "Valor": "x"}},
+	}
+	res, err := Write(context.Background(), body, cfgEscrituraInboundConHijo(), registry, WriteOptions{Verb: WriteVerbUpdate})
+	if err != nil {
+		t.Fatalf("un reenvío sin cambios no debe fallar: %v", err)
+	}
+	if len(ll) != 0 {
+		t.Errorf("un reenvío sin cambios no debe escribirse; materializaciones=%+v", ll)
+	}
+	if aFloat(res.Data["Id"]) != 100 {
+		t.Errorf("la raíz sin cambios debe conservar su registro con Id 100; data=%+v", res.Data)
+	}
+	hijos := res.Data["Hijo"].([]any)
+	if aFloat(hijos[0].(map[string]any)["Id"]) != 300 {
+		t.Errorf("el hijo sin cambios debe conservar su registro con Id 300; hijo=%+v", hijos[0])
 	}
 }

@@ -130,7 +130,14 @@ func TestWriteResolverProveedorIdempotentePorTerceroId(t *testing.T) {
 		queryPorTerceroId,
 	)
 
+	reg, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
+		"TerceroId": float64(25),
+	}, []string{"25"})
+	if err != nil {
+		t.Fatalf("Recuperar no debe fallar: %v", err)
+	}
 	salida, err := r.Materialize(context.Background(), config.RelationConfig{}, map[string]any{
+		"Id":        idEntero(reg["Id"]),
 		"TerceroId": float64(25),
 	}, []string{"25"})
 	if err != nil {
@@ -175,13 +182,13 @@ func TestWriteResolverDatosIdentificacionClaveNatural(t *testing.T) {
 		queryPorNumeroYTipoDocumento,
 	)
 
-	_, err := r.Materialize(context.Background(), config.RelationConfig{}, map[string]any{
+	_, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
 		"Numero":          "123",
 		"TipoDocumentoId": float64(1),
 		"TerceroId":       float64(25),
 	}, []string{"123", "1"})
 	if err != nil {
-		t.Fatalf("Materialize no debe fallar: %v", err)
+		t.Fatalf("Recuperar no debe fallar: %v", err)
 	}
 
 	var get *peticionCapturada
@@ -240,7 +247,7 @@ func TestWriteResolverUpsertPorIdDelCuerpo(t *testing.T) {
 func TestWriteResolverRecuperaExistentePorClaveNaturalSoloGET(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
-		"GET /v1/proveedor": `{"Data":[{"Id":88,"TerceroId":25}]}`,
+		"GET /v1/proveedor": `{"Data":[{"Id":88,"TerceroId":25,"Estado":"A"}]}`,
 	}, &capturas)
 	defer server.Close()
 
@@ -252,14 +259,18 @@ func TestWriteResolverRecuperaExistentePorClaveNaturalSoloGET(t *testing.T) {
 		queryPorTerceroId,
 	)
 
-	id, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
+	reg, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
 		"TerceroId": float64(25),
 	}, []string{"25"})
 	if err != nil {
 		t.Fatalf("Recuperar no debe fallar: %v", err)
 	}
-	if id != 88 {
-		t.Errorf("Recuperar debe resolver el Id existente 88; id=%d", id)
+	if idEntero(reg["Id"]) != 88 {
+		t.Errorf("Recuperar debe devolver el registro existente con Id 88; registro=%+v", reg)
+	}
+	// El registro devuelto trae los campos almacenados, no solo el Id.
+	if reg["Estado"] != "A" {
+		t.Errorf("Recuperar debe devolver los campos del registro existente; registro=%+v", reg)
 	}
 
 	// Solo se permiten lecturas: ninguna escritura (POST/PATCH).
@@ -279,11 +290,13 @@ func TestWriteResolverRecuperaExistentePorClaveNaturalSoloGET(t *testing.T) {
 	}
 }
 
-// Cuando el payload trae un Id propio, Recuperar lo devuelve directamente sin
-// consultar el CRUD (no hay clave natural que buscar).
-func TestWriteResolverRecuperaPorIdDelCuerpoSinGET(t *testing.T) {
+// Cuando el payload trae un Id propio, Recuperar lee el registro por su Id (GET)
+// y devuelve sus campos, sin emitir escrituras.
+func TestWriteResolverRecuperaPorIdDelCuerpoLeeRegistro(t *testing.T) {
 	var capturas []peticionCapturada
-	server := crudSimulado(t, nil, &capturas)
+	server := crudSimulado(t, map[string]string{
+		"GET /v1/proveedor/5": `{"Data":{"Id":5,"TerceroId":25,"Estado":"A"}}`,
+	}, &capturas)
 	defer server.Close()
 
 	r := NewEntityWriteResolver(
@@ -294,17 +307,84 @@ func TestWriteResolverRecuperaPorIdDelCuerpoSinGET(t *testing.T) {
 		queryPorTerceroId,
 	)
 
-	id, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
+	reg, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
 		"Id":        float64(5),
 		"TerceroId": float64(25),
 	}, nil)
 	if err != nil {
 		t.Fatalf("Recuperar no debe fallar: %v", err)
 	}
-	if id != 5 {
-		t.Errorf("Recuperar debe devolver el Id del cuerpo 5; id=%d", id)
+	if idEntero(reg["Id"]) != 5 || reg["Estado"] != "A" {
+		t.Errorf("Recuperar debe devolver el registro 5 con sus campos; registro=%+v", reg)
 	}
-	if len(capturas) != 0 {
-		t.Errorf("Recuperar con Id en el cuerpo no debe consultar el CRUD; capturas=%+v", capturas)
+	for _, c := range capturas {
+		if c.metodo != http.MethodGet {
+			t.Errorf("Recuperar no debe emitir escrituras; captura=%+v", c)
+		}
+	}
+	if len(capturas) != 1 || capturas[0].path != "/v1/proveedor/5" {
+		t.Errorf("Recuperar debe leer exactamente el registro 5 por GET; capturas=%+v", capturas)
+	}
+}
+
+// Sin registro existente, Recuperar devuelve nil sin error y sin escrituras.
+func TestWriteResolverRecuperaSinRegistroDevuelveNil(t *testing.T) {
+	var capturas []peticionCapturada
+	server := crudSimulado(t, map[string]string{
+		"GET /v1/proveedor": `{"Data":[]}`,
+	}, &capturas)
+	defer server.Close()
+
+	r := NewEntityWriteResolver(
+		clients.HTTPClient{Client: server.Client()},
+		urlsDe(server),
+		"gestion_personas_crud",
+		endpointProveedor,
+		queryPorTerceroId,
+	)
+
+	reg, err := r.Recuperar(context.Background(), config.RelationConfig{}, map[string]any{
+		"TerceroId": float64(77),
+	}, []string{"77"})
+	if err != nil {
+		t.Fatalf("Recuperar no debe fallar si no hay registro: %v", err)
+	}
+	if reg != nil {
+		t.Errorf("sin registro existente Recuperar debe devolver nil; registro=%+v", reg)
+	}
+}
+
+// Materialize no vuelve a buscar por clave natural: la decisión de existencia la toma
+// el motor con el estado retenido en el pre-pass. Sin Id en el payload crea (POST)
+// sin ninguna lectura previa.
+func TestWriteResolverMaterializeNoRelee(t *testing.T) {
+	var capturas []peticionCapturada
+	server := crudSimulado(t, map[string]string{
+		"GET /v1/proveedor":   `{"Data":[{"Id":88,"TerceroId":25}]}`,
+		"POST /v1/proveedor/": `{"Data":{"Id":77}}`,
+	}, &capturas)
+	defer server.Close()
+
+	r := NewEntityWriteResolver(
+		clients.HTTPClient{Client: server.Client()},
+		urlsDe(server),
+		"gestion_personas_crud",
+		endpointProveedor,
+		queryPorTerceroId,
+	)
+
+	salida, err := r.Materialize(context.Background(), config.RelationConfig{}, map[string]any{
+		"TerceroId": float64(25),
+	}, []string{"25"})
+	if err != nil {
+		t.Fatalf("Materialize no debe fallar: %v", err)
+	}
+	if idEntero(salida["Id"]) != 77 {
+		t.Errorf("sin Id en el payload debe crear (Id 77); salida=%+v", salida)
+	}
+	for _, c := range capturas {
+		if c.metodo == http.MethodGet {
+			t.Errorf("Materialize no debe releer el registro retenido; capturas=%+v", capturas)
+		}
 	}
 }

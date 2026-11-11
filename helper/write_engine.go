@@ -37,10 +37,11 @@ func (e *ErrorEscritura) Error() string {
 }
 
 // WriteResolver materializa una entidad contra su CRUD dueño y devuelve el
-// registro materializado, que debe incluir su identificador. keys contiene los
-// valores de la clave natural declarada, si la hay, para que el resolver decida
-// si reutiliza un registro existente (upsert idempotente) o crea uno nuevo. Un
-// keys vacío indica que la idempotencia se apoya en el Id presente en payload.
+// registro materializado, que debe incluir su identificador. Un payload con Id
+// identifica el registro existente y se actualiza; sin Id se crea. La existencia
+// la decide el motor en el pre-pass con Recuperar, por lo que Materialize no vuelve
+// a consultar el CRUD. keys es la clave natural declarada, si la hay, y se pasa
+// solo como información.
 //
 // El motor no construye URLs ni nombra CRUD: delega por completo el origen real
 // de cada entidad en el WriteResolver, de forma simétrica a Resolver en lectura.
@@ -52,21 +53,19 @@ type WriteResolver interface {
 		keys []string,
 	) (map[string]any, error)
 
-	// Recuperar resuelve, usando únicamente lecturas (GET), el identificador
-	// autoritativo de un registro existente para el payload dado: por el Id
-	// presente en el payload o por la clave natural declarada (keys). Devuelve 0
-	// cuando no existe un registro reutilizable y no ejecuta ninguna escritura.
+	// Recuperar devuelve, usando únicamente lecturas (GET), el registro existente
+	// de la entidad para el payload dado: por el Id presente en el payload o por la
+	// clave natural declarada (keys). Devuelve nil, sin error, cuando no existe un
+	// registro reutilizable, y nunca ejecuta una escritura.
 	//
-	// El motor la usa para validar ANTES de materializar (por ejemplo, conciliar
-	// la FK local de un nodo contra el Id autoritativo de la entidad referenciada
-	// por fk_inbound) sin provocar efectos colaterales: un 400 por conflicto no
-	// debe dejar escrituras parciales en ningún CRUD dueño.
+	// El motor la invoca en el pre-pass de solo lectura, antes de la primera
+	// escritura, y retiene el registro para decidir los conflictos de llave.
 	Recuperar(
 		ctx context.Context,
 		rel config.RelationConfig,
 		payload map[string]any,
 		keys []string,
-	) (int, error)
+	) (map[string]any, error)
 }
 
 // WriteResolverRegistry asocia un related_service con el WriteResolver que lo
@@ -153,6 +152,11 @@ type motorEscritura struct {
 	verb       string
 	onRelError string
 	warnings   []responses.RelationError
+	// servicioRaiz es el servicio de la entidad raíz, para identificar sus fallos.
+	servicioRaiz string
+	// retenido guarda, por identidad de nodo, el estado recuperado en el pre-pass.
+	// Vive solo durante una invocación de Write y se descarta al terminar.
+	retenido map[string]nodoRetenido
 }
 
 // Write materializa un cuerpo anidado en cascada a partir de la configuración de
@@ -208,10 +212,19 @@ func Write(
 	}
 
 	me := &motorEscritura{
-		ctx:        ctx,
-		registry:   registry,
-		verb:       verb,
-		onRelError: onRelError,
+		ctx:          ctx,
+		registry:     registry,
+		verb:         verb,
+		onRelError:   onRelError,
+		servicioRaiz: cfg.Service,
+		retenido:     make(map[string]nodoRetenido),
+	}
+
+	// Pre-pass de solo lectura sobre todo el árbol: recupera y retiene el estado de
+	// cada nodo y decide los conflictos de llave antes de la primera escritura. Un
+	// 400 aquí no deja escrituras parciales en ningún CRUD dueño.
+	if err := me.prepass(body, registry.resolverRaiz(), config.RelationConfig{}, *cfg.Write, cfg.Relations, "", nil); err != nil {
+		return WriteResult{}, err
 	}
 
 	// Pre-pass de FK ascendente (fk_inbound): materializar las entidades que el
@@ -444,19 +457,270 @@ func (me *motorEscritura) materializarHijos(
 	return nil
 }
 
-// materializarInbound ejecuta el pre-pass de FK ascendente (fk_inbound): por cada
-// relación del nodo declarada fk_inbound y presente en el cuerpo, recupera por
-// lectura el Id autoritativo de la entidad referenciada, concilia la FK local del
-// nodo (rel.LocalField) contra ese Id y, solo si no hay conflicto, materializa la
-// entidad referenciada (y su propio subárbol) ANTES que el nodo, propagando su Id
-// hacia arriba. La entidad referenciada materializada queda anidada en el nodo
-// bajo su mapped_name para la respuesta.
+// motivoConflictoLlave describe el conflicto de una llave reenviada que difiere de
+// la autoritativa en una entidad existente. No expone valores del cuerpo ni del CRUD.
+const motivoConflictoLlave = "la llave relacional reenviada difiere de la autoritativa en una " +
+	"entidad existente; no se reasigna de forma implícita"
+
+// nodoRetenido es el estado de un nodo del cuerpo que el pre-pass conserva: el
+// registro existente recuperado por lectura o la marca de omisión cuando la lectura
+// falló y la política de error tolerada descarta el nodo y su subárbol.
+type nodoRetenido struct {
+	registro map[string]any
+	omitido  bool
+	// accion es la acción clasificada para el nodo a partir de registro.
+	accion AccionEscritura
+}
+
+// AccionEscritura es la acción que el motor materializará para un nodo. La decide el
+// pre-pass a partir del registro existente recuperado, antes de cualquier escritura.
+type AccionEscritura string
+
+const (
+	// AccionCrear indica que el nodo no resuelve a un registro existente.
+	AccionCrear AccionEscritura = "crear"
+	// AccionActualizar indica que el nodo resuelve a un registro existente y reenvía
+	// al menos un campo escribible distinto del almacenado.
+	AccionActualizar AccionEscritura = "actualizar"
+	// AccionSinCambios indica que el nodo resuelve a un registro existente y sus campos
+	// escribibles coinciden con los almacenados. Es una reconciliación, no una
+	// actualización.
+	AccionSinCambios AccionEscritura = "sin_cambios"
+)
+
+// clasificarAccion decide la acción de un nodo. Sin registro existente, o con un
+// registro sin Id, la acción es crear. Con registro existente, compara solo los campos
+// escribibles reenviados que no son derivados: si alguno difiere del almacenado la
+// acción es actualizar; si todos coinciden es sin cambios. Un registro que solo trae
+// Id no permite confirmar que los campos coinciden, así que cualquier campo reenviado
+// cuenta como cambio.
+func clasificarAccion(
+	plano map[string]any,
+	registro map[string]any,
+	escribibles []string,
+	derivados map[string]struct{},
+) AccionEscritura {
+	if registro == nil || registro["Id"] == nil {
+		return AccionCrear
+	}
+	esc := conjunto(escribibles)
+	for campo, valor := range plano {
+		if campo == "Id" || !contiene(esc, campo) || contiene(derivados, campo) {
+			continue
+		}
+		if cadenaONula(valor) != cadenaONula(registro[campo]) {
+			return AccionActualizar
+		}
+	}
+	return AccionSinCambios
+}
+
+// cadenaONula normaliza un valor para comparar campos: nil equivale a la cadena vacía.
+func cadenaONula(v any) string {
+	if v == nil {
+		return ""
+	}
+	return aCadena(v)
+}
+
+// claveNodo identifica un nodo del cuerpo por la identidad de su mapa, de modo que
+// su estado retenido sigue al nodo aunque su ruta lógica se repita en un arreglo.
+func claveNodo(nodo map[string]any) string {
+	return fmt.Sprintf("%p", nodo)
+}
+
+// accionDe devuelve la acción clasificada en el pre-pass para el nodo. Devuelve el
+// valor vacío si el nodo no fue recuperado.
+func (me *motorEscritura) accionDe(nodo map[string]any) AccionEscritura {
+	return me.retenido[claveNodo(nodo)].accion
+}
+
+// omitido informa si el pre-pass marcó el nodo como omitido por un fallo de lectura
+// tolerado, de modo que la materialización debe descartarlo.
+func (me *motorEscritura) omitido(nodo map[string]any) bool {
+	return me.retenido[claveNodo(nodo)].omitido
+}
+
+// llaveDelNodo devuelve la llave autoritativa conocida de un nodo: su Id reenviado o,
+// si no lo trae, el Id de su registro existente. Devuelve nil cuando el nodo aún no
+// existe en el CRUD dueño y su Id lo asignará la creación.
+func llaveDelNodo(nodo map[string]any, registro map[string]any) any {
+	if id := nodo["Id"]; id != nil {
+		return id
+	}
+	if id := registro["Id"]; id != nil {
+		return id
+	}
+	return nil
+}
+
+// hayConflictoLlave informa si un nodo con Id propio reenvía el campo derivado con un
+// valor distinto de la llave del padre. Con llavePadre nil (el padre se creará con un
+// Id nuevo) cualquier valor reenviado es un conflicto. Sin Id propio no hay conflicto:
+// la llave se canoniza en la materialización.
+func hayConflictoLlave(nodo map[string]any, campo string, llavePadre any) bool {
+	reenviado, presente := nodo[campo]
+	if !presente || reenviado == nil {
+		return false
+	}
+	if id, hay := nodo["Id"]; !hay || id == nil {
+		return false
+	}
+	if llavePadre == nil {
+		return true
+	}
+	return aCadena(reenviado) != aCadena(llavePadre)
+}
+
+// reasociaExistente informa si un registro existente tiene asociado el campo derivado a
+// un padre distinto de llavePadre. Un valor almacenado nulo no es una asociación y no
+// cuenta. Con llavePadre nil (el padre aún no existe) cualquier asociación almacenada
+// implica reasignar el hijo a otro padre.
 //
-// Orden "validar antes de escribir": recuperar -> conciliar -> materializar. Un
-// conflicto de FK local en un nodo existente devuelve *ErrorEscritura ANTES de
-// cualquier escritura, de modo que un 400 no deja escrituras parciales en ningún
-// CRUD dueño. Alinea fk_inbound con los modos descendentes (fk, shared_pk), que
-// ya concilian antes de materializar.
+// Solo aplica a llaves foráneas. En una propagación por PK compartida el campo derivado
+// es la propia identidad del registro; su conflicto lo cubre hayConflictoLlave.
+func reasociaExistente(registro map[string]any, campo string, llavePadre any) bool {
+	if campo == "Id" || registro == nil || registro["Id"] == nil {
+		return false
+	}
+	almacenado := registro[campo]
+	if almacenado == nil {
+		return false
+	}
+	if llavePadre == nil {
+		return true
+	}
+	return aCadena(almacenado) != aCadena(llavePadre)
+}
+
+// prepass recorre en solo lectura el nodo y su subárbol, recupera el registro
+// existente de cada uno y lo retiene en me.retenido. Decide los conflictos de llave
+// antes de cualquier escritura. Un nodo cuya lectura falla se marca como omitido
+// según la política de error de relación, y su subárbol no se materializa.
+//
+// rel es la relación que produjo el nodo (vacía en la raíz) y llavePadre la llave
+// autoritativa del padre, o nil si el padre aún no existe en el CRUD dueño.
+// Devuelve *ErrorEscritura ante una llave incompatible y *errorFatalEscritura ante
+// un fallo de lectura de la raíz o un fallo bajo política estricta.
+func (me *motorEscritura) prepass(
+	nodo map[string]any,
+	res WriteResolver,
+	rel config.RelationConfig,
+	wc config.WriteConfig,
+	relNivel []config.RelationConfig,
+	ruta string,
+	llavePadre any,
+) error {
+	esRaiz := rel.RelatedService == ""
+	if res == nil {
+		return fmt.Errorf("write: no hay resolver para %q", ruta)
+	}
+
+	plano := aplanarParametros(nodo, wc.WritableFields, relNivel, camposDerivadosInternos(rel, relNivel))
+	keys := valoresClaveNatural(plano, wc.NaturalKey)
+	registro, err := res.Recuperar(me.ctx, rel, plano, keys)
+	if err != nil {
+		if esRaiz {
+			return &errorFatalEscritura{path: "(raíz)", servicio: me.servicioRaiz, err: err}
+		}
+		if err := me.manejarErrorRelacion(rel, ruta); err != nil {
+			return err
+		}
+		me.retenido[claveNodo(nodo)] = nodoRetenido{omitido: true}
+		return nil
+	}
+	accion := clasificarAccion(plano, registro, wc.WritableFields, camposDerivadosInternos(rel, relNivel))
+	me.retenido[claveNodo(nodo)] = nodoRetenido{registro: registro, accion: accion}
+
+	if !esRaiz && rel.Write != nil && rel.Write.KeyPropagation != config.KeyPropagationFKInbound {
+		if campo, ok := rel.CampoDerivado(); ok &&
+			(hayConflictoLlave(nodo, campo, llavePadre) || reasociaExistente(registro, campo, llavePadre)) {
+			return &ErrorEscritura{Path: ruta, Motivo: motivoConflictoLlave}
+		}
+	}
+
+	return me.prepassHijos(nodo, relNivel, esRaiz, ruta, llaveDelNodo(nodo, registro))
+}
+
+// prepassHijos aplica el pre-pass a las relaciones hijas de un nodo ya recuperado.
+// Las relaciones fk_inbound se recorren solo desde la raíz, igual que en la
+// materialización; el resto desciende con la llave del nodo como llave del padre.
+// Para fk_inbound concilia la FK local del nodo con el Id autoritativo recuperado,
+// antes de cualquier escritura.
+func (me *motorEscritura) prepassHijos(
+	nodo map[string]any,
+	relaciones []config.RelationConfig,
+	esRaiz bool,
+	ruta string,
+	llaveNodo any,
+) error {
+	for i := range relaciones {
+		hijo := relaciones[i]
+		if hijo.Write == nil {
+			continue
+		}
+		fkInbound := hijo.Write.KeyPropagation == config.KeyPropagationFKInbound
+		if fkInbound && !esRaiz {
+			continue
+		}
+		valor, presente := nodo[hijo.MappedName]
+		if !presente || valor == nil {
+			continue
+		}
+
+		rutaHijo := unirRuta(ruta, hijo.MappedName)
+		res, ok := me.registry.resolverPara(hijo)
+		if !ok {
+			if err := me.manejarErrorRelacion(hijo, rutaHijo); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if fkInbound {
+			referida, ok := valor.(map[string]any)
+			if !ok {
+				return &ErrorEscritura{Path: rutaHijo, Motivo: "una relación fk_inbound debe ser un objeto único"}
+			}
+			if err := me.prepass(referida, res, hijo, *hijo.Write, hijo.NestedRelations, rutaHijo, nil); err != nil {
+				return err
+			}
+			if me.omitido(referida) {
+				continue
+			}
+			if registro := me.retenido[claveNodo(referida)].registro; registro != nil {
+				if err := me.conciliarCampoDerivado(nodo, hijo.LocalField, registro["Id"], hijo.RelatedService, rutaHijo); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+
+		switch v := valor.(type) {
+		case map[string]any:
+			if err := me.prepass(v, res, hijo, *hijo.Write, hijo.NestedRelations, rutaHijo, llaveNodo); err != nil {
+				return err
+			}
+		case []any:
+			for j := range v {
+				elem, ok := v[j].(map[string]any)
+				if !ok {
+					continue
+				}
+				if err := me.prepass(elem, res, hijo, *hijo.Write, hijo.NestedRelations, fmt.Sprintf("%s[%d]", rutaHijo, j), llaveNodo); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// materializarInbound materializa las entidades referenciadas por fk_inbound antes
+// que la raíz, y propaga su Id hacia la FK local de la raíz. La recuperación de cada
+// nodo y la conciliación previa de la FK local ocurren en el pre-pass (prepass), de
+// modo que aquí solo se escribe. Las entidades omitidas por un fallo de lectura
+// tolerado se descartan.
 //
 // Solo aplica a relaciones de cardinalidad 1-1: una FK local del nodo apunta a un
 // único registro referenciado.
@@ -486,6 +750,10 @@ func (me *motorEscritura) materializarInbound(
 		rutaActual := append(append([]string{}, rutaRama...), rel.MappedName)
 		rutaStr := strings.Join(rutaActual, ".")
 
+		if me.omitido(referida) {
+			continue
+		}
+
 		res, ok := me.registry.resolverPara(rel)
 		if !ok {
 			if err := me.manejarErrorRelacion(rel, rutaStr); err != nil {
@@ -494,30 +762,7 @@ func (me *motorEscritura) materializarInbound(
 			continue
 		}
 
-		// 1) Recuperar por lectura el Id autoritativo de la entidad referenciada,
-		// sin escribir. Un fallo de la recuperación se trata con la misma política
-		// de error de relación que un fallo de escritura (no una ruta distinta).
-		idRecuperado, err := me.recuperarEntidad(res, rel, referida, *rel.Write, rel.NestedRelations)
-		if err != nil {
-			if err := me.manejarErrorRelacion(rel, rutaStr); err != nil {
-				return err
-			}
-			continue
-		}
-
-		// 2) Conciliar hacia arriba contra el Id autoritativo recuperado ANTES de
-		// materializar: la FK local del nodo (rel.LocalField) se completa, se
-		// conserva o, en un nodo existente con FK incompatible, dispara un conflicto
-		// (*ErrorEscritura) sin escribir nada. Cuando la entidad referenciada no
-		// existe aún (idRecuperado == 0), la conciliación se difiere al Id que la
-		// materialización asigne (caso de creación/canonización de entidad nueva).
-		if idRecuperado > 0 {
-			if err := me.conciliarCampoDerivado(nodo, rel.LocalField, idRecuperado, rel.RelatedService, rutaStr); err != nil {
-				return err
-			}
-		}
-
-		// 3) Sin conflicto: materializar la entidad referenciada y propagar su Id.
+		// Materializar la entidad referenciada y propagar su Id.
 		materializado, err := me.materializarEntidad(res, rel, referida, *rel.Write, rutaStr, rel.NestedRelations)
 		if err != nil {
 			return me.manejarErrorRelacion(rel, rutaStr)
@@ -546,26 +791,6 @@ func (me *motorEscritura) materializarInbound(
 	return nil
 }
 
-// recuperarEntidad resuelve, usando únicamente lecturas, el Id autoritativo de
-// una entidad para la conciliación previa a la escritura. Aplana el payload y
-// extrae los valores de la clave natural igual que materializarEntidad, pero
-// delega en la operación de recuperación del resolver (Recuperar), que no ejecuta
-// escrituras. Devuelve 0 cuando no existe un registro reutilizable.
-func (me *motorEscritura) recuperarEntidad(
-	res WriteResolver,
-	rel config.RelationConfig,
-	payload map[string]any,
-	wc config.WriteConfig,
-	relNivel []config.RelationConfig,
-) (int, error) {
-	if res == nil {
-		return 0, fmt.Errorf("write: no hay resolver para %q", rel.RelatedService)
-	}
-	plano := aplanarParametros(payload, wc.WritableFields, relNivel, camposDerivadosInternos(rel, relNivel))
-	keys := valoresClaveNatural(plano, wc.NaturalKey)
-	return res.Recuperar(me.ctx, rel, plano, keys)
-}
-
 // materializarValorRelacion materializa el valor de una relación, que puede ser
 // un objeto (1-1) o una lista (1-N), propagando la llave del padre a cada
 // elemento antes de materializarlo.
@@ -578,6 +803,9 @@ func (me *motorEscritura) materializarValorRelacion(
 	rutaStr string,
 ) error {
 	procesar := func(elem map[string]any, ruta string) error {
+		if me.omitido(elem) {
+			return nil
+		}
 		// Conciliar la llave del padre con el campo derivado del hijo ANTES de
 		// materializar: un conflicto de entidad existente aborta con *ErrorEscritura
 		// sin enviar la operación incompatible.
@@ -637,6 +865,27 @@ func (me *motorEscritura) materializarEntidad(
 		return nil, fmt.Errorf("write: no hay resolver para %q", ruta)
 	}
 	plano := aplanarParametros(payload, wc.WritableFields, relNivel, camposDerivadosInternos(rel, relNivel))
+	// Un nodo sin cambios no se escribe: el árbol conserva su registro existente. Sus
+	// hijos se siguen materializando por separado.
+	if me.accionDe(payload) == AccionSinCambios {
+		registro := me.retenido[claveNodo(payload)].registro
+		salida := make(map[string]any, len(registro)+len(plano))
+		for k, v := range registro {
+			salida[k] = v
+		}
+		for k, v := range plano {
+			salida[k] = v
+		}
+		salida["Id"] = registro["Id"]
+		return salida, nil
+	}
+	// Un registro existente retenido por el pre-pass aporta el Id con el que la
+	// materialización actualiza, sin volver a consultar el CRUD.
+	if _, tieneID := plano["Id"]; !tieneID {
+		if id := me.retenido[claveNodo(payload)].registro["Id"]; id != nil {
+			plano["Id"] = id
+		}
+	}
 	keys := valoresClaveNatural(plano, wc.NaturalKey)
 	return res.Materialize(me.ctx, rel, plano, keys)
 }
@@ -713,9 +962,8 @@ func (me *motorEscritura) conciliarCampoDerivado(
 	// Difiere: el disparador del conflicto es un Id propio (entidad existente).
 	if id, hay := entidad["Id"]; hay && id != nil {
 		return &ErrorEscritura{
-			Path: ruta,
-			Motivo: "la llave relacional reenviada difiere de la autoritativa en una " +
-				"entidad existente; no se reasigna de forma implícita",
+			Path:   ruta,
+			Motivo: motivoConflictoLlave,
 		}
 	}
 
