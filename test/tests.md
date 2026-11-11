@@ -56,8 +56,9 @@ colección como la escritura del subárbol del proveedor.
   simulando un CRUD dueño caído para ejercitar la política de fallo tolerado
   (`notify`) de una relación.
 - Rangos de Id por entidad en el mock: proveedor `100+`, tercero `200+`,
-  datos_identificacion `300+`, proveedor_natural `400+`, contacto `600+`. Permiten
-  afirmar de qué CRUD provino cada Id materializado.
+  datos_identificacion `300+`, proveedor_natural `400+`, proveedor_juridico `500+`,
+  contacto `600+`, cuenta_bancaria `700+`. Permiten afirmar de qué CRUD provino
+  cada Id materializado.
 
 ## Pruebas de integración (`integration_test.go`)
 
@@ -307,6 +308,132 @@ colección como la escritura del subárbol del proveedor.
   - El aviso no expone el cuerpo interno del CRUD.
   - El proveedor sí se materializa pese al fallo del contacto (creación parcial):
     1 `POST` de proveedor.
+
+## Pruebas de integración de cascada del subárbol (`cascada_proveedor_test.go`)
+
+Estas pruebas ejercitan la materialización en cascada de ramas adicionales del
+subárbol sobre la configuración segmentada real (los objetos declarados en
+`config/objetos_*.yaml` compuestos por `config/relaciones_proveedor.yaml`): la
+rama jurídica como PK compartida y la colección anidada de cuentas bancarias
+como FK descendente.
+
+### TestIntegracionCreacionJuridicoMaterializaSoloRamaJuridica
+
+- **Propósito**: verificar que un `POST /v1/proveedor` de un registro de tipo
+  **jurídico** (`TipoRegistroId=2`) materializa únicamente la rama
+  `ProveedorJuridico` (PK compartida con el proveedor) y poda la rama natural: no
+  crea `ProveedorNatural`.
+- **Actores**: cliente del API, middleware, CRUD simulados (sin precarga).
+- **Entradas**: `POST`, cuerpo con `TipoRegistroId=2`, `DescripcionPortafolio`,
+  `Tercero` (`NombreCompleto="Empresa Demo SAS"`) y `ProveedorJuridico`
+  (`NombreComercial`, `MatriculaMercantil`, `FechaConstitucion`, `CotizaBolsa`).
+- **Salidas esperadas**:
+  - Código HTTP `200`.
+  - `Data.ProveedorJuridico` está presente y hereda el Id del proveedor como
+    **valor numérico** (`ProveedorJuridico.Id == 101`), por ser PK compartida.
+  - `Data` no contiene `ProveedorNatural`.
+  - Cero `POST` a `proveedor_natural` (la rama natural, podada, nunca se
+    materializa).
+  - Exactamente una escritura (`POST`/`PATCH`) a `proveedor_juridico`.
+
+### TestIntegracionCreacionCuentaBancariaReferenciaProveedorPorFK
+
+- **Propósito**: verificar que una `CuentaBancaria` anidada (colección, FK
+  descendente) se materializa con su propio Id y referencia al proveedor por
+  `ProveedorId`, preservando el **tipo numérico** de la FK tanto en la respuesta
+  como en el cuerpo enviado al CRUD dueño.
+- **Actores**: cliente del API, middleware, CRUD simulados (sin precarga).
+- **Entradas**: `POST`, cuerpo de un proveedor natural con `ProveedorNatural`
+  (`PerfilDeclarado=3`) y una `CuentaBancaria` con `EntidadBancariaId`,
+  `TipoCuentaId`, `NumeroCuenta="001-123456"`, `NombreTitular`, `CiudadAperturaId`
+  y `EsPrincipal`.
+- **Salidas esperadas**:
+  - Código HTTP `200`.
+  - `Data.CuentaBancaria` contiene exactamente un elemento que materializa su
+    propio `Id=701` (rango de `cuenta_bancaria`) y referencia al proveedor por
+    `ProveedorId=101` como **valor numérico**.
+  - El `POST` de `cuenta_bancaria` recibido por el CRUD dueño envía
+    `ProveedorId=101` numérico y conserva los escalares propios (p. ej.
+    `NumeroCuenta="001-123456"`).
+
+## Pruebas de integración de lectura del subárbol (`lectura_proveedor_test.go`)
+
+### TestIntegracionConsultaSinFieldsExpandeConIdImplicitoYPodaRamaJuridica
+
+- **Propósito**: verificar que una consulta por cuerpo **sin `fields`**
+  (`POST /v1/proveedor/consulta`) expande según la configuración real: cada
+  entidad anidada conserva su `Id` implícito, los campos legibles se entregan y la
+  rama jurídica se poda para un proveedor natural. Los únicos avisos admisibles
+  son de profundidad (`Kind: depth`).
+- **Actores**: cliente del API (`POST /v1/proveedor/consulta` con `{id}`),
+  middleware (lectura y motor de expansión de la configuración real), CRUD
+  simulados con el subárbol natural precargado.
+- **Entradas**:
+  - Estado precargado en el CRUD simulado:
+    - `GET /v1/proveedor`: proveedor `Id=101`, `TerceroId=201`,
+      `TipoRegistroId=1` (natural), `DescripcionPortafolio="Servicios"`.
+    - `GET /v1/tercero`: tercero `Id=201`, `NombreCompleto="Ana Pérez"`,
+      `TipoContribuyenteId=2`.
+    - `GET /v1/proveedor_natural`: detalle `Id=101`, `PerfilDeclarado=3`,
+      `ExperienciaLaboralMeses=12`.
+  - Solicitud: `POST /v1/proveedor/consulta` con cuerpo `{"id":101}` y cabecera
+    `X-Autor-Id: 9`.
+- **Salidas esperadas**:
+  - Código HTTP `200` o `206`; si hay avisos en `MetaData.Errors`, todos son de
+    `Kind: depth`.
+  - `Data.Tercero` se expande con su `Id` implícito `201` y entrega
+    `NombreCompleto="Ana Pérez"`.
+  - `Data.ProveedorNatural` se expande con su `Id` implícito `101` y entrega
+    `ExperienciaLaboralMeses=12`.
+  - `Data` no contiene `ProveedorJuridico` (rama jurídica podada para un
+    proveedor natural).
+
+## Pruebas de integración de selección y lista negra en lectura (`seleccion_blacklist_proveedor_test.go`)
+
+Estas pruebas ejercitan la **selección por `fields`** y la **supresión silenciosa
+por lista negra** en la ruta de lectura por cuerpo (`POST /v1/proveedor/consulta`).
+
+- `consultaProveedorCuerpo(t, router, cuerpo)`: helper local que envía
+  `POST /v1/proveedor/consulta` con el cuerpo dado y la cabecera `X-Autor-Id: 9`,
+  decodifica el envoltorio, acepta solo `200` o `206` y, en `206`, exige que todo
+  aviso en `MetaData.Errors` sea de `Kind: depth`.
+
+### TestIntegracionConsultaFieldsEscalarOmiteIdYHermanas
+
+- **Propósito**: verificar que una selección por `fields` que pide **solo un
+  escalar** de una relación entrega la entidad anidada **sin su `Id`** (porque la
+  selección no lo menciona) y no incluye relaciones hermanas no solicitadas.
+- **Actores**: cliente del API, middleware (selección por `fields` sobre la
+  configuración real), CRUD simulados con el subárbol natural precargado
+  (proveedor `101`, tercero `201`, proveedor_natural `101`).
+- **Entradas**: `POST /v1/proveedor/consulta` con cuerpo
+  `{"id":101,"fields":["Tercero.NombreCompleto"]}`.
+- **Salidas esperadas**:
+  - `Data.Tercero` entrega `NombreCompleto="Ana Pérez"` y **no** incluye la clave
+    `Id` (la selección escalar no la menciona).
+  - `Data` no contiene `ProveedorNatural` (la relación hermana no solicitada no
+    aparece).
+
+### TestIntegracionConsultaListaNegraSuprimeCampoVetado
+
+- **Propósito**: verificar que la lista negra global, aplicada sobre una
+  **expansión por configuración** (consulta sin `fields`), suprime el campo
+  vetado de la entidad expandida pero conserva su `Id` implícito, y que la
+  supresión es **silenciosa** (sin aviso en `MetaData`). Contrasta con el rechazo
+  explícito cuando el campo vetado se pide en `fields`
+  (`TestIntegracionFieldVetadoSeRechazaComoNoPermitido`).
+- **Actores**: cliente del API, middleware con lista negra global inyectada
+  (`routerProveedorConBlacklist`), CRUD simulados con proveedor `101` y tercero
+  `201` precargados.
+- **Entradas**:
+  - Lista negra: `terceros → tercero → [NombreCompleto]`.
+  - Solicitud: `POST /v1/proveedor/consulta` con cuerpo `{"id":101}` (expansión
+    por configuración, sin `fields`).
+- **Salidas esperadas**:
+  - `Data.Tercero` se expande pero **no** incluye `NombreCompleto` (campo vetado
+    suprimido) y conserva su `Id` implícito `201`.
+  - `MetaData` no contiene avisos de `Kind: field_blacklisted` ni mensajes que
+    mencionen la lista negra: la supresión es silenciosa.
 
 ## Prueba e2e (`e2e_test.go`)
 
