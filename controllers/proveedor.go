@@ -283,12 +283,7 @@ func (h *ProveedorHandler) Escribir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-	if autor, ok := autorDePeticion(r); ok {
-		ctx = services.ConContextoAutor(ctx, autor)
-	}
-
-	resultado, err := h.escritura.EscribirProveedor(ctx, body, verb)
+	resultado, err := h.escritura.EscribirProveedor(r.Context(), body, verb)
 	if err != nil {
 		h.responderErrorEscritura(w, err)
 		return
@@ -347,20 +342,7 @@ func verboEscritura(metodo string) (string, bool) {
 	}
 }
 
-// autorDePeticion extrae el identificador del autor de la modificación desde la
-// cabecera X-Autor-Id, poblada por la capa de autenticación. Devuelve 0 y false
-// cuando la cabecera está ausente o no es un entero positivo.
-func autorDePeticion(r *http.Request) (int, bool) {
-	valor := strings.TrimSpace(r.Header.Get("X-Autor-Id"))
-	if valor == "" {
-		return 0, false
-	}
-	autor, err := strconv.Atoi(valor)
-	if err != nil || autor <= 0 {
-		return 0, false
-	}
-	return autor, true
-}
+
 
 func (h *ProveedorHandler) responder(
 	w http.ResponseWriter,

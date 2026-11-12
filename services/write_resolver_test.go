@@ -68,7 +68,7 @@ func urlsDe(server *httptest.Server) config.ServiceURLs {
 
 // Sin registro existente, el resolver crea la entidad por POST y devuelve el Id
 // materializado; además inyecta el autor de la modificación desde el contexto.
-func TestWriteResolverCreaEInyectaAutor(t *testing.T) {
+func TestWriteResolverCreaSinInyectarAutor(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
 		"POST /v1/proveedor/": `{"Data":{"Id":77}}`,
@@ -83,7 +83,7 @@ func TestWriteResolverCreaEInyectaAutor(t *testing.T) {
 		queryPorTerceroId,
 	)
 
-	ctx := ConContextoAutor(context.Background(), 42)
+	ctx := context.Background()
 	salida, err := r.Materialize(ctx, config.RelationConfig{}, map[string]any{
 		"TerceroId": float64(25),
 	}, []string{"25"})
@@ -104,8 +104,8 @@ func TestWriteResolverCreaEInyectaAutor(t *testing.T) {
 	if post == nil {
 		t.Fatalf("se esperaba un POST de creación; capturas=%+v", capturas)
 	}
-	if idEntero(post.cuerpo[campoAutorModificacion]) != 42 {
-		t.Errorf("el POST debe inyectar %s=42 desde el contexto; cuerpo=%+v", campoAutorModificacion, post.cuerpo)
+	if _, trae := post.cuerpo["AutorModificacionId"]; trae {
+		t.Errorf("el POST no debe inyectar AutorModificacionId; cuerpo=%+v", post.cuerpo)
 	}
 	if _, trae := post.cuerpo["Id"]; trae {
 		t.Errorf("una creación no debe enviar Id; cuerpo=%+v", post.cuerpo)

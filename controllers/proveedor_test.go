@@ -222,15 +222,13 @@ func TestProveedorHandlerConsultarMetodoNoPermitido(t *testing.T) {
 	}
 }
 
-// proveedorWriterStub simula el servicio de escritura y captura el verbo, el
-// cuerpo y el autor recibidos.
+// proveedorWriterStub simula el servicio de escritura y captura el verbo y el
+// cuerpo recibidos.
 type proveedorWriterStub struct {
 	resultado helper.WriteResult
 	err       error
 	verb      string
 	body      map[string]any
-	autor     int
-	autorOK   bool
 }
 
 func (s *proveedorWriterStub) EscribirProveedor(
@@ -240,7 +238,6 @@ func (s *proveedorWriterStub) EscribirProveedor(
 ) (helper.WriteResult, error) {
 	s.verb = verb
 	s.body = body
-	s.autor, s.autorOK = services.AutorDeContexto(ctx)
 	return s.resultado, s.err
 }
 
@@ -349,7 +346,6 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 			stub := &proveedorWriterStub{resultado: tt.resultado, err: tt.err}
 			handler := NewProveedorHandlerCompleto(&proveedorReaderStub{}, stub)
 			req := httptest.NewRequest(tt.metodo, "/v1/proveedor", strings.NewReader(tt.cuerpo))
-			req.Header.Set("X-Autor-Id", "9")
 			rec := httptest.NewRecorder()
 
 			handler.Escribir(rec, req)
@@ -364,11 +360,8 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 			if tt.wantStatus == 200 && strings.Contains(rec.Body.String(), `"Errors"`) {
 				t.Errorf("una respuesta 200 no debe incluir MetaData.Errors: %s", rec.Body.String())
 			}
-			// En los casos que llegan al servicio, el autor viaja por el contexto.
+			// En los casos que llegan al servicio, el verbo corresponde al método HTTP.
 			if tt.err == nil && tt.wantStatus < 400 {
-				if !stub.autorOK || stub.autor != 9 {
-					t.Errorf("el autor 9 debe viajar por el contexto; autor=%d ok=%v", stub.autor, stub.autorOK)
-				}
 				wantVerb := helper.WriteVerbCreate
 				if tt.metodo == http.MethodPatch {
 					wantVerb = helper.WriteVerbUpdate

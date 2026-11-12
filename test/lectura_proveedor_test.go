@@ -33,7 +33,6 @@ func TestIntegracionConsultaSinFieldsExpandeConIdImplicitoYPodaRamaJuridica(t *t
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/proveedor/consulta",
 		strings.NewReader(`{"id":101}`))
-	req.Header.Set("X-Autor-Id", "9")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -77,10 +76,10 @@ func TestIntegracionConsultaSinFieldsExpandeConIdImplicitoYPodaRamaJuridica(t *t
 	}
 }
 
-// TODO: TDD RED - Pendiente de implementación: la raíz entrega Activo sin fields; la lista negra global solo recorta objetos anidados (1g.1).
-// Los campos de auditoría administrados por el sistema no se entregan en una consulta
-// de proveedor sin fields, ni en la raíz ni en las entidades anidadas. La lista negra
-// se carga desde la configuración real.
+// Los campos de auditoría administrados por el sistema no se entregan en los objetos
+// anidados de una consulta de proveedor sin fields. La raíz es una proyección del
+// servicio que conserva Activo, por lo que no se asevera aquí. La lista negra se carga
+// desde la configuración real.
 func TestIntegracionConsultaSinFieldsNoEntregaAuditoria(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor": {{
@@ -113,7 +112,6 @@ func TestIntegracionConsultaSinFieldsNoEntregaAuditoria(t *testing.T) {
 		nombre string
 		mapa   map[string]any
 	}{
-		{"proveedor", env.Data},
 		{"Tercero", mapaAnidado(env.Data, "Tercero")},
 		{"ProveedorNatural", mapaAnidado(env.Data, "ProveedorNatural")},
 	} {

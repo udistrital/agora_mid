@@ -12,47 +12,6 @@ import (
 	"github.com/udistrital/agora_mid/config"
 )
 
-// claveContexto es el tipo de las llaves de contexto propias del paquete, para
-// evitar colisiones con llaves de otros paquetes.
-type claveContexto string
-
-// claveAutorModificacion es la llave de contexto bajo la que viaja el
-// identificador del autor de la modificación, poblado desde la autenticación.
-const claveAutorModificacion claveContexto = "autor_modificacion_id"
-
-// campoAutorModificacion es el nombre del campo de auditoría que toda escritura
-// puebla con el autor tomado del contexto, no del cuerpo del cliente.
-const campoAutorModificacion = "AutorModificacionId"
-
-// ConContextoAutor devuelve un contexto que transporta el identificador del
-// autor de la modificación. El controlador lo puebla desde la autenticación
-// antes de invocar la escritura.
-func ConContextoAutor(ctx context.Context, autorID int) context.Context {
-	return context.WithValue(ctx, claveAutorModificacion, autorID)
-}
-
-// AutorDeContexto extrae el identificador del autor de la modificación del
-// contexto. Devuelve 0 y false cuando el contexto no transporta un autor válido.
-// Es simétrica a ConContextoAutor y permite al llamador verificar el autor en
-// curso.
-func AutorDeContexto(ctx context.Context) (int, bool) {
-	return autorDeContexto(ctx)
-}
-
-// autorDeContexto extrae el identificador del autor del contexto. Devuelve 0 y
-// false cuando el contexto no transporta un autor válido.
-func autorDeContexto(ctx context.Context) (int, bool) {
-	v := ctx.Value(claveAutorModificacion)
-	if v == nil {
-		return 0, false
-	}
-	autor, ok := v.(int)
-	if !ok || autor <= 0 {
-		return 0, false
-	}
-	return autor, true
-}
-
 // EntityWriteResolver es un envoltorio fino y reutilizable sobre el cliente HTTP
 // que fija el endpoint real de una entidad y materializa su escritura con upsert
 // idempotente: resuelve primero si el registro ya existe (por clave natural o por
@@ -128,11 +87,7 @@ func (r *EntityWriteResolver) Materialize(
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
 	endpoint := "/" + strings.TrimLeft(strings.TrimSpace(r.endpoint), "/")
 
-	// Inyectar el autor de auditoría desde el contexto, nunca desde el cuerpo.
 	cuerpo := clonarPayload(payload)
-	if autor, ok := autorDeContexto(ctx); ok {
-		cuerpo[campoAutorModificacion] = autor
-	}
 
 	// Resolver el Id del registro existente: por el Id del payload o por la clave
 	// natural declarada.

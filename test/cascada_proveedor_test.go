@@ -107,7 +107,6 @@ func TestIntegracionCreacionCuentaBancariaReferenciaProveedorPorFK(t *testing.T)
 	}
 }
 
-// TODO: TDD RED - Pendiente de implementación: Tercero no tiene columna usuario_modificacion_id en el DBML, así que el cuerpo no puede escribirla (1g.3).
 // La lista negra de lectura no recorta la escritura: UsuarioModificacionId enviado en
 // el cuerpo llega al CRUD dueño de la entidad.
 func TestIntegracionEscrituraConservaUsuarioModificacionIdDelCuerpo(t *testing.T) {
@@ -115,20 +114,24 @@ func TestIntegracionEscrituraConservaUsuarioModificacionIdDelCuerpo(t *testing.T
 	router := routerProveedor(t, crud)
 
 	cuerpo := cuerpoProveedorNatural()
-	tercero, ok := cuerpo["Tercero"].(map[string]any)
-	if !ok {
-		t.Fatalf("el cuerpo de prueba debe tener Tercero como objeto; cuerpo=%+v", cuerpo)
+	contactos, ok := cuerpo["Contacto"].([]any)
+	if !ok || len(contactos) == 0 {
+		t.Fatalf("el cuerpo de prueba debe tener Contacto como lista no vacía; cuerpo=%+v", cuerpo)
 	}
-	tercero["UsuarioModificacionId"] = float64(9)
+	contacto, ok := contactos[0].(map[string]any)
+	if !ok {
+		t.Fatalf("el primer Contacto debe ser un objeto; contacto=%+v", contactos[0])
+	}
+	contacto["UsuarioModificacionId"] = float64(9)
 
 	rec, _ := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpo))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d; esperado 200. body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
+		t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
 	}
 
 	enviado := false
 	for _, c := range crud.Capturas() {
-		if recursoDePath(c.Path) != "tercero" || c.Metodo != http.MethodPost {
+		if recursoDePath(c.Path) != "contacto" || c.Metodo != http.MethodPost {
 			continue
 		}
 		if v, _ := c.Cuerpo["UsuarioModificacionId"].(float64); int(v) == 9 {
@@ -136,7 +139,7 @@ func TestIntegracionEscrituraConservaUsuarioModificacionIdDelCuerpo(t *testing.T
 		}
 	}
 	if !enviado {
-		t.Errorf("el POST a tercero debe llevar UsuarioModificacionId=9; capturas=%+v", crud.Capturas())
+		t.Errorf("el POST a contacto debe llevar UsuarioModificacionId=9; capturas=%+v", crud.Capturas())
 	}
 }
 
@@ -287,4 +290,208 @@ func TestIntegracionFKPlanasNoCreanNiActualizanReferenciadas(t *testing.T) {
 	if !cuentaConContacto {
 		t.Errorf("cuenta_bancaria debe enviar ContactoId=77 como FK plana; capturas=%+v", crud.Capturas())
 	}
+}
+
+// Las entidades de terceros usan terceros_campos_auditoria, que no declara la columna
+// usuario_modificacion_id, así que el campo no es escribible y la escritura se rechaza
+// antes de llegar a algún CRUD.
+func TestIntegracionEscrituraRechazaUsuarioModificacionIdEnTerceros(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, nil)
+	router := routerProveedor(t, crud)
+
+	cuerpo := cuerpoProveedorNatural()
+	tercero, ok := cuerpo["Tercero"].(map[string]any)
+	if !ok {
+		t.Fatalf("el cuerpo de prueba debe tener Tercero como objeto; cuerpo=%+v", cuerpo)
+	}
+	tercero["UsuarioModificacionId"] = float64(9)
+
+	rec, _ := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpo))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; esperado 400. body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Tercero.UsuarioModificacionId") {
+		t.Errorf("el 400 debe identificar el campo no escribible Tercero.UsuarioModificacionId; body=%s", rec.Body.String())
+	}
+
+	for _, c := range crud.Capturas() {
+		if c.Metodo != http.MethodGet {
+			t.Errorf("una escritura rechazada no debe materializar ninguna mutación; captura=%+v", c)
+		}
+	}
+}
+
+// UsuarioModificacionId del cuerpo llega al CRUD dueño del proveedor, y la escritura
+// no lleva AutorModificacionId.
+func TestIntegracionEscrituraAutorDeCuerpo(t *testing.T) {
+	crud := NuevoCRUDSimulado(t, nil)
+	router := routerProveedor(t, crud)
+
+	cuerpo := cuerpoProveedorNatural()
+	cuerpo["UsuarioModificacionId"] = float64(9)
+	rec, _ := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpo))
+	if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
+		t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
+	}
+
+	var enviado map[string]any
+	for _, c := range crud.Capturas() {
+		if c.Metodo == http.MethodPost && recursoDePath(c.Path) == "proveedor" {
+			enviado = c.Cuerpo
+		}
+	}
+	if enviado == nil {
+		t.Fatalf("no se recibió el POST de proveedor; capturas=%+v", crud.Capturas())
+	}
+	if v, _ := enviado["UsuarioModificacionId"].(float64); int(v) != 9 {
+		t.Errorf("el POST de proveedor debe llevar UsuarioModificacionId=9 del cuerpo; cuerpo=%+v", enviado)
+	}
+	if _, presente := enviado["AutorModificacionId"]; presente {
+		t.Errorf("la escritura no debe llevar AutorModificacionId; cuerpo=%+v", enviado)
+	}
+}
+
+// Un campo administrado en el cuerpo responde 400 identificando el campo, y ninguna
+// petición de escritura llega a los CRUD dueños.
+func TestIntegracionEscrituraRechazaCamposDeAuditoriaAdministrados(t *testing.T) {
+	valores := map[string]any{
+		"FechaCreacion":     "2026-01-01T00:00:00Z",
+		"FechaModificacion": "2026-01-02T00:00:00Z",
+		"Activo":            false,
+	}
+	for campo, valor := range valores {
+		t.Run(campo, func(t *testing.T) {
+			crud := NuevoCRUDSimulado(t, nil)
+			router := routerProveedor(t, crud)
+
+			cuerpo := cuerpoProveedorNatural()
+			cuerpo[campo] = valor
+
+			rec, _ := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpo))
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d; esperado 400. body=%s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), campo) {
+				t.Errorf("el 400 debe identificar el campo no escribible %s; body=%s", campo, rec.Body.String())
+			}
+			for _, c := range crud.Capturas() {
+				if c.Metodo != http.MethodGet {
+					t.Errorf("un campo de auditoría rechazado no debe materializar escrituras; captura=%+v", c)
+				}
+			}
+		})
+	}
+}
+
+// En creación y en reconciliación, el contacto (que declara el campo) recibe el autor
+// de la raíz.
+func TestIntegracionAutoriaRaizSePropagaAAnidados(t *testing.T) {
+	t.Run("POST", func(t *testing.T) {
+		crud := NuevoCRUDSimulado(t, nil)
+		router := routerProveedor(t, crud)
+
+		cuerpo := cuerpoProveedorNatural()
+		cuerpo["UsuarioModificacionId"] = float64(9)
+		rec, _ := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpo))
+		if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
+			t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
+		}
+
+		var propagado bool
+		for _, c := range crud.Capturas() {
+			if c.Metodo == http.MethodPost && recursoDePath(c.Path) == "contacto" {
+				if v, _ := c.Cuerpo["UsuarioModificacionId"].(float64); int(v) == 9 {
+					propagado = true
+				}
+			}
+		}
+		if !propagado {
+			t.Errorf("el POST de contacto debe llevar UsuarioModificacionId=9 de la raíz; capturas=%+v", crud.Capturas())
+		}
+	})
+
+	t.Run("PATCH", func(t *testing.T) {
+		crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
+			"GET /v1/proveedor": {{"Id": float64(101), "TerceroId": float64(25)}},
+		})
+		router := routerProveedor(t, crud)
+
+		cuerpo := cuerpoProveedorNaturalUpdate(101, 201, 301)
+		cuerpo["UsuarioModificacionId"] = float64(9)
+		rec, _ := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
+		if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
+			t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
+		}
+
+		var propagado bool
+		for _, c := range crud.Capturas() {
+			if c.Metodo == http.MethodPost && recursoDePath(c.Path) == "contacto" {
+				if v, _ := c.Cuerpo["UsuarioModificacionId"].(float64); int(v) == 9 {
+					propagado = true
+				}
+			}
+		}
+		if !propagado {
+			t.Errorf("el POST de contacto en la reconciliación debe llevar UsuarioModificacionId=9; capturas=%+v", crud.Capturas())
+		}
+	})
+}
+
+// El valor propio de un anidado prevalece, terceros no recibe el campo, y sin valor en
+// la raíz no se propaga nada.
+func TestIntegracionAutoriaPropiaDeAnidadoPrevaleceYTercerosNoRecibe(t *testing.T) {
+	t.Run("valor propio prevalece y terceros no recibe", func(t *testing.T) {
+		crud := NuevoCRUDSimulado(t, nil)
+		router := routerProveedor(t, crud)
+
+		cuerpo := cuerpoProveedorNatural()
+		cuerpo["UsuarioModificacionId"] = float64(9)
+		contactos, ok := cuerpo["Contacto"].([]any)
+		if !ok || len(contactos) == 0 {
+			t.Fatalf("el cuerpo debe tener Contacto como lista no vacía; cuerpo=%+v", cuerpo)
+		}
+		contactos[0].(map[string]any)["UsuarioModificacionId"] = float64(7)
+
+		rec, _ := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpo))
+		if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
+			t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
+		}
+
+		var contactoOK bool
+		for _, c := range crud.Capturas() {
+			switch {
+			case c.Metodo == http.MethodPost && recursoDePath(c.Path) == "contacto":
+				if v, _ := c.Cuerpo["UsuarioModificacionId"].(float64); int(v) == 7 {
+					contactoOK = true
+				} else {
+					t.Errorf("el contacto debe conservar su valor propio 7; cuerpo=%+v", c.Cuerpo)
+				}
+			case c.Metodo == http.MethodPost && recursoDePath(c.Path) == "tercero":
+				if _, presente := c.Cuerpo["UsuarioModificacionId"]; presente {
+					t.Errorf("tercero no declara el campo y no debe recibirlo; cuerpo=%+v", c.Cuerpo)
+				}
+			}
+		}
+		if !contactoOK {
+			t.Errorf("no se recibió el POST de contacto con su valor propio; capturas=%+v", crud.Capturas())
+		}
+	})
+
+	t.Run("sin valor en la raíz no se propaga", func(t *testing.T) {
+		crud := NuevoCRUDSimulado(t, nil)
+		router := routerProveedor(t, crud)
+
+		rec, _ := ejecutar(t, router, http.MethodPost, comoJSON(t, cuerpoProveedorNatural()))
+		if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
+			t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
+		}
+		for _, c := range crud.Capturas() {
+			if c.Metodo != http.MethodPost {
+				continue
+			}
+			if _, presente := c.Cuerpo["UsuarioModificacionId"]; presente {
+				t.Errorf("sin valor en la raíz ninguna escritura debe llevar UsuarioModificacionId; captura=%+v", c)
+			}
+		}
+	})
 }

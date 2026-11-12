@@ -92,6 +92,10 @@ func (s ProveedorWriteService) EscribirProveedor(
 	// igual que en lectura; la rama ausente del cuerpo tampoco se recorre.
 	cfg := s.configParaTipo(tipoRegistro)
 
+	// El autor de la raíz se propaga a los objetos anidados que lo declaran. El
+	// motor recibe el árbol ya compuesto y no conoce el campo de auditoría.
+	body = propagarAutorDeRaiz(body, cfg.Relations)
+
 	return helper.Write(ctx, body, cfg, s.Registry, helper.WriteOptions{Verb: verb})
 }
 

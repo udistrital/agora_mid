@@ -91,15 +91,15 @@
 
 ## 5. Autoría por cuerpo y auditoría administrada
 
-- [ ] 5.1 Escribir la prueba (con marcador de rojo) de que `UsuarioModificacionId` enviado en el cuerpo de una entidad con auditoría se propaga al CRUD dueño como autor de la modificación (inspección de la petición), y confirmar que falla
-- [ ] 5.2 Escribir la prueba (con marcador de rojo) de que `FechaCreacion`, `FechaModificacion` o `Activo` en el cuerpo producen `400` como campo no escribible sin materializar escrituras, y confirmar que falla
-- [ ] 5.3 Implementar la autoría por cuerpo (`UsuarioModificacionId` escribible) retirando el camino de autoría por contexto de petición, y el rechazo de los demás campos de auditoría, y verificar que las pruebas 5.1–5.2 pasan y se retiran sus marcadores
+- [x] 5.1 Escribir la prueba (con marcador de rojo) de que `UsuarioModificacionId` enviado en el cuerpo de una entidad con auditoría se propaga al CRUD dueño como autor de la modificación (inspección de la petición), y confirmar que falla
+- [x] 5.2 Escribir la prueba (con marcador de rojo) de que `FechaCreacion`, `FechaModificacion` o `Activo` en el cuerpo producen `400` como campo no escribible sin materializar escrituras, y confirmar que falla
+- [x] 5.3 Implementar la autoría por cuerpo (`UsuarioModificacionId` escribible) retirando el camino de autoría por contexto de petición, y el rechazo de los demás campos de auditoría, y verificar que las pruebas 5.1–5.2 pasan y se retiran sus marcadores
 
 ## 5b. Propagación de la autoría por cuerpo a entidades anidadas
 
-- [ ] 5b.1 Escribir la prueba (con marcador de rojo) de que `UsuarioModificacionId` enviado solo en la raíz se propaga al CRUD dueño de cada entidad anidada que declara el campo (p. ej. `Contacto`), y confirmar que falla
-- [ ] 5b.2 Escribir la prueba (con marcador de rojo) de que un `UsuarioModificacionId` propio de una entidad anidada prevalece sobre el de la raíz, y que una entidad sin el campo (`terceros`) no lo recibe, y confirmar que falla
-- [ ] 5b.3 Implementar en el servicio de escritura del proveedor la composición que propaga el `UsuarioModificacionId` de la raíz a los objetos anidados que declaran el campo y carecen de valor propio, sobre el árbol que entrega al motor, y verificar que 5b.1–5b.2 pasan y se retiran sus marcadores
+- [x] 5b.1 Escribir la prueba (con marcador de rojo) de que `UsuarioModificacionId` enviado solo en la raíz se propaga al CRUD dueño de cada entidad anidada que declara el campo (p. ej. `Contacto`), y confirmar que falla
+- [x] 5b.2 Escribir la prueba (con marcador de rojo) de que un `UsuarioModificacionId` propio de una entidad anidada prevalece sobre el de la raíz, y que una entidad sin el campo (`terceros`) no lo recibe, y confirmar que falla
+- [x] 5b.3 Implementar en el servicio de escritura del proveedor la composición que propaga el `UsuarioModificacionId` de la raíz a los objetos anidados que declaran el campo y carecen de valor propio, sobre el árbol que entrega al motor, y verificar que 5b.1–5b.2 pasan y se retiran sus marcadores
 
 ## 6. Transición de estado del proveedor
 

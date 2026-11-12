@@ -142,7 +142,7 @@ func TestEscribirProveedorCreacionCompleta(t *testing.T) {
 		},
 	}
 
-	ctx := ConContextoAutor(context.Background(), 9)
+	ctx := context.Background()
 	res, err := svc.EscribirProveedor(ctx, body, helper.WriteVerbCreate)
 	if err != nil {
 		t.Fatalf("creación completa no debe fallar: %v", err)

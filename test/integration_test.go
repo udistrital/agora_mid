@@ -39,7 +39,6 @@ type respuestaListaEnvoltorio struct {
 func ejecutar(t *testing.T, router http.Handler, metodo, cuerpo string) (*httptest.ResponseRecorder, respuestaEnvoltorio) {
 	t.Helper()
 	req := httptest.NewRequest(metodo, "/v1/proveedor", strings.NewReader(cuerpo))
-	req.Header.Set("X-Autor-Id", "9")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -72,7 +71,6 @@ func ejecutarListaProveedor(
 		"/v1/proveedor/consulta/lista",
 		strings.NewReader(comoJSON(t, cuerpo)),
 	)
-	req.Header.Set("X-Autor-Id", "9")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -216,8 +214,8 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 	if id, _ := tercero["Id"].(float64); int(id) != 201 {
 		t.Errorf("Tercero (fk_inbound) debe materializar su propio Id=201; tercero=%+v", tercero)
 	}
-	if autorModificacion, _ := tercero["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
-		t.Errorf("Tercero debe heredar AutorModificacionId=9 del proveedor; tercero=%+v", tercero)
+	if _, trae := tercero["AutorModificacionId"]; trae {
+		t.Errorf("Tercero no debe recibir AutorModificacionId desde la cabecera; tercero=%+v", tercero)
 	}
 
 	// La FK ascendente se propaga preservando su tipo numérico (no texto).
@@ -237,8 +235,8 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 	if id, _ := proveedorNatural["Id"].(float64); int(id) != 101 {
 		t.Errorf("ProveedorNatural debe heredar Id=101 del proveedor; proveedor_natural=%+v", proveedorNatural)
 	}
-	if autorModificacion, _ := proveedorNatural["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
-		t.Errorf("ProveedorNatural debe heredar AutorModificacionId=9 del proveedor; proveedor_natural=%+v", proveedorNatural)
+	if _, trae := proveedorNatural["AutorModificacionId"]; trae {
+		t.Errorf("ProveedorNatural no debe recibir AutorModificacionId desde la cabecera; proveedor_natural=%+v", proveedorNatural)
 	}
 
 	// FK descendiente: los contactos son dueños de su propio Id (rango 600+), destinto
@@ -262,8 +260,8 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 		} else if int(provIDRef) != 101 {
 			t.Errorf("Los contactos deben referenciar al proveedor por ProveedorId=101; contacto=%+v", contacto)
 		}
-		if autorModificacion, _ := c["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
-			t.Errorf("Contacto debe heredar AutorModificacionId=9 del proveedor; contacto=%+v", c)
+		if _, trae := c["AutorModificacionId"]; trae {
+			t.Errorf("Contacto no debe recibir AutorModificacionId desde la cabecera; contacto=%+v", c)
 		}
 	}
 
@@ -294,17 +292,13 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 			t.Errorf("no debe materializar la rama jurídica para un natural; capturas=%+v", crud.Capturas())
 		}
 	}
-	// El autor de auditoría viaja al CRUD desde la cabecera X-Autor-Id.
-	var vioAutor bool
+	// Ningún POST lleva AutorModificacionId: el autor solo viaja en UsuarioModificacionId del cuerpo.
 	for _, c := range crud.Capturas() {
 		if c.Metodo == http.MethodPost {
-			if a, _ := c.Cuerpo["AutorModificacionId"].(float64); int(a) == 9 {
-				vioAutor = true
+			if _, trae := c.Cuerpo["AutorModificacionId"]; trae {
+				t.Errorf("ningún POST debe llevar AutorModificacionId desde la cabecera; captura=%+v", c)
 			}
 		}
-	}
-	if !vioAutor {
-		t.Errorf("el autor 9 debe inyectarse en los POST; capturas=%+v", crud.Capturas())
 	}
 }
 

@@ -16,7 +16,6 @@ import (
 func consultaProveedorCuerpo(t *testing.T, router http.Handler, cuerpo string) respuestaEnvoltorio {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/v1/proveedor/consulta", strings.NewReader(cuerpo))
-	req.Header.Set("X-Autor-Id", "9")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
