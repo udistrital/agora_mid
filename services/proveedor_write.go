@@ -35,6 +35,10 @@ type ProveedorWriteService struct {
 	// TipoRegistroNatural es el identificador de tipo de contribuyente que
 	// corresponde a persona natural. Determina qué rama de detalle es válida.
 	TipoRegistroNatural int
+	// Client y URLs permiten leer el estado vigente del proveedor antes de componer
+	// la transición de estado_proveedor.
+	Client clients.HTTPClient
+	URLs   config.ServiceURLs
 }
 
 // NewProveedorWriteService construye el servicio de escritura con la
@@ -52,6 +56,8 @@ func NewProveedorWriteService(
 		Config:              cfg,
 		Registry:            registry,
 		TipoRegistroNatural: tipoRegistroNatural,
+		Client:              client,
+		URLs:                urls,
 	}
 }
 
@@ -91,6 +97,13 @@ func (s ProveedorWriteService) EscribirProveedor(
 	// Podar del árbol la rama de detalle que no corresponde al tipo de registro,
 	// igual que en lectura; la rama ausente del cuerpo tampoco se recorre.
 	cfg := s.configParaTipo(tipoRegistro)
+
+	// La transición de estado se compone antes que la propagación de autor, para que
+	// el estado nuevo también reciba el autor de la raíz.
+	body, err := s.componerTransicionEstado(ctx, body)
+	if err != nil {
+		return helper.WriteResult{}, err
+	}
 
 	// El autor de la raíz se propaga a los objetos anidados que lo declaran. El
 	// motor recibe el árbol ya compuesto y no conoce el campo de auditoría.

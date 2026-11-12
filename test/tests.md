@@ -623,6 +623,91 @@ por lista negra** en la ruta de lectura por cuerpo (`POST /v1/proveedor/consulta
   - `MetaData` no contiene avisos de `Kind: field_blacklisted` ni mensajes que
     mencionen la lista negra: la supresión es silenciosa.
 
+## Pruebas de integración de transición de estado (`estado_proveedor_test.go`)
+
+La escritura registra un solo `EstadoProveedor` por petición. Si su `EstadoId` difiere
+del estado activo del proveedor, el nuevo estado se crea y el activo previo se da de
+baja después. Si coincide, la petición no crea ni da de baja nada.
+
+### TestIntegracionTransicionEstadoDaDeBajaElPrevioDespuesDeCrear
+
+- **Propósito**: verificar que un `EstadoId` distinto del activo crea el nuevo estado y
+  da de baja el previo, con la creación antes que la baja.
+- **Actores**: cliente del API, middleware, CRUD simulados con el proveedor `101` y un
+  estado activo `501` (`EstadoId=1`) precargados.
+- **Entradas**: `PATCH /v1/proveedor` con `cuerpoProveedorNaturalUpdate(101, 201, 301)`
+  y `EstadoProveedor=[{EstadoId:2}]`.
+- **Salidas esperadas**:
+  - `200` o `206`.
+  - Un `POST` a `estado_proveedor` con `EstadoId=2`.
+  - Un `DELETE` a `/v1/estado_proveedor/501`, posterior al `POST`.
+
+### TestIntegracionTransicionEstadoMismoEstadoEsNoOp
+
+- **Propósito**: verificar que reenviar el estado activo vigente es idempotente: no
+  crea ni da de baja estados.
+- **Actores**: cliente del API, middleware, CRUD simulados con el mismo estado activo
+  `501` (`EstadoId=1`) precargado.
+- **Entradas**: `PATCH /v1/proveedor` con `EstadoProveedor=[{EstadoId:1}]`.
+- **Salidas esperadas**:
+  - `200` o `206`.
+  - Ninguna petición `POST` ni `DELETE` a `estado_proveedor`.
+
+### TestIntegracionTransicionRechazaEstadoInvalidoSinEscribir
+
+- **Propósito**: verificar que una escritura con más de un estado, o con un estado sin
+  `EstadoId`, responde `400` sin escribir en ningún CRUD.
+- **Actores**: cliente del API, middleware, CRUD simulados con el estado activo `501`
+  precargado.
+- **Entradas**, por subcaso: `EstadoProveedor` con dos elementos (`EstadoId` 2 y 3), o
+  con un elemento sin `EstadoId`.
+- **Salidas esperadas**: `400`, y ninguna petición distinta de `GET`.
+
+### TestIntegracionTransicionResuelveProveedorPorTerceroIdSinId
+
+- **Propósito**: verificar que, sin `Id` en la raíz, el proveedor existente se resuelve
+  por su `TerceroId` y la transición se aplica sobre sus estados activos.
+- **Actores**: cliente del API, middleware, CRUD simulados con el proveedor `101`
+  (`TerceroId=25`, activo) y el estado activo `501` precargados.
+- **Entradas**: `POST /v1/proveedor` con `cuerpoProveedorNatural()` (`TerceroId=25`, sin
+  `Id`) y `EstadoProveedor=[{EstadoId:2}]`.
+- **Salidas esperadas**:
+  - `200` o `206`.
+  - Un `POST` a `estado_proveedor` con `EstadoId=2`.
+  - Un `DELETE` a `/v1/estado_proveedor/501`.
+
+### TestIntegracionTransicionSinEstadoPreviosCreaSinBaja
+
+- **Propósito**: verificar que, sin estado activo previo, el nuevo estado se crea y no se
+  da de baja ningún estado.
+- **Actores**: cliente del API, middleware, CRUD simulados con el proveedor `101`
+  precargado y sin estados.
+- **Entradas**: `PATCH /v1/proveedor` con `cuerpoProveedorNaturalUpdate(101, 201, 301)` y
+  `EstadoProveedor=[{EstadoId:2}]`.
+- **Salidas esperadas**: `200` o `206`; un `POST` a `estado_proveedor` con `EstadoId=2`;
+  ningún `DELETE` a `estado_proveedor`.
+
+### TestIntegracionTransicionRechazaMasDeUnEstadoActivoSinEscribir
+
+- **Propósito**: verificar que, si el proveedor tiene más de un estado activo, la escritura
+  responde `400` sin escribir en ningún CRUD.
+- **Actores**: cliente del API, middleware, CRUD simulados con dos estados activos
+  (`501` y `502`) del mismo proveedor.
+- **Entradas**: `PATCH /v1/proveedor` con `cuerpoProveedorNaturalUpdate(101, 201, 301)` y
+  `EstadoProveedor=[{EstadoId:2}]`.
+- **Salidas esperadas**: `400`, y ninguna petición distinta de `GET`.
+
+### TestIntegracionTransicionEstadoNuevoRecibeAutorDeRaiz
+
+- **Propósito**: verificar que el estado nuevo recibe el autor de la raíz: la composición
+  de la transición ocurre antes de la propagación del autor.
+- **Actores**: cliente del API, middleware, CRUD simulados con el estado activo `501`
+  precargado.
+- **Entradas**: `PATCH /v1/proveedor` con `UsuarioModificacionId=9` en la raíz y
+  `EstadoProveedor=[{EstadoId:2}]`.
+- **Salidas esperadas**: `200` o `206`; el `POST` a `estado_proveedor` lleva
+  `UsuarioModificacionId=9`.
+
 ## Prueba e2e (`e2e_test.go`)
 
 ### TestE2EProveedorCreacionYActualizacion

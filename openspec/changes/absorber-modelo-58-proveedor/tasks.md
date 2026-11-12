@@ -103,11 +103,11 @@
 
 ## 6. Transición de estado del proveedor
 
-- [ ] 6.1 Escribir la prueba (con marcador de rojo) de que registrar un `estado_proveedor` con `estado_id` distinto del activo vigente crea el nuevo estado y da de baja el previo (a lo sumo un activo), con el nuevo creado antes que la baja del previo (inspección del orden de peticiones), y confirmar que falla
-- [ ] 6.2 Escribir la prueba (con marcador de rojo) de que registrar un `estado_proveedor` con el `estado_id` del activo vigente es un no-op idempotente (ni crea ni da de baja), y confirmar que falla
-- [ ] 6.3 Implementar en el servicio de escritura del proveedor la composición de la transición (resolver el activo vigente, marcar el previo para baja cuando el `estado_id` difiere, crear el nuevo antes de la baja) sobre la capacidad genérica de eliminación del motor, y verificar que las pruebas 6.1–6.2 pasan y se retiran sus marcadores
+- [x] 6.1 Escribir la prueba (con marcador de rojo) de que registrar un `estado_proveedor` con `estado_id` distinto del activo vigente crea el nuevo estado y da de baja el previo (a lo sumo un activo), con el nuevo creado antes que la baja del previo (inspección del orden de peticiones), y confirmar que falla
+- [x] 6.2 Escribir la prueba (con marcador de rojo) de que registrar un `estado_proveedor` con el `estado_id` del activo vigente es un no-op idempotente (ni crea ni da de baja), y confirmar que falla
+- [x] 6.3 Implementar en el servicio de escritura del proveedor la composición de la transición (resolver el activo vigente, marcar el previo para baja cuando el `estado_id` difiere, crear el nuevo antes de la baja) sobre la capacidad genérica de eliminación del motor, y verificar que las pruebas 6.1–6.2 pasan y se retiran sus marcadores
 
 ## 7. Documentación del contrato y verificación de integración
 
-- [ ] 7.1 Actualizar el contrato publicado (`swagger/`) y `API.md` para el campo de auditoría de autor `UsuarioModificacionId`: renombrarlo desde `AutorModificacionId`, describirlo como campo escribible que el cliente envía en el cuerpo (propagado desde la raíz a las entidades anidadas) y retirar toda mención a su inyección desde la cabecera `X-Autor-Id`; verificar que el único requisito de `openapi-publication` que lo nombra queda coherente con la documentación generada
-- [ ] 7.2 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes
+- [x] 7.1 Actualizar el contrato publicado (`swagger/`) y `API.md` para el campo de auditoría de autor `UsuarioModificacionId`: renombrarlo desde `AutorModificacionId`, describirlo como campo escribible que el cliente envía en el cuerpo (propagado desde la raíz a las entidades anidadas) y retirar toda mención a su inyección desde la cabecera `X-Autor-Id`; verificar que el único requisito de `openapi-publication` que lo nombra queda coherente con la documentación generada
+- [x] 7.2 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes

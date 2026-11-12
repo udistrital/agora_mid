@@ -342,8 +342,6 @@ func verboEscritura(metodo string) (string, bool) {
 	}
 }
 
-
-
 func (h *ProveedorHandler) responder(
 	w http.ResponseWriter,
 	status int,

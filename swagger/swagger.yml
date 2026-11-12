@@ -35,16 +35,6 @@ paths:
         `MetaData.Errors`.
       operationId: crearProveedor
       parameters:
-        - name: X-Autor-Id
-          in: header
-          description: >-
-            Identificador del autor de la modificación, poblado por la capa de
-            autenticación. Entero positivo opcional; se inyecta en los registros
-            materializados.
-          required: false
-          type: integer
-          format: int64
-          minimum: 1
         - name: body
           in: body
           description: Subárbol anidado del proveedor a crear.
@@ -122,16 +112,6 @@ paths:
         `400` sin reasignar.
       operationId: reconciliarProveedor
       parameters:
-        - name: X-Autor-Id
-          in: header
-          description: >-
-            Identificador del autor de la modificación, poblado por la capa de
-            autenticación. Entero positivo opcional; se inyecta en los registros
-            materializados.
-          required: false
-          type: integer
-          format: int64
-          minimum: 1
         - name: body
           in: body
           description: Subárbol anidado del proveedor a reconciliar.
@@ -874,6 +854,16 @@ definitions:
       - TipoRegistroId
       - Tercero
     properties:
+      UsuarioModificacionId:
+        type: integer
+        format: int64
+        description: >-
+          Autor de la modificación que el cliente envía en la raíz. Se propaga a cada
+          entidad anidada que declara el campo y no trae un valor propio (por ejemplo
+          `Contacto`). Un valor propio de una entidad anidada prevalece. Las entidades
+          de `Tercero` no lo reciben. Sin valor en la raíz, las escrituras se
+          materializan sin autor.
+        example: 9
       TerceroId:
         type: integer
         format: int64
@@ -1058,8 +1048,8 @@ definitions:
       Subárbol materializado del proveedor tras una escritura. El servicio no
       devuelve solo los identificadores: reenvía el subárbol enviado, enriquecido
       con el `Id` materializado de cada entidad creada o actualizada, las llaves
-      foráneas propagadas en cascada y el campo de auditoría `AutorModificacionId`
-      inyectado desde la cabecera `X-Autor-Id`. Las llaves foráneas propagadas
+      foráneas propagadas en cascada y el campo de auditoría `UsuarioModificacionId`
+      propagado desde la raíz del cuerpo. Las llaves foráneas propagadas
       (`TerceroId` del proveedor, `TerceroId` de `DatosIdentificacion`,
       `ProveedorId` de `Contacto`/`CuentaBancaria`) se devuelven como enteros,
       coherentes con el contrato de los CRUD dueños. Solo aparece la rama de
@@ -1083,11 +1073,11 @@ definitions:
       DescripcionPortafolio:
         type: string
         example: Servicios de consultoría
-      AutorModificacionId:
+      UsuarioModificacionId:
         type: integer
         format: int64
         description: >-
-          Autor de la modificación inyectado desde la cabecera `X-Autor-Id`.
+          Autor de la modificación. Lo envía el cliente en la raíz y se propaga a las entidades anidadas que lo declaran.
         example: 9
       Tercero:
         $ref: "#/definitions/TerceroMaterializado"
@@ -1108,8 +1098,8 @@ definitions:
   TerceroMaterializado:
     type: object
     description: >-
-      Tercero materializado, con su `Id` propio y el `AutorModificacionId`
-      inyectado. Sus `DatosIdentificacion` propagan la FK `TerceroId` como entero.
+      Tercero materializado, con su `Id` propio y el `UsuarioModificacionId`
+      propagado desde la raíz. Sus `DatosIdentificacion` propagan la FK `TerceroId` como entero.
     properties:
       Id:
         type: integer
@@ -1122,7 +1112,7 @@ definitions:
         type: integer
         format: int64
         example: 2
-      AutorModificacionId:
+      UsuarioModificacionId:
         type: integer
         format: int64
         example: 9
@@ -1156,7 +1146,7 @@ definitions:
         type: integer
         format: int64
         example: 11001
-      AutorModificacionId:
+      UsuarioModificacionId:
         type: integer
         format: int64
         example: 9
@@ -1164,7 +1154,7 @@ definitions:
     type: object
     description: >-
       Detalle de persona natural materializado. Hereda el `Id` del proveedor (PK
-      compartida, como entero) y recibe el `AutorModificacionId` inyectado.
+      compartida, como entero) y recibe el `UsuarioModificacionId` propagado desde la raíz.
     properties:
       Id:
         type: integer
@@ -1181,7 +1171,7 @@ definitions:
       ExperienciaProfesionalMeses:
         type: integer
         format: int64
-      AutorModificacionId:
+      UsuarioModificacionId:
         type: integer
         format: int64
         example: 9
@@ -1189,7 +1179,7 @@ definitions:
     type: object
     description: >-
       Detalle de persona jurídica materializado. Hereda el `Id` del proveedor (PK
-      compartida, como entero) y recibe el `AutorModificacionId` inyectado. Solo
+      compartida, como entero) y recibe el `UsuarioModificacionId` propagado desde la raíz. Solo
       aparece cuando `TipoRegistroId` corresponde a persona jurídica.
     properties:
       Id:
@@ -1204,7 +1194,7 @@ definitions:
       FechaConstitucion:
         type: string
         format: date
-      AutorModificacionId:
+      UsuarioModificacionId:
         type: integer
         format: int64
         example: 9
@@ -1212,7 +1202,7 @@ definitions:
     type: object
     description: >-
       Contacto materializado, con su `Id` propio. La FK `ProveedorId` se propaga
-      en cascada como entero y recibe el `AutorModificacionId` inyectado.
+      en cascada como entero y recibe el `UsuarioModificacionId` propagado desde la raíz.
     properties:
       Id:
         type: integer
@@ -1234,7 +1224,7 @@ definitions:
         example: ana@correo.co
       EsPrincipal:
         type: boolean
-      AutorModificacionId:
+      UsuarioModificacionId:
         type: integer
         format: int64
         example: 9
@@ -1242,7 +1232,7 @@ definitions:
     type: object
     description: >-
       Cuenta bancaria materializada, con su `Id` propio. La FK `ProveedorId` se
-      propaga en cascada como entero y recibe el `AutorModificacionId` inyectado.
+      propaga en cascada como entero y recibe el `UsuarioModificacionId` propagado desde la raíz.
     properties:
       Id:
         type: integer
@@ -1266,7 +1256,7 @@ definitions:
         format: int64
       EsPrincipal:
         type: boolean
-      AutorModificacionId:
+      UsuarioModificacionId:
         type: integer
         format: int64
         example: 9
