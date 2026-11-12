@@ -1,117 +1,168 @@
-# Configuración declarativa de relaciones del proveedor.
-#
-# service: nombre lógico del servicio. Debe ser "proveedor" para que
-#   ProveedorService lo cargue.
-# max_depth: profundidad máxima global de expansión. Limita cuántos niveles de
-#   relaciones anidadas se recorren, sin importar el depth de cada relación.
-#   Valor válido: entero positivo.
-# on_relation_error: política ante un fallo al resolver una relación.
-#   notify -> conserva el recurso principal y agrega un aviso en MetaData.Errors.
-#   fail   -> aborta la expansión (el controlador responde 502 o 504).
-# max_related_ids: número máximo de llaves consultadas por lote al resolver una
-#   relación. Acota el tamaño de cada petición al CRUD. Valor válido: entero
-#   positivo.
-# filterable_fields: columnas de primer nivel permitidas en los filtros del
-#   listado. No admite rutas de relaciones; por ejemplo, "TerceroId" es válido y
-#   "Tercero.NombreCompleto" no lo es.
-# raiz: nombre del objeto que representa la entidad raíz (ver
-#   objetos_proveedor.yaml). Sus campos escribibles, inmutables y su clave natural
-#   vienen de la tabla de campos de ese objeto.
-# write: política de escritura de la raíz.
-#   policy: verbos admitidos (creatable, updatable, deletable). deletable queda en
-#     false mientras DELETE está diferido.
-# referencias: objetos que el proveedor expande, en orden. Cada entrada lleva el
-#   objeto y su arista (ver config/README.md).
-
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
 service: proveedor
-max_depth: 4
+raiz: Proveedor
+max_depth: 5
 on_relation_error: notify
 max_related_ids: 100
 filterable_fields:
-  - Id
-  - TerceroId
-  - TipoRegistroId
-  - DescripcionPortafolio
-raiz: Proveedor
+    - Id
+    - TipoProveedor
+    - DescripcionPortafolio
+    - Consentimiento
+    - TerceroId
+    - Activo
+    - FechaCreacion
+    - FechaModificacion
+    - UsuarioModificacionId
 write:
-  policy:
-    creatable: true
-    updatable: true
-    deletable: false
-
+    policy:
+        creatable: true
+        updatable: true
+        deletable: false
 referencias:
-  # Tercero: identidad del proveedor (1-1). La llave local TerceroId referencia
-  # tercero.Id (key_propagation fk_inbound): el Id del tercero se copia en TerceroId.
-  - objeto: Tercero
-    direction: local_to_related
-    local_field: TerceroId
-    related_field: Id
-    cardinality: one
-    depth: 3
-    mapped_name: Tercero
-    key_propagation: fk_inbound
-    policy:
-      creatable: true
-      updatable: true
-      deletable: false
-
-  # ProveedorNatural: detalle de persona natural con PK compartida con el proveedor.
-  # La selección entre esta rama y la jurídica depende del tipo de registro del
-  # proveedor.
-  - objeto: ProveedorNatural
-    direction: local_to_related
-    local_field: Id
-    related_field: Id
-    cardinality: one
-    depth: 2
-    mapped_name: ProveedorNatural
-    key_propagation: shared_pk
-    policy:
-      creatable: true
-      updatable: true
-      deletable: false
-
-  # ProveedorJuridico: detalle de persona jurídica con PK compartida con el
-  # proveedor. Excluyente con ProveedorNatural.
-  - objeto: ProveedorJuridico
-    direction: local_to_related
-    local_field: Id
-    related_field: Id
-    cardinality: one
-    depth: 2
-    mapped_name: ProveedorJuridico
-    key_propagation: shared_pk
-    policy:
-      creatable: true
-      updatable: true
-      deletable: false
-
-  # Contacto: medios de contacto (1-N). La FK descendente ProveedorId apunta al
-  # proveedor.
-  - objeto: Contacto
-    direction: related_to_local
-    local_field: Id
-    related_field: ProveedorId
-    cardinality: many
-    depth: 1
-    mapped_name: Contacto
-    key_propagation: fk
-    policy:
-      creatable: true
-      updatable: true
-      deletable: true
-
-  # CuentaBancaria: cuentas bancarias (1-N). La FK descendente ProveedorId apunta
-  # al proveedor.
-  - objeto: CuentaBancaria
-    direction: related_to_local
-    local_field: Id
-    related_field: ProveedorId
-    cardinality: many
-    depth: 1
-    mapped_name: CuentaBancaria
-    key_propagation: fk
-    policy:
-      creatable: true
-      updatable: true
-      deletable: true
+    - objeto: ActividadEconomicaProveedor
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: ActividadEconomicaProveedor
+    - objeto: Contacto
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: Contacto
+    - objeto: CuentaBancaria
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: CuentaBancaria
+    - objeto: Documento
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: Documento
+    - objeto: EstadoProveedor
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: EstadoProveedor
+    - objeto: PerfilProveedor
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: PerfilProveedor
+    - objeto: ProveedorJuridico
+      direction: related_to_local
+      cardinality: one
+      local_field: Id
+      related_field: Id
+      key_propagation: shared_pk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+      depth: 2
+      mapped_name: ProveedorJuridico
+      flatten: true
+    - objeto: ProveedorNatural
+      direction: related_to_local
+      cardinality: one
+      local_field: Id
+      related_field: Id
+      key_propagation: shared_pk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+      depth: 2
+      mapped_name: ProveedorNatural
+      flatten: true
+    - objeto: Representacion
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: Representacion
+    - objeto: Tercero
+      direction: local_to_related
+      cardinality: one
+      local_field: TerceroId
+      related_field: Id
+      key_propagation: fk_inbound
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+      depth: 4
+      mapped_name: Tercero
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoProveedor
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoProveedorDetalle
+    - objeto: TituloProveedorNatural
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: ProveedorId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: TituloProveedorNatural

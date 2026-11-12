@@ -63,6 +63,9 @@ type RelationConfig struct {
 	QueryTemplate   string           `yaml:"query_template"`
 	AllowedFields   []string         `yaml:"allowed_fields"`
 	NestedRelations []RelationConfig `yaml:"nested_relations"`
+	// Flatten indica que los campos de la relación se proyectan al objeto padre en lugar de
+	// anidarse bajo MappedName. Lo declara el generador en la unión por PK compartida.
+	Flatten bool `yaml:"flatten,omitempty"`
 	// Write declara la configuración de escritura de la relación. Es opcional:
 	// una relación sin bloque write solo participa en lectura.
 	Write *WriteConfig `yaml:"write"`
@@ -189,6 +192,10 @@ type Arista struct {
 	Policy         WriteVerbPolicy `yaml:"policy"`
 	Depth          int             `yaml:"depth"`
 	MappedName     string          `yaml:"mapped_name"`
+	// Flatten indica que los campos del objeto relacionado se proyectan al nivel del
+	// objeto que porta la arista, en lugar de anidarse bajo MappedName. Lo declara el
+	// generador en la arista padre->hijo de una unión por PK compartida.
+	Flatten bool `yaml:"flatten,omitempty"`
 }
 
 // ReferenciaObjeto es una referencia desde un servicio o desde otro objeto hacia un

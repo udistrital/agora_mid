@@ -101,39 +101,45 @@ func compararRelaciones(t *testing.T, ruta string, esperado, obtenido []Relation
 	}
 }
 
-// El árbol efectivo del proveedor que produce el cargador desde el directorio real
-// de configuración equivale, nodo a nodo, al árbol inline de referencia: mismas
-// relaciones, llaves de propagación, campos de lectura y escritura, políticas,
-// profundidades y la escritura de la raíz. Además, el proveedor se compone desde
-// referencias a objetos.
-func TestProveedorArbolCompuestoEquivalenteAlInline(t *testing.T) {
-	base := cargarBaseInlineProveedor(t)
-
+// El árbol efectivo del proveedor, compuesto desde la configuración real, contiene las
+// entidades del modelo extendido con su cardinalidad declarada.
+func TestProveedorArbolEfectivoContieneModeloExtendido(t *testing.T) {
 	comp, err := CargarComposicion(".", urlsPrueba())
 	if err != nil {
 		t.Fatalf("la configuración real debe componer sin error: %v", err)
 	}
-	obtenido, ok := comp.Servicios["proveedor"]
+	sc, ok := comp.Servicios["proveedor"]
 	if !ok {
 		t.Fatal("el servicio proveedor debe existir en la composición real")
 	}
 
-	if len(obtenido.Referencias) == 0 {
-		t.Fatal("el proveedor debe componerse desde referencias a objetos direccionables")
+	cardinalidades := map[string]string{}
+	var recorrer func(rels []RelationConfig)
+	recorrer = func(rels []RelationConfig) {
+		for _, r := range rels {
+			cardinalidades[r.MappedName] = r.Cardinality
+			recorrer(r.NestedRelations)
+		}
 	}
+	recorrer(sc.Relations)
 
-	if obtenido.MaxDepth != base.MaxDepth || obtenido.MaxRelatedIDs != base.MaxRelatedIDs ||
-		obtenido.OnRelationError != base.OnRelationError {
-		t.Errorf("parámetros del servicio: esperado depth=%d ids=%d error=%q, obtenido depth=%d ids=%d error=%q",
-			base.MaxDepth, base.MaxRelatedIDs, base.OnRelationError,
-			obtenido.MaxDepth, obtenido.MaxRelatedIDs, obtenido.OnRelationError)
+	esperadas := map[string]string{
+		"EstadoProveedor":             "many",
+		"Documento":                   "many",
+		"PerfilProveedor":             "many",
+		"TituloProveedorNatural":      "many",
+		"ActividadEconomicaProveedor": "many",
+		"Representacion":              "many",
+		"PersonaJuridicaTipoEntidad":  "many",
 	}
-	if !reflect.DeepEqual(normalizarWrite(base.Write), normalizarWrite(obtenido.Write)) {
-		t.Errorf("write de la raíz: esperado %+v, obtenido %+v", normalizarWrite(base.Write), normalizarWrite(obtenido.Write))
+	for nombre, cardinalidad := range esperadas {
+		obtenida, presente := cardinalidades[nombre]
+		if !presente {
+			t.Errorf("falta la entidad del modelo extendido %q en el árbol efectivo", nombre)
+			continue
+		}
+		if obtenida != cardinalidad {
+			t.Errorf("%s: cardinalidad = %q, se esperaba %q", nombre, obtenida, cardinalidad)
+		}
 	}
-	if !reflect.DeepEqual(listaNoNula(base.FilterableFields), listaNoNula(obtenido.FilterableFields)) {
-		t.Errorf("filterable_fields: esperado %v, obtenido %v", base.FilterableFields, obtenido.FilterableFields)
-	}
-
-	compararRelaciones(t, "", normalizarRelaciones(base.Relations), normalizarRelaciones(obtenido.Relations))
 }

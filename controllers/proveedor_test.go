@@ -260,7 +260,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "creación completa 200",
 			metodo: http.MethodPost,
-			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":25,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10, "TerceroId": 25},
 			},
@@ -270,7 +270,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "materialización parcial 206",
 			metodo: http.MethodPatch,
-			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":25,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10},
 				Warnings: []responses.RelationError{
@@ -283,7 +283,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "canonización de campo derivado 206 field_normalization",
 			metodo: http.MethodPost,
-			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":25,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10, "TerceroId": 201},
 				Warnings: []responses.RelationError{
@@ -296,7 +296,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "campo derivado coincidente 200 sin aviso",
 			metodo: http.MethodPost,
-			cuerpo: `{"TerceroId":201,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":201,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10, "TerceroId": 201},
 			},
@@ -313,7 +313,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "campo inválido 400",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        &helper.ErrorEscritura{Path: "Foo", Motivo: "campo no escribible"},
 			wantStatus: 400,
 			wantBody:   `"Status":"400"`,
@@ -321,7 +321,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "rama incoherente 400",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        services.ErrRamaDetalleIncoherente,
 			wantStatus: 400,
 			wantBody:   `"Status":"400"`,
@@ -329,7 +329,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "fallo bloqueante 502",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        fatalErr,
 			wantStatus: 502,
 			wantBody:   `"Status":"502"`,
@@ -337,7 +337,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "fallo bloqueante por timeout 504",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        timeoutErr,
 			wantStatus: 504,
 			wantBody:   `"Status":"504"`,

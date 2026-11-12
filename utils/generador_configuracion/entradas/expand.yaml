@@ -1,15 +1,8 @@
-# Borrador pendiente de revisión.
+# expand: lista de FK en formato esquema.tabla.columna. Cada entrada genera una arista
+# expandible en el objeto padre hacia el hijo que porta la FK. Las FK que no aparecen
+# aquí quedan como identificador plano en el hijo.
 #
-# expand: lista de FK en formato esquema.tabla.columna. Cada entrada genera una
-# arista expandible en el objeto padre hacia el hijo que porta la FK. Las FK que
-# no aparecen aquí quedan como identificador plano en el hijo.
-#
-# Una entrada debe corresponder a una FK declarada en el DBML. Si la FK apunta a
-# una PK compartida (relación 1-1 con `-`), la columna es la PK del hijo y la
-# arista usa key_propagation shared_pk.
-#
-# Ejemplo:
-#   - proveedores.contacto.proveedor_id
+# Cada entrada es una cadena (profundidad 1) o un mapa con entrada y depth.
 - proveedores.contacto.proveedor_id
 - proveedores.cuenta_bancaria.proveedor_id
 - proveedores.estado_proveedor.proveedor_id
@@ -18,6 +11,16 @@
 - proveedores.titulo_proveedor_natural.proveedor_id
 - proveedores.actividad_economica_proveedor.proveedor_id
 - proveedores.representacion.proveedor_id
-- proveedores.persona_juridica_tipo_entidad.persona_juridica_id
-- proveedores.proveedor_natural.id
-- proveedores.proveedor_juridico.id
+- entrada: proveedores.proveedor_natural.id
+  depth: 2
+- entrada: proveedores.proveedor_juridico.id
+  depth: 2
+- entrada: proveedores.persona_juridica_tipo_entidad.persona_juridica_id
+  depth: 2
+- entrada: terceros.info_complementaria_tercero.tercero_id
+  depth: 2
+- entrada: terceros.tercero_tipo_tercero.tercero_id
+  depth: 2
+- entrada: terceros.datos_identificacion.tercero_id
+  depth: 3
+- terceros.seguridad_social_tercero.tercero_id

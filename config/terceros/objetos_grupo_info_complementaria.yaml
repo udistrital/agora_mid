@@ -1,0 +1,49 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: GrupoInfoComplementaria
+related_api: terceros
+related_table: grupo_info_complementaria
+endpoint: /v1/grupo_info_complementaria
+campos:
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: Nombre
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Descripcion
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: CodigoAbreviacion
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+referencias: []

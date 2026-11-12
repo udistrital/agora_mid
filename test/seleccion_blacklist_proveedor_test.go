@@ -44,14 +44,14 @@ func TestIntegracionConsultaFieldsEscalarOmiteIdYHermanas(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor": {{
 			"Id": float64(101), "TerceroId": float64(201),
-			"TipoRegistroId": float64(tipoRegistroNatural), "DescripcionPortafolio": "Servicios",
+			"TipoProveedor": float64(tipoRegistroNatural), "DescripcionPortafolio": "Servicios",
 		}},
 		"GET /v1/tercero": {{
 			"Id": float64(201), "NombreCompleto": "Ana Pérez",
 			"TipoContribuyenteId": float64(2),
 		}},
 		"GET /v1/proveedor_natural": {{
-			"Id": float64(101), "PerfilDeclarado": float64(3),
+			"Id": float64(101),
 		}},
 	})
 	router := routerProveedor(t, crud)
@@ -79,7 +79,7 @@ func TestIntegracionConsultaListaNegraSuprimeCampoVetado(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor": {{
 			"Id": float64(101), "TerceroId": float64(201),
-			"TipoRegistroId": float64(tipoRegistroNatural),
+			"TipoProveedor": float64(tipoRegistroNatural),
 		}},
 		"GET /v1/tercero": {{
 			"Id": float64(201), "NombreCompleto": "Ana Pérez",

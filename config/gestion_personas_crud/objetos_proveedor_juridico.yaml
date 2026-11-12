@@ -1,47 +1,187 @@
-# Definición del objeto ProveedorJuridico: detalle de persona jurídica del proveedor.
-#
-# name: nombre único del objeto en el catálogo.
-# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
-# related_table: tabla del CRUD.
-# endpoint: ruta del recurso en ese CRUD.
-# campos: tabla de campos tipada. Cada campo declara:
-#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
-#     timestamp o uuid). Obligatorio.
-#   readable: el campo se entrega en lectura.
-#   writable: el cliente puede enviar el campo en una escritura.
-#   immutable: el campo no cambia tras la creación. Exige writable.
-# referencias: objetos que este objeto referencia. [] indica que no referencia
-#   ninguno.
-#
-# La llave de propagación con el proveedor (shared_pk) se declara en la referencia
-# del servicio, no aquí.
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
 name: ProveedorJuridico
 related_api: gestion_personas_crud
 related_table: proveedor_juridico
 endpoint: /v1/proveedor_juridico
 campos:
-  - name: NombreComercial
-    type: string
-    readable: true
-    writable: true
-  - name: MatriculaMercantil
-    type: string
-    readable: true
-    writable: true
-  - name: FechaConstitucion
-    type: timestamp
-    readable: true
-    writable: true
-  - name: FechaRenovacion
-    type: timestamp
-    writable: true
-  - name: ReportaBeneficiosFinales
-    type: boolean
-    writable: true
-  - name: CotizaBolsa
-    type: boolean
-    writable: true
-  - name: RequiereRevisorFiscal
-    type: boolean
-    writable: true
-referencias: []
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: ProcedenciaEmpresaId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: CiudadOrigenId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PaisOrigenId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: CodigoPostal
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TipoConformacionId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ExclusividadProducto
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: RegimenContributivo
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Pyme
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: RegistroMercantil
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: SujetoRetencion
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: AgenteRetenedor
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ResponsableIca
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ResponsableIva
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+referencias:
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: CiudadOrigenId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: CiudadOrigen
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: PaisOrigenId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: PaisOrigen
+    - objeto: PersonaJuridicaTipoEntidad
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: PersonaJuridicaId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 2
+      mapped_name: PersonaJuridicaTipoEntidad
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: ProcedenciaEmpresaId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: ProcedenciaEmpresa
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: RegimenContributivo
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: RegimenContributivoDetalle
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoConformacionId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoConformacion

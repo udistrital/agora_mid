@@ -571,6 +571,7 @@ func construirRelacion(obj ObjetoDireccionable, arista Arista, hijos []RelationC
 		Cardinality:     arista.Cardinality,
 		Depth:           arista.Depth,
 		MappedName:      arista.MappedName,
+		Flatten:         arista.Flatten,
 		Endpoint:        obj.Endpoint,
 		QueryTemplate:   arista.RelatedField + ":{ids}",
 		AllowedFields:   obj.Campos.CamposLectura(),

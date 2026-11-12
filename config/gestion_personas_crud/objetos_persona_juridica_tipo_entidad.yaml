@@ -1,0 +1,67 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: PersonaJuridicaTipoEntidad
+related_api: gestion_personas_crud
+related_table: persona_juridica_tipo_entidad
+endpoint: /v1/persona_juridica_tipo_entidad
+campos:
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: NombrePerfilEntidad
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TipoEntidadId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PersonaJuridicaId
+      type: integer
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+referencias:
+    - objeto: TipoTercero
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoEntidadId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoEntidad

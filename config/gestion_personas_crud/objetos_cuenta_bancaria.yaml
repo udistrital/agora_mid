@@ -1,48 +1,97 @@
-# Definición del objeto CuentaBancaria: cuenta bancaria del proveedor.
-#
-# name: nombre único del objeto en el catálogo.
-# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
-# related_table: tabla del CRUD.
-# endpoint: ruta del recurso en ese CRUD.
-# campos: tabla de campos tipada. Cada campo declara:
-#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
-#     timestamp o uuid). Obligatorio.
-#   readable: el campo se entrega en lectura.
-#   writable: el cliente puede enviar el campo en una escritura.
-#   immutable: el campo no cambia tras la creación. Exige writable.
-# referencias: objetos que este objeto referencia. [] indica que no referencia
-#   ninguno.
-#
-# Las columnas terminadas en Id son identificadores planos de catálogos o
-# ubicaciones; no declaran relación con otro objeto. La FK ProveedorId que une la
-# cuenta con el proveedor se declara en la referencia del servicio, no aquí.
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
 name: CuentaBancaria
 related_api: gestion_personas_crud
 related_table: cuenta_bancaria
 endpoint: /v1/cuenta_bancaria
 campos:
-  - name: EntidadBancariaId
-    type: integer
-    readable: true
-    writable: true
-  - name: TipoCuentaId
-    type: integer
-    readable: true
-    writable: true
-  - name: NumeroCuenta
-    type: string
-    readable: true
-    writable: true
-  - name: NombreTitular
-    type: string
-    readable: true
-    writable: true
-  - name: CiudadAperturaId
-    type: integer
-    readable: true
-    writable: true
-  - name: EsPrincipal
-    type: boolean
-    readable: true
-    writable: true
-referencias: []
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: TipoCuentaId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: NumeroCuenta
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: EntidadBancariaId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ContactoId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: MontoCapitalAutorizado
+      type: numeric
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ProveedorId
+      type: integer
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+referencias:
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: EntidadBancariaId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: EntidadBancaria
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoCuentaId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoCuenta

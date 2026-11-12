@@ -26,9 +26,13 @@ import (
 )
 
 // tipoRegistroNatural es el identificador de tipo de contribuyente que las
-// pruebas tratan como persona natural. Debe coincidir con el TipoRegistroId
+// pruebas tratan como persona natural. Debe coincidir con el TipoProveedor
 // enviado en los cuerpos para que el servicio conserve la rama natural.
 const tipoRegistroNatural = 1
+
+// tipoCanalCorreo es el identificador de catálogo del canal de contacto correo que usan
+// las pruebas como FK de Contacto.TipoCanalContactoId.
+const tipoCanalCorreo = 1
 
 // PeticionCRUD registra una petición recibida por el CRUD simulado para que las
 // pruebas verifiquen método, path, query y cuerpo. No se exponen URLs ni
@@ -101,6 +105,7 @@ func (c *CRUDSimulado) URLs() config.ServiceURLs {
 		"terceros":              c.server.URL,
 		"parametros":            c.server.URL,
 		"gestion_personas_crud": c.server.URL,
+		"ubicaciones":           c.server.URL,
 	}
 }
 
@@ -307,7 +312,7 @@ func routerProveedorConBlacklist(
 func cuerpoProveedorNatural() map[string]any {
 	return map[string]any{
 		"TerceroId":             float64(25),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"NombreCompleto":      "Ana Pérez",
@@ -316,12 +321,13 @@ func cuerpoProveedorNatural() map[string]any {
 				map[string]any{"Numero": "123456", "TipoDocumentoId": float64(1)},
 			},
 		},
-		"ProveedorNatural": map[string]any{"PerfilDeclarado": float64(3)},
+		"PerfilProveedor":  []any{map[string]any{"PerfilId": float64(3)}},
+		"ProveedorNatural": map[string]any{"ExperienciaLaboral": float64(12)},
 		"Contacto": []any{
 			map[string]any{
-				"Finalidad":       "notificaciones",
-				"TipoCanal":       "correo",
-				"ValorEspecifico": "ana@correo.co",
+				"Proposito":           "notificaciones",
+				"TipoCanalContactoId": float64(tipoCanalCorreo),
+				"ValorEspecifico":     "ana@correo.co",
 			},
 		},
 	}
@@ -350,7 +356,7 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 
 	return map[string]any{
 		"Id":                    float64(provID),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría (actualizado)",
 		"Tercero": map[string]any{
 			"Id":             float64(terceroID),
@@ -359,12 +365,12 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 				datos,
 			},
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(provID), "PerfilDeclarado": float64(4)},
+		"ProveedorNatural": map[string]any{"Id": float64(provID)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(4)}},
 		"Contacto": []any{
 			map[string]any{
-				"Finalidad":       "notificaciones",
-				"TipoCanal":       "correo",
-				"ValorEspecifico": "ana@correo.co",
+				"Proposito":           "notificaciones",
+				"TipoCanalContactoId": float64(tipoCanalCorreo),
+				"ValorEspecifico":     "ana@correo.co",
 			},
 		},
 	}
@@ -379,7 +385,7 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 // el flujo extremo a extremo.
 func cuerpoProveedorNaturalConTerceroID(terceroID any, incluir bool) map[string]any {
 	cuerpo := map[string]any{
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"NombreCompleto":      "Ana Pérez",
@@ -388,12 +394,12 @@ func cuerpoProveedorNaturalConTerceroID(terceroID any, incluir bool) map[string]
 				map[string]any{"Numero": "123456", "TipoDocumentoId": float64(1)},
 			},
 		},
-		"ProveedorNatural": map[string]any{"PerfilDeclarado": float64(3)},
+		"PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 		"Contacto": []any{
 			map[string]any{
-				"Finalidad":       "notificaciones",
-				"TipoCanal":       "correo",
-				"ValorEspecifico": "ana@correo.co",
+				"Proposito":           "notificaciones",
+				"TipoCanalContactoId": float64(tipoCanalCorreo),
+				"ValorEspecifico":     "ana@correo.co",
 			},
 		},
 	}

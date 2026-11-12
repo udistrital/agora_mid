@@ -1,0 +1,55 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: SeguridadSocialTercero
+related_api: terceros
+related_table: seguridad_social_tercero
+endpoint: /v1/seguridad_social_tercero
+campos:
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: TerceroId
+      type: integer
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: TerceroEntidadId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: FechaInicioVinculacion
+      type: timestamp
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: FechaFinVinculacion
+      type: timestamp
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+referencias: []

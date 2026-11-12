@@ -1,10 +1,8 @@
-# Borrador pendiente de revisión.
+# fk_inbound: lista de FK en formato esquema.tabla.columna cuya llave porta el objeto que
+# contiene la columna. Cada entrada genera una arista en ese objeto hacia el objeto
+# referenciado, con key_propagation fk_inbound. Una entrada implica expansión, así que
+# no hace falta repetirla en expand.
 #
-# fk_inbound: lista de FK en formato esquema.tabla.columna cuya llave porta el
-# objeto que contiene la columna. Cada entrada genera una arista en ese objeto
-# hacia el objeto referenciado, con key_propagation fk_inbound. Una entrada
-# implica expansión, así que no hace falta repetirla en expand.
-#
-# Ejemplo:
-#   - proveedores.proveedor.tercero_id
-- proveedores.proveedor.tercero_id
+# Cada entrada es una cadena (profundidad 1) o un mapa con entrada y depth.
+- entrada: proveedores.proveedor.tercero_id
+  depth: 4

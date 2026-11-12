@@ -75,10 +75,10 @@ func (s ProveedorWriteService) EscribirProveedor(
 		}
 	}
 
-	tipoRegistro := idEntero(body["TipoRegistroId"])
+	tipoRegistro := idEntero(body["TipoProveedor"])
 	if tipoRegistro <= 0 {
 		return helper.WriteResult{}, &helper.ErrorEscritura{
-			Path: "TipoRegistroId", Motivo: "es obligatorio y debe ser un entero positivo",
+			Path: "TipoProveedor", Motivo: "es obligatorio y debe ser un entero positivo",
 		}
 	}
 

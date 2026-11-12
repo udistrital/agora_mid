@@ -1,0 +1,49 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: Representacion
+related_api: gestion_personas_crud
+related_table: representacion
+endpoint: /v1/representacion
+campos:
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: ProveedorId
+      type: integer
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: RepresentanteId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+referencias: []

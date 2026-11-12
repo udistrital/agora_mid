@@ -260,6 +260,8 @@ func writeObservado(
 		return WriteResult{}, fmt.Errorf("write: on_relation_error inválido %q", onRelError)
 	}
 
+	body = desaplanarEspecializaciones(body, *cfg.Write, cfg.Relations)
+
 	// Validación y aplanado de todo el árbol antes de materializar. Un cuerpo
 	// inválido se rechaza con *ErrorEscritura sin ninguna escritura.
 	if err := validarNivel(body, *cfg.Write, cfg.Relations, verb, "", nil); err != nil {
@@ -1383,4 +1385,54 @@ func unirRuta(base, seg string) string {
 		return seg
 	}
 	return base + "." + seg
+}
+
+// desaplanarEspecializaciones devuelve una copia del cuerpo en la que los campos planos
+// que pertenecen a una relación aplanada (flatten) se agrupan bajo su mapped_name. Así el
+// resto del motor los valida y materializa en el CRUD dueño de la especialización, por PK
+// compartida. Un campo que no es escribible en la raíz ni en una especialización
+// aplanada se deja donde está y falla como campo ajeno.
+func desaplanarEspecializaciones(
+	body map[string]any,
+	raiz config.WriteConfig,
+	rels []config.RelationConfig,
+) map[string]any {
+	enRaiz := conjunto(raiz.WritableFields)
+	salida := make(map[string]any, len(body))
+	for clave, valor := range body {
+		salida[clave] = valor
+	}
+	for _, rel := range rels {
+		if !rel.Flatten || rel.Write == nil {
+			continue
+		}
+		propios := conjunto(rel.Write.WritableFields)
+		grupo := map[string]any{}
+		for clave, valor := range salida {
+			if _, enRaizCampo := enRaiz[clave]; clave == rel.MappedName || enRaizCampo || !esCampoPropio(propios, clave) {
+				continue
+			}
+			grupo[clave] = valor
+			delete(salida, clave)
+		}
+		if len(grupo) == 0 {
+			continue
+		}
+		anidado, _ := salida[rel.MappedName].(map[string]any)
+		combinado := make(map[string]any, len(anidado)+len(grupo))
+		for clave, valor := range anidado {
+			combinado[clave] = valor
+		}
+		for clave, valor := range grupo {
+			combinado[clave] = valor
+		}
+		salida[rel.MappedName] = combinado
+	}
+	return salida
+}
+
+// esCampoPropio indica si clave pertenece al conjunto de campos escribibles de la relación.
+func esCampoPropio(propios map[string]struct{}, clave string) bool {
+	_, ok := propios[clave]
+	return ok
 }

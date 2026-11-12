@@ -1,61 +1,157 @@
-# Definición del objeto Tercero: datos de identidad de la persona.
-#
-# name: nombre único del objeto en el catálogo.
-# related_service: llave lógica del nodo; si se omite se deriva del nombre (tercero).
-# related_api: CRUD que almacena el objeto (clave de conf/app.conf: terceros).
-# related_table: tabla del CRUD. endpoint: ruta del recurso en ese CRUD.
-# campos: tabla de campos tipada. type es el tipo de almacenamiento. readable
-#   expone el campo en lectura; writable permite enviarlo en escritura.
-# referencias: objetos que este objeto referencia. La arista (direction, depth,
-#   key_propagation, policy, etc.) se declara en cada referencia.
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
 name: Tercero
 related_api: terceros
 related_table: tercero
 endpoint: /v1/tercero
 campos:
-  - name: NombreCompleto
-    type: string
-    readable: true
-    writable: true
-  - name: PrimerNombre
-    type: string
-    writable: true
-  - name: SegundoNombre
-    type: string
-    writable: true
-  - name: PrimerApellido
-    type: string
-    writable: true
-  - name: SegundoApellido
-    type: string
-    writable: true
-  - name: FechaNacimiento
-    type: timestamp
-    writable: true
-  - name: TipoContribuyenteId
-    type: integer
-    readable: true
-    writable: true
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: NombreCompleto
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PrimerNombre
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: SegundoNombre
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PrimerApellido
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: SegundoApellido
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: LugarOrigen
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: FechaNacimiento
+      type: timestamp
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TipoContribuyenteId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: UsuarioWso2
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
 referencias:
-  # DatosIdentificacion: documentos del tercero. Su FK TerceroId recibe la llave del
-  # tercero (key_propagation fk).
-  - objeto: DatosIdentificacion
-    direction: related_to_local
-    local_field: Id
-    related_field: TerceroId
-    cardinality: many
-    depth: 1
-    mapped_name: DatosIdentificacion
-    key_propagation: fk
-    policy:
-      creatable: true
-      updatable: true
-      deletable: false
-  # TipoContribuyente: clasificación del tercero, referenciada por Id local.
-  - objeto: TipoContribuyente
-    direction: local_to_related
-    local_field: TipoContribuyenteId
-    related_field: Id
-    cardinality: one
-    depth: 1
-    mapped_name: TipoContribuyente
+    - objeto: DatosIdentificacion
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 3
+      mapped_name: DatosIdentificacion
+    - objeto: InfoComplementariaTercero
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 2
+      mapped_name: InfoComplementariaTercero
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: LugarOrigen
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: LugarOrigenDetalle
+    - objeto: SeguridadSocialTercero
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: SeguridadSocialTercero
+    - objeto: TerceroTipoTercero
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: TerceroTipoTercero
+    - objeto: TipoContribuyente
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoContribuyenteId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoContribuyente

@@ -1,38 +1,63 @@
-# Definición del objeto Proveedor: entidad raíz del servicio proveedor.
-#
-# name: nombre único del objeto en el catálogo. El servicio lo referencia desde
-#   su clave raiz.
-# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
-# related_table: tabla del CRUD.
-# endpoint: ruta del recurso en ese CRUD.
-# natural_key: campos que identifican un proveedor existente en la escritura
-#   idempotente. Deben ser writable.
-# campos: tabla de campos tipada. Cada campo declara:
-#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
-#     timestamp o uuid). Obligatorio.
-#   readable: el campo se entrega en lectura.
-#   writable: el cliente puede enviar el campo en una escritura.
-#   immutable: el campo no cambia tras la creación. Exige writable.
-# referencias: objetos que este objeto referencia. La raíz se expande desde el
-#   servicio, por eso la lista está vacía.
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
 name: Proveedor
 related_api: gestion_personas_crud
 related_table: proveedor
 endpoint: /v1/proveedor
 natural_key:
-  - TerceroId
+    - TerceroId
 campos:
-  - name: TerceroId
-    type: integer
-    readable: true
-    writable: true
-    immutable: true
-  - name: TipoRegistroId
-    type: integer
-    readable: true
-    writable: true
-  - name: DescripcionPortafolio
-    type: string
-    readable: true
-    writable: true
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: TipoProveedor
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DescripcionPortafolio
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Consentimiento
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TerceroId
+      type: integer
+      readable: true
+      writable: true
+      immutable: true
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      readable: false
+      writable: true
+      immutable: false
+      required: false
 referencias: []

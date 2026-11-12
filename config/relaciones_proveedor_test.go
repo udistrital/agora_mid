@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -84,8 +85,8 @@ func TestRelacionesProveedorCargaYValida(t *testing.T) {
 	}
 }
 
-// Verifica que el recurso raíz del proveedor declare las columnas de primer
-// nivel que pueden utilizarse como filtros de colección.
+// Verifica que el recurso raíz del proveedor declare las columnas de primer nivel que
+// pueden utilizarse como filtros de colección, según el sidecar service del modelo #58.
 func TestRelacionesProveedorDeclaraCamposFiltrables(t *testing.T) {
 	contenido, err := os.ReadFile(localizarArchivoProveedor(t))
 	if err != nil {
@@ -97,7 +98,10 @@ func TestRelacionesProveedorDeclaraCamposFiltrables(t *testing.T) {
 	}
 
 	sc := comp.Servicios["proveedor"]
-	esperados := []string{"Id", "TerceroId", "TipoRegistroId", "DescripcionPortafolio"}
+	esperados := []string{
+		"Id", "TipoProveedor", "DescripcionPortafolio", "Consentimiento", "TerceroId",
+		"Activo", "FechaCreacion", "FechaModificacion", "UsuarioModificacionId",
+	}
 	if len(sc.FilterableFields) != len(esperados) {
 		t.Fatalf("campos filtrables inesperados: got=%v want=%v", sc.FilterableFields, esperados)
 	}
@@ -135,13 +139,13 @@ func TestRelacionesProveedorMalformadaAborta(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Corromper la dirección de la referencia a Contacto.
-	corrupto := strings.Replace(
-		string(contenido),
-		"  - objeto: Contacto\n    direction: related_to_local",
-		"  - objeto: Contacto\n    direction: hacia_cualquier_lado",
-		1,
-	)
+	// Corromper la dirección de la referencia a Contacto, sin depender de la indentación
+	// ni del valor previo de direction.
+	patron := regexp.MustCompile(`(?m)(- objeto: Contacto\n\s+direction: )\S+`)
+	if !patron.MatchString(string(contenido)) {
+		t.Fatal("no se encontró la referencia Contacto para la prueba")
+	}
+	corrupto := patron.ReplaceAllString(string(contenido), "${1}hacia_cualquier_lado")
 	if corrupto == string(contenido) {
 		t.Fatal("no se pudo corromper la referencia Contacto para la prueba")
 	}

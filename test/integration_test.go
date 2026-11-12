@@ -111,8 +111,8 @@ func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, patch, 
 func TestIntegracionListadoProveedor(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor": {
-			{"Id": float64(101), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
-			{"Id": float64(102), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(101), "TerceroId": float64(15), "TipoProveedor": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(102), "TerceroId": float64(15), "TipoProveedor": float64(tipoRegistroNatural), "Activo": true},
 		},
 		"GET /v1/tercero": {
 			{"Id": float64(15), "NombreCompleto": "Ana Pérez"},
@@ -528,13 +528,13 @@ func TestIntegracionReenvioDataCoincide200(t *testing.T) {
 	cuerpo := map[string]any{
 		"Id":                    float64(101),
 		"TerceroId":             float64(201),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"Id":             float64(201),
 			"NombreCompleto": "Ana Pérez",
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+		"ProveedorNatural": map[string]any{"Id": float64(101)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 	}
 
 	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
@@ -572,13 +572,13 @@ func TestIntegracionConflictoFKAscendenteExistente400(t *testing.T) {
 	cuerpo := map[string]any{
 		"Id":                    float64(101),
 		"TerceroId":             float64(999),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"Id":             float64(201),
 			"NombreCompleto": "Ana Pérez",
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+		"ProveedorNatural": map[string]any{"Id": float64(101)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 	}
 
 	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
@@ -655,13 +655,13 @@ func TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales(t *testing.T)
 	cuerpo := map[string]any{
 		"Id":                    float64(101),
 		"TerceroId":             float64(999),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"Id":             float64(201),
 			"NombreCompleto": "Ana Pérez",
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+		"ProveedorNatural": map[string]any{"Id": float64(101)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 	}
 
 	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
@@ -693,21 +693,27 @@ func TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales(t *testing.T)
 func TestIntegracionListadoProveedorPaginaMixta(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor": {
-			{"Id": float64(101), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
-			{"Id": float64(102), "TerceroId": float64(16), "TipoRegistroId": float64(2), "Activo": true},
+			{"Id": float64(101), "TerceroId": float64(15), "TipoProveedor": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(102), "TerceroId": float64(16), "TipoProveedor": float64(2), "Activo": true},
 		},
 		"GET /v1/proveedor_natural": {
-			{"Id": float64(101), "PerfilDeclarado": float64(3)},
+			{"Id": float64(101), "ExperienciaLaboral": float64(12)},
+		},
+		"GET /v1/perfil_proveedor": {
+			{"Id": float64(1), "PerfilId": float64(3), "ProveedorId": float64(101)},
 		},
 		"GET /v1/proveedor_juridico": {
-			{"Id": float64(102), "NombreComercial": "ACME"},
+			{"Id": float64(102)},
+		},
+		"GET /v1/tercero": {
+			{"Id": float64(16), "NombreCompleto": "ACME"},
 		},
 	})
 	router := routerProveedor(t, crud)
 
 	rec, env := ejecutarListaProveedor(t, router, map[string]any{
 		"query":  []string{"Id__in:101|102"},
-		"fields": []string{"ProveedorNatural.PerfilDeclarado", "ProveedorJuridico.NombreComercial"},
+		"fields": []string{"PerfilProveedor.PerfilId", "Tercero.NombreCompleto", "ProveedorNatural.ExperienciaLaboral"},
 		"limit":  10,
 		"offset": 0,
 	})
@@ -722,16 +728,19 @@ func TestIntegracionListadoProveedorPaginaMixta(t *testing.T) {
 	}
 
 	natural := env.Data[0]
-	if pn, ok := natural["ProveedorNatural"].(map[string]any); !ok || pn["PerfilDeclarado"] != float64(3) {
-		t.Errorf("el proveedor natural debe expandir ProveedorNatural: %+v", natural)
+	if meses, _ := natural["ExperienciaLaboral"].(float64); int(meses) != 12 {
+		t.Errorf("el proveedor natural del listado debe aplanar su ExperienciaLaboral en la raíz: %+v", natural)
+	}
+	if perfiles, ok := natural["PerfilProveedor"].([]any); !ok || len(perfiles) != 1 || perfiles[0].(map[string]any)["PerfilId"] != float64(3) {
+		t.Errorf("el proveedor natural debe expandir PerfilProveedor con PerfilId 3: %+v", natural)
 	}
 	if _, presente := natural["ProveedorJuridico"]; presente {
 		t.Errorf("el proveedor natural no debe expandir ProveedorJuridico: %+v", natural)
 	}
 
 	juridico := env.Data[1]
-	if pj, ok := juridico["ProveedorJuridico"].(map[string]any); !ok || pj["NombreComercial"] != "ACME" {
-		t.Errorf("el proveedor jurídico debe expandir ProveedorJuridico: %+v", juridico)
+	if tc, ok := juridico["Tercero"].(map[string]any); !ok || tc["NombreCompleto"] != "ACME" {
+		t.Errorf("el proveedor jurídico debe expandir Tercero con NombreCompleto ACME: %+v", juridico)
 	}
 	if _, presente := juridico["ProveedorNatural"]; presente {
 		t.Errorf("el proveedor jurídico no debe expandir ProveedorNatural: %+v", juridico)

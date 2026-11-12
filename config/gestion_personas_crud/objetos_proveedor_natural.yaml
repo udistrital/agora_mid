@@ -1,42 +1,157 @@
-# Definición del objeto ProveedorNatural: detalle de persona natural del proveedor.
-#
-# name: nombre único del objeto en el catálogo.
-# related_api: CRUD que almacena el objeto (clave de conf/app.conf).
-# related_table: tabla del CRUD.
-# endpoint: ruta del recurso en ese CRUD.
-# campos: tabla de campos tipada. Cada campo declara:
-#   type: tipo de almacenamiento (boolean, integer, jsonb, numeric, string,
-#     timestamp o uuid). Obligatorio.
-#   readable: el campo se entrega en lectura.
-#   writable: el cliente puede enviar el campo en una escritura.
-#   immutable: el campo no cambia tras la creación. Exige writable.
-# referencias: objetos que este objeto referencia.
-#
-# La llave de propagación con el proveedor (shared_pk) se declara en la referencia
-# del servicio, no aquí.
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
 name: ProveedorNatural
 related_api: gestion_personas_crud
 related_table: proveedor_natural
 endpoint: /v1/proveedor_natural
 campos:
-  - name: PerfilDeclarado
-    type: integer
-    readable: true
-    writable: true
-  - name: ExperienciaLaboralMeses
-    type: integer
-    readable: true
-    writable: true
-  - name: ExperienciaProfesionalMeses
-    type: integer
-    readable: true
-    writable: true
+    - name: Id
+      type: integer
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: PaisNacimientoId
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Cargo
+      type: string
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: MedicinaPrepagada
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ValorUvtPrepagada
+      type: numeric
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: InteresViviendaAfc
+      type: numeric
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DependienteHijoMejorEdad
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DependienteHijoMenos23Estudiando
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DependienteHijoMas23Discapacitado
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DependienteConyuge
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DependientePadreOHermano
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Pensionado
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ValorAfc
+      type: numeric
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ResponsableIva
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ResideColombia
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PensionVoluntaria
+      type: boolean
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ValorPensionVoluntaria
+      type: numeric
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ExperienciaLaboral
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ExperienciaProfesional
+      type: integer
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      readable: false
+      writable: true
+      immutable: false
+      required: false
 referencias:
-  # Perfil: perfil declarado, referenciado por la llave local PerfilDeclarado.
-  - objeto: Perfil
-    direction: local_to_related
-    local_field: PerfilDeclarado
-    related_field: Id
-    cardinality: one
-    depth: 1
-    mapped_name: Perfil
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: PaisNacimientoId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: PaisNacimiento

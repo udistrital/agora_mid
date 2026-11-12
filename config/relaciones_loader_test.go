@@ -12,6 +12,7 @@ func urlsPrueba() ServiceURLs {
 		"terceros":              "http://terceros.test",
 		"parametros":            "http://parametros.test",
 		"gestion_personas_crud": "http://gestion.test",
+		"ubicaciones":           "http://ubicaciones.test",
 	}
 }
 
@@ -228,7 +229,7 @@ max_related_ids: 100
 write:
   writable_fields:
     - TerceroId
-    - TipoRegistroId
+    - TipoProveedor
   immutable_fields:
     - TerceroId
   natural_key:
