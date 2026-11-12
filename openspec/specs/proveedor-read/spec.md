@@ -5,7 +5,6 @@
 Define la lectura del proveedor como recurso raíz por identificador, entregando sus entidades relacionadas del núcleo como objetos anidados mediante selección de campos y configuración declarativa, sin que el MID sea dueño de los datos.
 
 ## Requirements
-
 ### Requirement: Lectura del proveedor por identificador
 El sistema SHALL exponer la lectura del proveedor mediante `POST /v1/proveedor/consulta`, recibiendo el identificador del proveedor en el campo `id` del cuerpo JSON y devolviendo el recurso en el envoltorio de respuesta estándar, consultando el proveedor base contra el CRUD dueño. La URL de la consulta es estable y no transporta la selección de campos, de modo que el gateway no deba manejar query strings extensas.
 
@@ -36,9 +35,13 @@ El sistema SHALL expandir, a partir del proveedor raíz, las entidades relaciona
 - **WHEN** el cuerpo incluye `fields` que seleccionan rutas del núcleo (tercero, datos de identificación, tipo de contribuyente, detalle natural o jurídico, perfil, contactos, cuentas bancarias)
 - **THEN** la respuesta anida cada relación seleccionada bajo su `mapped_name` respetando su cardinalidad
 
+#### Scenario: Ciudades expandidas con su tipo
+- **WHEN** una entidad del núcleo referencia una ciudad u otro lugar de ubicaciones y `fields` selecciona esa relación
+- **THEN** el lugar se expande bajo su `mapped_name` entregando su identificador y su nombre, y su tipo de lugar anidado con su nombre, de un salto
+
 #### Scenario: Ciudades sin expansión
-- **WHEN** una entidad del núcleo referencia una ciudad de ubicaciones
-- **THEN** la ciudad se entrega como identificador plano sin expandirse
+- **WHEN** una entidad del núcleo referencia una ciudad de ubicaciones y `fields` no selecciona esa relación
+- **THEN** la ciudad se entrega como identificador plano, sin expandirse, igual que cualquier relación no seleccionada
 
 #### Scenario: Campo fuera del núcleo permitido
 - **WHEN** `fields` solicita una ruta no declarada en la configuración del proveedor
@@ -136,3 +139,34 @@ El sistema SHALL aceptar únicamente el método `POST` en `/v1/proveedor/consult
 #### Scenario: Método no permitido en el listado
 - **WHEN** se solicita `GET`, `PUT` o `DELETE` sobre `/v1/proveedor/consulta/lista`
 - **THEN** el sistema responde `405 Method Not Allowed` e indica `POST` como método permitido, sin consultar el CRUD
+
+### Requirement: Expansión del árbol extendido del proveedor
+El sistema SHALL expandir, a partir del proveedor raíz y según `fields`, las
+entidades del modelo extendido: `estado_proveedor`, `documento`,
+`perfil_proveedor`, `titulo_proveedor_natural`, `actividad_economica_proveedor`,
+`representacion` y `persona_juridica_tipo_entidad`, cada una anidada bajo su
+`mapped_name` con su cardinalidad declarada.
+
+#### Scenario: Expansión de colecciones del modelo extendido
+- **WHEN** `fields` selecciona rutas de colecciones del modelo extendido (por
+  ejemplo `PerfilProveedor`, `Documento` o `EstadoProveedor`)
+- **THEN** la respuesta anida cada colección bajo su `mapped_name` como lista,
+  respetando su cardinalidad
+
+### Requirement: Aplanado de la especialización en la lectura del proveedor
+El sistema SHALL proyectar los campos de la especialización del proveedor
+(`proveedor_natural` o `proveedor_juridico`, según `tipo_proveedor`) dentro del
+objeto proveedor en lugar de anidarlos bajo un `mapped_name`, de un solo salto y
+solo en la dirección proveedor->especialización.
+
+#### Scenario: Los campos de la especialización aparecen en el proveedor
+- **WHEN** se expande un proveedor y su `tipo_proveedor` indica persona natural o
+  jurídica
+- **THEN** los campos de la especialización correspondiente aparecen al nivel del
+  objeto proveedor, no bajo un objeto anidado
+
+#### Scenario: Listado mixto aplana la especialización de cada registro
+- **WHEN** un listado devuelve en la misma página proveedores de persona natural y
+  de persona jurídica
+- **THEN** cada registro aplana los campos de su propia especialización según su
+  `tipo_proveedor`, sin aplicar a toda la página la rama de un único tipo
