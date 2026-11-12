@@ -103,13 +103,17 @@ Por qué: `estado_id` es el valor de catálogo que identifica el estado; reenvia
 misma intención no debe acumular filas de historia ni romper el reenvío idempotente
 del resto del árbol.
 
-### Decisión 5: La configuración se genera desde el DBML con cinco sidecars de intención, no a mano
+### Decisión 5: La configuración se genera desde el DBML con ocho sidecars de intención, no a mano
 Un generador en su propia subcarpeta bajo `utils/` (ejecución manual, fuera del
 arranque) produce los archivos de configuración a partir del DBML (estructura:
-tablas, columnas, tipos, FK) y cinco sidecars de intención agrupados por capacidad, direccionados como
+tablas, columnas, tipos, FK) y ocho sidecars de intención agrupados por capacidad, direccionados como
 `esquema.tabla[.columna]`: `expand` (qué FK se vuelven aristas), `write` (política
 CRUD por objeto, con `natural_key` opcional), `fk_inbound` (aristas de llave entrante),
-`blacklist` (columnas excluidas) y `service` (parámetros de servicio por tabla raíz).
+`blacklist` (columnas excluidas), `service` (parámetros de servicio por tabla raíz),
+`flatten` (proyección aplanada y supresión de la expansión inversa de una unión por
+PK compartida), `field_roles` (banderas de rol por campo, con comodín `ANY` en el
+esquema o la tabla y la más específica prevaleciendo) y `lookup` (aristas de consulta
+de solo lectura).
 Las entradas de `expand` y `fk_inbound` admiten una forma de cadena (profundidad por
 omisión) o un mapa con `depth`. La emisión es determinista (orden fijo de objetos,
 campos y entradas de lista) y cada entrada de sidecar se valida contra el DBML: una
@@ -130,7 +134,7 @@ permanece en el objeto raíz. Los objetos no raíz conservan sus aristas y la po
 de escritura de un objeto no raíz se emite sobre las aristas que lo apuntan.
 
 Las entradas de la generación comparten ubicación con el generador: el DBML y los
-cinco sidecars viven en esa misma subcarpeta bajo `utils/`, fuera del árbol `config/`
+ocho sidecars viven en esa misma subcarpeta bajo `utils/`, fuera del árbol `config/`
 en el que el generador escribe su salida. Todo lo de generación —herramienta,
 modelo e intención— tiene el mismo propósito y vive junto; la salida generada es lo
 único que entra a `config/`.
@@ -151,7 +155,212 @@ columna) sin sidecars. Rechazada: las excepciones quedarían ocultas en código 
 regeneración sorpresiva obligaría a depurar el criterio del generador en vez de leer
 un mapa.
 
+### Decisión 6: El aplanado de la especialización se declara con una bandera en la arista de PK compartida, y el sidecar `flatten` suprime la arista inversa
+La unión por PK compartida `proveedor.id = especializacion.id` produce la arista
+padre->hijo `shared_pk`. El sidecar `flatten` direcciona la columna de PK compartida
+del lado hijo (por ejemplo `proveedores.proveedor_juridico.id`) y produce dos efectos
+en el generador:
+
+1. Suprime la arista inversa hijo->padre, de modo que la especialización no reexpande
+   el proveedor y no se forma un ciclo de composición. Si la misma columna aparece en
+   `fk_inbound`, el generador falla identificando la entrada.
+2. Marca la arista padre->hijo con `flatten: true`. La arista sigue saliendo de
+   `expand` (`proveedores.proveedor.id` no lleva directiva y se expande con normalidad);
+   la bandera indica al motor de lectura que los campos de la especialización se
+   proyectan al nivel del proveedor en lugar de anidarse bajo `mapped_name`, según
+   `tipo_proveedor`.
+
+Por qué: `nested-object-expansion` y la Decisión 1 ya establecen que la arista declara
+la proyección aplanada. Una supresión sin bandera dejaría la proyección sin declarar
+en la configuración, y el motor no tendría de dónde leerla. Declarar la bandera en la
+arista y suprimir la inversa en el mismo sidecar mantiene una sola intención por
+unión.
+
+Alternativa considerada: solo suprimir la arista inversa y dejar que el motor decida la
+proyección desde `tipo_proveedor`. Rechazada: la proyección quedaría implícita en el
+motor y no en la configuración generada.
+
+Alternativa considerada: una bandera de proyección en la arista de `expand`.
+Rechazada: ensucia el vocabulario de `expand` con una semántica que solo aplica a las
+uniones por PK compartida y mezcla dos intenciones en una entrada.
+
+### Decisión 7: Las banderas de rol por campo se declaran en `field_roles`, no en una heurística por nombre
+El rol de lectura y escritura de cada campo se toma del sidecar `field_roles`, cuyas
+entradas se direccionan como `esquema.tabla.columna` con comodín `ANY` en el esquema o
+en la tabla (la columna es siempre explícita); la entrada más específica prevalece. Esto reemplaza la convención por nombre
+de columna del generador (que marcaba `id` y los campos de auditoría como no
+escribibles) por una declaración legible: `ANY.ANY.activo`, `ANY.ANY.fecha_creacion`,
+`ANY.ANY.fecha_modificacion` administrados por el sistema (no legibles ni escribibles),
+`ANY.ANY.usuario_modificacion_id` escribible por cuerpo pero no legible, `ANY.ANY.id`
+legible y no escribible, y las FK de retrorreferencia de cada hijo no legibles ni
+escribibles.
+
+Por qué: es el mismo argumento de la Decisión 5 aplicado a los roles. Una convención
+por nombre oculta la excepción en el código del generador; un mapa la hace explícita y
+auditable. El comodín evita declarar las mismas reglas de auditoría en cada tabla.
+
+Hallazgo que respalda el rol de las FK de retrorreferencia (verificado leyendo el
+motor, no ejecutando sus pruebas): la FK derivada que porta la llave del padre
+(`TerceroId` en fk_inbound, `ProveedorId` en fk, `Id` en shared_pk) la gobierna el
+motor por su `key_propagation` con independencia de las banderas de rol: `CampoDerivado`
+la reconoce, `conciliarCampoDerivado` concilia el reenvío (igual conserva, difiere en
+entidad existente es `400`) y `aplanarParametros` la conserva en el `Data` aunque no
+esté en `writable_fields`. Por eso una FK de retrorreferencia con `readable: false,
+writable: false` se oculta en lectura y aun así sobrevive el reenvío de escritura. La
+invariante del cargador `immutable ⇒ writable` (en `config/tabla_campos.go`) impide
+declarar `immutable: true` junto a `writable: false`, de modo que la FK ascendente de
+la raíz (`proveedor.tercero_id`) no declara `immutable`; su inmutabilidad la hace
+cumplir el motor por `conciliarCampoDerivado`.
+
+### Decisión 8: Las FK hacia catálogos y lugares son aristas de consulta del sidecar `lookup`
+`expand` pone la arista en el objeto referenciado (padre -> colección) y `fk_inbound`
+la pone en el objeto que porta la columna con propagación `fk_inbound`, lo que activa
+la materialización previa en escritura. Ninguno expresa "este objeto muestra el
+catálogo que referencia, sin escribirlo". `lookup` emite la arista en el objeto que
+porta la columna, `local_to_related`, cardinalidad `one`, sin propagación y sin verbos,
+aunque `write` declare política para el referenciado. El cargador compone esa arista
+sin bloque `write` (solo lectura).
+
+El nombre de una arista de `lookup` o `fk_inbound` es la columna sin `_id` en
+PascalCase (`tercero_id` -> `Tercero`, `pais_nacimiento_id` -> `PaisNacimiento`). Una
+entrada de mapa puede declarar `mapped_name`. Un nombre igual a un campo del objeto
+falla, porque ocultaría el campo plano; las columnas sin sufijo `_id` (`tipo_proveedor`,
+`regimen_contributivo`, `lugar_origen`, `ciudad_expedicion`, `tipo_lugar`) exigen
+`mapped_name`. El generador rechaza los ciclos de referencias con la regla del
+cargador, para que una entrada que cierre un ciclo falle al generar y no al arrancar.
+
+Por qué: una arista de solo lectura no debe depender de que `write` no declare
+política para un catálogo, y un sidecar propio evita sobrecargar `expand` o
+`fk_inbound` con una dirección o una propagación que no les corresponde.
+
+Alternativa considerada: una bandera `direction` en las entradas de `expand`. Rechazada
+por la misma razón que la Decisión 6: mezcla dos intenciones en un sidecar.
+
+## Contenido de las entradas
+
+Esta sección fija el contenido de `utils/generador_configuracion/entradas/` para la
+tarea 2.3. El DBML `agora_modelo_extendido.dbml` es la única entrada confiable; los
+sidecars actuales son marcadores y se reemplazan por completo. Las claves usan
+`snake_case` del DBML. La profundidad de cada arista es la altura de su subárbol: una
+arista sin aristas debajo vale 1.
+
+**`service.yaml`**: solo `proveedores.proveedor`, con `service: proveedor`,
+`max_depth: 5`, `on_relation_error: notify`, `max_related_ids: 100` y
+`filterable_fields` con todas las columnas de primer nivel, auditoría incluida: `id`,
+`tipo_proveedor`, `descripcion_portafolio`, `consentimiento`, `tercero_id`, `activo`,
+`fecha_creacion`, `fecha_modificacion`, `usuario_modificacion_id`.
+
+**`write.yaml`**:
+- `proveedores.proveedor`: creatable, updatable, no deletable, `natural_key: [tercero_id]`.
+- `proveedores.proveedor_natural` y `proveedores.proveedor_juridico`: creatable,
+  updatable, no deletable.
+- `proveedores.contacto`, `cuenta_bancaria`, `estado_proveedor`, `documento`,
+  `perfil_proveedor`, `titulo_proveedor_natural`, `actividad_economica_proveedor`,
+  `representacion`, `persona_juridica_tipo_entidad`: creatable, updatable, deletable,
+  sin `natural_key`. `estado_proveedor` no lleva clave natural porque una revisión
+  puede registrar un estado nuevo con el mismo `estado_id`.
+- Sin entradas para `terceros`, `parametros` ni `ubicaciones`: la arista del tercero y
+  su subárbol quedan sin verbos por ahora.
+
+**`fk_inbound.yaml`**: `proveedores.proveedor.tercero_id` con `depth: 4`
+(`mapped_name` derivado: `Tercero`).
+
+**`flatten.yaml`**: `proveedores.proveedor_natural.id` y
+`proveedores.proveedor_juridico.id`.
+
+**`expand.yaml`** (colecciones y PK compartida):
+- Profundidad 1: `contacto.proveedor_id`, `cuenta_bancaria.proveedor_id`,
+  `estado_proveedor.proveedor_id`, `documento.proveedor_id`,
+  `perfil_proveedor.proveedor_id`, `titulo_proveedor_natural.proveedor_id`,
+  `actividad_economica_proveedor.proveedor_id`, `representacion.proveedor_id`, todas
+  bajo `proveedores`.
+- Profundidad 2: `proveedores.proveedor_natural.id`, `proveedores.proveedor_juridico.id`
+  (sus catálogos y lugares cuelgan de ellas),
+  `proveedores.persona_juridica_tipo_entidad.persona_juridica_id`,
+  `terceros.info_complementaria_tercero.tercero_id`,
+  `terceros.tercero_tipo_tercero.tercero_id`.
+- Profundidad 3: `terceros.datos_identificacion.tercero_id`.
+- Profundidad 1: `terceros.seguridad_social_tercero.tercero_id`.
+
+**`lookup.yaml`** (catálogos y lugares, solo lectura):
+- Hacia `parametros.parametro`, profundidad 1: `proveedor.tipo_proveedor`
+  (`mapped_name: TipoProveedorDetalle`), `estado_proveedor.estado_id`,
+  `cuenta_bancaria.tipo_cuenta_id`, `cuenta_bancaria.entidad_bancaria_id`,
+  `documento.tipo_documento_id`, `contacto.tipo_canal_contacto_id`,
+  `titulo_proveedor_natural.nucleo_basico_conocimiento_snies_id`,
+  `proveedor_juridico.procedencia_empresa_id`, `proveedor_juridico.tipo_conformacion_id`,
+  `proveedor_juridico.regimen_contributivo` (`mapped_name: RegimenContributivoDetalle`),
+  `actividad_economica_proveedor.actividad_economica_id`, todas bajo `proveedores`.
+- Hacia `ubicaciones.lugar`, profundidad 2: `proveedores.proveedor_natural.pais_nacimiento_id`,
+  `proveedores.proveedor_juridico.ciudad_origen_id`,
+  `proveedores.proveedor_juridico.pais_origen_id`, `terceros.tercero.lugar_origen`
+  (`mapped_name: LugarOrigenDetalle`), `terceros.datos_identificacion.ciudad_expedicion`
+  (`mapped_name: CiudadExpedicionDetalle`).
+- Hacia `ubicaciones.tipo_lugar`, profundidad 1: `ubicaciones.lugar.tipo_lugar`
+  (`mapped_name: TipoLugarDetalle`).
+- Hacia catálogos de `terceros`, profundidad 1:
+  `proveedores.perfil_proveedor.perfil_id` y `proveedores.titulo_proveedor_natural.perfil_id`
+  (`info_complementaria`), `proveedores.persona_juridica_tipo_entidad.tipo_entidad_id`
+  (`tipo_tercero`), `terceros.tercero.tipo_contribuyente_id`,
+  `terceros.datos_identificacion.tipo_documento_id`,
+  `terceros.info_complementaria_tercero.info_complementaria_id`,
+  `terceros.tercero_tipo_tercero.tipo_tercero_id`.
+
+**Quedan como identificador plano** (sin entrada): `cuenta_bancaria.contacto_id`,
+`representacion.representante_id`, `seguridad_social_tercero.tercero_entidad_id`,
+`info_complementaria_tercero.info_complementaria_tercero_padre_id`,
+`parametro.tipo_parametro_id`, `parametro.parametro_padre_id`. Expandir
+`tercero_entidad_id` hacia `Tercero` cierra el ciclo `Tercero -> SeguridadSocialTercero
+-> Tercero`, que el cargador rechaza; se entrega plano hasta que el motor admita
+reutilizar un ancestro con una proyección propia. `representante_id` queda plano porque
+traería el subárbol completo del tercero; se revisa si se necesita el nombre del
+representante.
+
+**`blacklist.yaml`**: vacío. Las entradas actuales eran de prueba; `lugar_origen` y
+`documento_soporte` se conservan.
+
+**`field_roles.yaml`**:
+- `ANY.ANY.id`: legible, no escribible.
+- `ANY.ANY.activo`, `ANY.ANY.fecha_creacion`, `ANY.ANY.fecha_modificacion`: ni legibles
+  ni escribibles.
+- `ANY.ANY.usuario_modificacion_id`: escribible, no legible.
+- FK de retrorreferencia, ni legibles ni escribibles: las `proveedor_id` de `contacto`,
+  `cuenta_bancaria`, `documento`, `estado_proveedor`, `perfil_proveedor`,
+  `titulo_proveedor_natural`, `actividad_economica_proveedor` y `representacion`;
+  `persona_juridica_tipo_entidad.persona_juridica_id`; y las `tercero_id` de
+  `datos_identificacion`, `seguridad_social_tercero`, `info_complementaria_tercero` y
+  `tercero_tipo_tercero`.
+- `proveedores.proveedor.tercero_id`: legible, escribible e inmutable. Debe ser
+  escribible porque es la `natural_key` de la raíz, y el cargador exige que la clave
+  natural sea escribible; al ser escribible, la inmutabilidad vuelve a ser declarable.
+- Catálogos y lugares, solo `id` y `nombre` legibles: `parametros.parametro` agrega
+  `descripcion`, `codigo_abreviacion` y `numero_orden` legibles y deja `tipo_parametro_id`
+  y `parametro_padre_id` legibles como identificador plano. `ubicaciones.lugar` deja
+  `tipo_lugar` legible. En `ubicaciones.tipo_lugar`, `terceros.info_complementaria`,
+  `terceros.tipo_tercero`, `terceros.tipo_contribuyente` y `terceros.tipo_documento`, las
+  demás columnas (`descripcion`, `codigo_abreviacion`, `numero_orden`,
+  `tipo_de_dato`, `grupo_info_complementaria_id`) no son legibles. Como `ANY` no aplica
+  a la columna, cada columna se declara por su nombre, usando `ANY.tabla.columna`
+  cuando la regla vale para varias tablas.
+- En `terceros.seguridad_social_tercero`, `tercero_entidad_id` queda legible como
+  identificador plano.
+
 ## Risks / Trade-offs
+
+- [`readable: false` no oculta un campo cuando la consulta no envía `fields`] → El motor
+  solo recorta la respuesta por la selección de `fields` y por la lista negra global de
+  ejecución (`config/blacklist.go`); sin `fields` entrega el registro completo del CRUD,
+  auditoría incluida. Para que la auditoría no salga nunca en lectura, se declara en la
+  lista negra global de ejecución, que no genera este generador. Reportado; no se cambia
+  el motor en este cambio.
+- [Un cuerpo de escritura con un objeto de `lookup` se rechaza] → La arista de consulta
+  no tiene bloque `write`, así que el motor responde `400` si el cliente envía
+  `PaisNacimiento: {...}`; el cliente envía la FK plana (`PaisNacimientoId`). El reenvío
+  del `Data` de escritura no se afecta, porque ese `Data` no incluye expansiones de
+  lectura. Reportado.
+- [Las aristas de la especialización aplanada] → Los catálogos de `proveedor_natural` y
+  `proveedor_juridico` cuelgan de su objeto; el aplanado del motor (tarea 3.3) debe
+  conservar esas aristas anidadas al proyectar los campos en el proveedor.
 
 - [El cliente puede afirmar el autor de la modificación] → Aceptado por decisión del
   proyecto: el método de servicio no permite que un encabezado de autoría llegue al
@@ -170,6 +379,11 @@ un mapa.
   PK compartida.
 - [`cuenta_bancaria.tipo_cuenta_bancaria_id` es un campo fantasma en el diccionario]
   → Se omite del modelo efectivo; la cuenta usa `tipo_cuenta_id`.
+- [La expansión de ciudades supera el contrato previo de lectura] → La decisión de
+  expandir los lugares de `ubicaciones` con su tipo (de un salto) deja obsoleto el
+  escenario "Ciudades sin expansión" del contrato de lectura, revisado en el delta de
+  `proveedor-read`. La prueba de integración que fija el comportamiento previo
+  (`TestLeerProveedorCiudadesSinExpandir`) debe ajustarse en la fase de aplicación.
 
 ## Migration Plan
 

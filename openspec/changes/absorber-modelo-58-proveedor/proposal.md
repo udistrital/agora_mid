@@ -53,12 +53,16 @@ el control de escritura por relación de `control-escritura-por-relacion`.
   único requisito de `openapi-publication` que lo nombra.
 - **La configuración se genera desde el DBML.** La configuración de relaciones deja
   de escribirse a mano y se produce con un generador (herramienta de `utils/`,
-  ejecución manual) a partir del DBML más cinco *sidecars* de intención: `expand`
+  ejecución manual) a partir del DBML más ocho *sidecars* de intención: `expand`
   (qué FK se expanden, con profundidad por arista opcional), `write` (política CRUD
   por objeto, con `natural_key` opcional), `fk_inbound` (aristas de llave entrante,
   poco frecuentes, con profundidad por arista opcional), `blacklist` (columnas que no
-  llegan a la configuración) y `service` (parámetros de servicio por tabla raíz:
-  nombre, `max_depth`, `on_relation_error`, `max_related_ids`, `filterable_fields`).
+  llegan a la configuración), `service` (parámetros de servicio por tabla raíz:
+  nombre, `max_depth`, `on_relation_error`, `max_related_ids`, `filterable_fields`),
+  `flatten` (proyección aplanada y supresión de la expansión inversa de una unión por
+  PK compartida), `field_roles` (banderas de rol por campo, con comodín `ANY` en el
+  esquema o la tabla y la entrada más específica prevaleciendo) y `lookup` (aristas
+  de consulta de solo lectura hacia catálogos y lugares).
   El generador emite el catálogo de objetos y, por cada servicio, el archivo de
   servicio `relaciones_<servicio>.yaml`: las aristas de la raíz y su política de
   escritura viven en el archivo de servicio, y el objeto raíz queda sin referencias.
@@ -70,8 +74,9 @@ el control de escritura por relación de `control-escritura-por-relacion`.
 
 ### New Capabilities
 - `config-generation`: Un generador determinista que transforma el modelo DBML y un
-  conjunto de *sidecars* de intención en los archivos de configuración de
-  relaciones. El generador vive fuera del arranque y se ejecuta manualmente.
+  conjunto de ocho *sidecars* de intención (`expand`, `write`, `fk_inbound`,
+  `blacklist`, `service`, `flatten`, `field_roles`, `lookup`) en los archivos de configuración
+  de relaciones. El generador vive fuera del arranque y se ejecuta manualmente.
 
 ### Modified Capabilities
 - `proveedor-write`: El contrato de escritura absorbe el árbol #58 completo (nuevas
@@ -82,7 +87,9 @@ el control de escritura por relación de `control-escritura-por-relacion`.
 - `proveedor-read`: La expansión cubre el árbol #58 completo y aplana los campos de
   la especialización (`proveedor_natural`/`proveedor_juridico`) dentro del proveedor
   según `tipo_proveedor`, de un salto y solo en la dirección proveedor->
-  especialización.
+  especialización. Los lugares de `ubicaciones` referenciados por el núcleo pasan a
+  expandirse con su tipo (de un salto), lo que supera el escenario previo de ciudades
+  sin expansión.
 - `nested-object-expansion`: Se añade la regla de proyección aplanada por PK
   compartida (de un salto) y la población de la tabla de campos tipada para las
   entidades nuevas del modelo #58.

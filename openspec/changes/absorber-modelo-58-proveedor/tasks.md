@@ -2,22 +2,10 @@
 
 ## 1. Generador de configuración desde el DBML y sidecars
 
-- [ ] 1.1 Escribir la prueba del generador (con marcador de rojo) que verifica que una
-  tabla del DBML con columnas produce un objeto en PascalCase con sus campos tipados, y
-  que una columna en `blacklist` se omite, y confirmar que falla
-- [ ] 1.2 Escribir la prueba (con marcador de rojo) que verifica que una FK en `expand`
-  produce una arista expandible y una FK ausente de `expand` produce un identificador
-  plano, que `write` fija la política CRUD y la `natural_key` por objeto, y que
-  `fk_inbound` marca la arista de llave entrante, y confirmar que falla
-- [ ] 1.3 Escribir la prueba (con marcador de rojo) que verifica que la salida es
-  determinista (dos ejecuciones producen archivos idénticos byte a byte) y que una
-  entrada de sidecar sin correspondencia en el DBML falla identificando la entrada, y
-  confirmar que falla
-- [ ] 1.4 Implementar el generador en su propia subcarpeta bajo `utils/`, con el DBML y
-  los cuatro sidecars ubicados en esa misma subcarpeta como entradas (lectura de DBML y
-  sidecars, emisión ordenada, validación de sidecars contra el DBML), de ejecución
-  manual y fuera del arranque, y verificar que las pruebas 1.1–1.3 pasan y se retiran
-  sus marcadores
+- [ ] 1.1 Escribir la prueba del generador (con marcador de rojo) que verifica que una tabla del DBML con columnas produce un objeto en PascalCase con sus campos tipados, y que una columna en `blacklist` se omite, y confirmar que falla
+- [ ] 1.2 Escribir la prueba (con marcador de rojo) que verifica que una FK en `expand` produce una arista expandible y una FK ausente de `expand` produce un identificador plano, que `write` fija la política CRUD y la `natural_key` por objeto, y que `fk_inbound` marca la arista de llave entrante, y confirmar que falla
+- [ ] 1.3 Escribir la prueba (con marcador de rojo) que verifica que la salida es determinista (dos ejecuciones producen archivos idénticos byte a byte) y que una entrada de sidecar sin correspondencia en el DBML falla identificando la entrada, y confirmar que falla
+- [ ] 1.4 Implementar el generador en su propia subcarpeta bajo `utils/`, con el DBML y los cuatro sidecars ubicados en esa misma subcarpeta como entradas (lectura de DBML y sidecars, emisión ordenada, validación de sidecars contra el DBML), de ejecución manual y fuera del arranque, y verificar que las pruebas 1.1–1.3 pasan y se retiran sus marcadores
 
 ## 1b. Archivo de servicio, sidecar de servicio y profundidad por arista
 
@@ -55,11 +43,35 @@
   en `config.Load` y mapear `ubicaciones` en `Config.URLs`, y verificar que la prueba
   1d.3 pasa y se retira su marcador
 
+## 1e. Sidecars flatten y field_roles en el generador
+
+- [ ] 1e.1 Escribir la prueba de construcción (con marcador de rojo) que verifica que una entrada de `flatten` direccionada a la columna de PK compartida del hijo (por ejemplo `proveedores.proveedor_juridico.id`) suprime la arista inversa hijo->padre y marca con `flatten: true` la arista padre->hijo declarada en `expand`, que la arista padre->hijo sin entrada de flatten no lleva la bandera, que una entrada que no corresponde a una PK compartida del DBML falla identificándose, y que una entrada en conflicto con `fk_inbound` falla identificándose, y confirmar que falla
+- [ ] 1e.2 Implementar la carga y validación del sidecar `flatten` contra el DBML, la supresión de la arista inversa y el campo `flatten` en la arista generada, y verificar que la prueba 1e.1 pasa y se retira su marcador
+- [ ] 1e.3 Escribir la prueba de construcción (con marcador de rojo) que verifica que `field_roles` fija `readable`/`writable` por campo con el comodín `ANY`, que la entrada más específica prevalece en el orden `esquema.tabla.columna` > `esquema.ANY.columna` > `ANY.tabla.columna` > `ANY.ANY.columna`, que un campo no cubierto toma el rol por omisión, y que un campo escribible no legible se emite tal cual, y confirmar que falla
+- [ ] 1e.4 Escribir la prueba de validación (con marcador de rojo) que verifica que `field_roles` falla cuando una entrada sin comodín nombra una columna inexistente y cuando declara `immutable: true` con `writable: false`, y confirmar que falla
+- [ ] 1e.5 Implementar la carga, la precedencia y la aplicación de `field_roles` sobre la tabla de campos, reemplazando la convención por nombre de columna no escribible del generador, y verificar que las pruebas 1e.3–1e.4 pasan y se retiran sus marcadores
+- [ ] 1e.6 Documentar `flatten` y `field_roles` en el README del generador (formato, comodín y precedencia), y verificar que el README coincide con el comportamiento de `Generar`
+
+## 1f. Aristas de consulta, nombre de aristas y ciclos en el generador
+
+- [ ] 1f.1 Escribir las pruebas (con marcador de rojo) que verifican que una entrada de `lookup` produce una arista `local_to_related` de cardinalidad `one`, propagación vacía y política sin verbos en el objeto que porta la columna, aunque `write` declare política para el referenciado; que `lookup` admite `depth`; y que una entrada en conflicto con `expand`, `fk_inbound`, `flatten` o `blacklist`, o sin FK, falla identificándose, y confirmar que fallan
+- [ ] 1f.2 Escribir las pruebas (con marcador de rojo) que verifican que una arista de `lookup` o `fk_inbound` se nombra con la columna sin `_id` (`tercero_id` produce `Tercero`), que `mapped_name` explícito prevalece, y que un nombre que coincide con un campo del objeto falla, y confirmar que fallan
+- [ ] 1f.3 Escribir la prueba (con marcador de rojo) que verifica que un ciclo de referencias entre objetos generados falla nombrando el ciclo, y confirmar que falla
+- [ ] 1f.4 Implementar el sidecar `lookup`, la clave `mapped_name` en las entradas de mapa, la derivación y la validación del nombre de arista, y la detección de ciclos, y verificar que las pruebas 1f.1–1f.3 pasan y se retiran sus marcadores
+- [ ] 1f.5 Documentar `lookup`, `mapped_name` y la detección de ciclos en el README del generador
+- [ ] 1f.6 Escribir la prueba (con marcador de rojo) que verifica que una entrada de `field_roles` con `ANY` en el segmento de columna falla identificándose, y confirmar que falla; implementar la validación, verificar que pasa y retirar el marcador, y corregir el README para indicar que `ANY` solo aplica al esquema y a la tabla
+
+## 1g. Lista negra de ejecución para campos de auditoría (motor, fuera del alcance de configuración)
+
+- [ ] 1g.1 Escribir la prueba de lectura (con marcador de rojo) que verifica que `FechaCreacion`, `FechaModificacion` y `Activo` no aparecen en la respuesta de consulta de `proveedor` cuando la solicitud no envía `fields`, y que `UsuarioModificacionId` tampoco aparece, y confirmar que falla
+- [ ] 1g.2 Declarar en la lista negra global de ejecución (`config/blacklist.go`) los campos de auditoría de todo objeto, de modo que el motor de expansión los recorte de cada registro antes de anidarlo, y verificar que la prueba 1g.1 pasa y se retira su marcador
+- [ ] 1g.3 Verificar con la prueba de escritura existente que `UsuarioModificacionId` enviado en el cuerpo sigue llegando al CRUD dueño, porque la lista negra de lectura no recorta la escritura, y confirmar que la prueba pasa
+
 ## 2. Configuración del árbol #58 y tabla de campos tipada
 
 - [ ] 2.1 Escribir la prueba de carga (con marcador de rojo) que verifica que el árbol efectivo del proveedor compuesto al arranque contiene las entidades del modelo extendido (`estado_proveedor`, `documento`, `perfil_proveedor` 1-N, `titulo_proveedor_natural`, `actividad_economica_proveedor`, `representacion`, `persona_juridica_tipo_entidad`) con su cardinalidad, y confirmar que falla contra la configuración actual
 - [ ] 2.2 Escribir la prueba de carga (con marcador de rojo) que verifica que la tabla de campos tipada de `proveedor_natural` (~18) y `proveedor_juridico` (~13) y el campo `proveedor.consentimiento` corresponden al modelo #58, y que `cuenta_bancaria` usa `tipo_cuenta_id` sin `tipo_cuenta_bancaria_id`, y confirmar que falla
-- [ ] 2.3 Generar la configuración del proveedor con el generador desde el DBML y los sidecars, poblando el árbol #58 en forma de objetos direccionables + referencias sobre la disposición por subdirectorio de CRUD y la tabla de campos tipada por objeto, y verificar que las pruebas 2.1–2.2 pasan y se retiran sus marcadores
+- [ ] 2.3 Generar la configuración del proveedor con el generador desde el DBML y los ocho sidecars (incluidos `flatten`, `field_roles` y `lookup`), escritos según la sección "Contenido de las entradas" de `design.md`, poblando el árbol #58 en forma de objetos direccionables + referencias sobre la disposición por subdirectorio de CRUD y la tabla de campos tipada por objeto, y verificar que las pruebas 2.1–2.2 pasan y se retiran sus marcadores
 
 ## 3. Aplanado de la especialización por PK compartida
 
@@ -68,6 +80,7 @@
 - [ ] 3.3 Implementar la proyección aplanada por PK compartida en el motor de expansión sobre la arista existente, y verificar que las pruebas 3.1–3.2 pasan y se retiran sus marcadores
 - [ ] 3.4 Escribir la prueba de escritura (con marcador de rojo) que verifica que un cuerpo plano con campos de la especialización se enruta por PK compartida al CRUD dueño (inspección de las peticiones a `proveedor` y a `proveedor_juridico`/`proveedor_natural`), y que un campo de especialización ajeno a `tipo_proveedor` produce `400` sin escrituras, y confirmar que falla
 - [ ] 3.5 Implementar el enrutado de campos de especialización aplanados por PK compartida en la escritura, y verificar que la prueba 3.4 pasa y se retira su marcador
+- [ ] 3.6 Escribir la prueba de expansión (con marcador de rojo) que verifica que un lugar de `ubicaciones` referenciado por el núcleo se expande bajo su `mapped_name` con su identificador, su nombre y su tipo de lugar anidado (de un salto), ajustar la prueba de integración `TestLeerProveedorCiudadesSinExpandir` al nuevo contrato, y verificar que pasan y se retira el marcador
 
 ## 4. Cascada de escritura del árbol extendido
 

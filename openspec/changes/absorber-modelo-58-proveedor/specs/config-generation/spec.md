@@ -40,11 +40,14 @@ generan objetos.
 
 ### Requirement: Sidecars de intención
 El generador SHALL tomar la intención que la estructura del DBML no expresa de
-cinco sidecars agrupados por capacidad, cuyas entradas se direccionan como
+ocho sidecars agrupados por capacidad, cuyas entradas se direccionan como
 `esquema.tabla` o `esquema.tabla.columna`: `expand` (FK que se expanden como
 aristas), `write` (política CRUD por objeto, con `natural_key` opcional),
 `fk_inbound` (aristas cuya llave la porta el padre), `blacklist` (columnas que no
-llegan a la configuración) y `service` (parámetros de servicio por tabla raíz).
+llegan a la configuración), `service` (parámetros de servicio por tabla raíz),
+`flatten` (supresión de la expansión inversa en una unión por PK compartida),
+`field_roles` (banderas de rol por campo, con comodín `ANY`) y `lookup` (aristas de
+consulta de solo lectura hacia el objeto referenciado).
 
 #### Scenario: Una FK no listada en expand ni en fk_inbound queda como identificador plano
 - **WHEN** una FK entre tablas no aparece en el sidecar `expand` ni en el sidecar
@@ -195,3 +198,135 @@ El error SHALL identificar la entrada responsable.
 - **WHEN** una misma columna aparece en el sidecar `blacklist` y en `expand` o
   `fk_inbound`
 - **THEN** el generador falla identificando la entrada
+
+### Requirement: Supresión de la expansión inversa y proyección aplanada por el sidecar flatten
+El generador SHALL tratar una entrada del sidecar `flatten`, direccionada como la
+columna de PK compartida del lado hijo de una unión 1-1 (por ejemplo
+`proveedores.proveedor_juridico.id`), para suprimir la arista inversa hijo->padre y
+para marcar con `flatten: true` la arista padre->hijo de esa unión. Una entrada que
+no corresponde a una columna de PK compartida declarada en el DBML, o que aparece
+también en `fk_inbound`, SHALL fallar identificando la entrada.
+
+#### Scenario: La entrada suprime la arista inversa y marca la directa
+- **WHEN** el sidecar `flatten` nombra la columna de PK compartida del hijo de una
+  unión 1-1 y el sidecar `expand` declara la arista padre->hijo
+- **THEN** el generador emite la arista padre->hijo con `flatten: true` y no emite
+  ninguna arista hijo->padre para esa unión
+
+#### Scenario: La arista padre->hijo sin entrada de flatten no se marca
+- **WHEN** el sidecar `expand` declara una unión 1-1 de PK compartida que el sidecar
+  `flatten` no nombra
+- **THEN** el generador emite la arista padre->hijo sin la bandera `flatten`
+
+#### Scenario: Entrada de flatten sin PK compartida correspondiente falla
+- **WHEN** el sidecar `flatten` nombra una columna que no es la PK compartida de una
+  unión 1-1 declarada en el DBML
+- **THEN** el generador falla identificando la entrada
+
+#### Scenario: Entrada de flatten en conflicto con fk_inbound falla
+- **WHEN** una misma columna de PK compartida aparece en el sidecar `flatten` y en
+  `fk_inbound`
+- **THEN** el generador falla identificando la entrada
+- **WHEN** el sidecar `flatten` nombra una columna que no es la PK compartida de una
+  unión 1-1 declarada en el DBML
+- **THEN** el generador falla identificando la entrada
+
+### Requirement: Banderas de rol por campo del sidecar field_roles
+El generador SHALL tomar las banderas de rol `readable` y `writable` de cada campo
+del sidecar `field_roles`, cuyas entradas se direccionan como
+`esquema.tabla.columna` admitiendo el comodín `ANY` en el esquema o en la tabla; la
+columna es siempre explícita. Cuando varias entradas coinciden con un campo, la más
+específica prevalece en el orden `esquema.tabla.columna` > `esquema.ANY.columna` >
+`ANY.tabla.columna` > `ANY.ANY.columna`; un campo que ninguna entrada cubre toma
+el rol por omisión del generador.
+
+#### Scenario: Un comodín en la columna falla
+- **WHEN** una entrada de `field_roles` declara `ANY` en el segmento de columna (por
+  ejemplo `parametros.ANY.ANY`)
+- **THEN** el generador falla identificando la entrada, en lugar de aceptarla sin
+  aplicarla
+
+#### Scenario: Una entrada comodín fija el rol de un campo en todos los objetos
+- **WHEN** el sidecar `field_roles` declara `ANY.ANY.activo` con `readable: false` y
+  `writable: false`
+- **THEN** el campo `Activo` de cada objeto generado se emite con ambos roles en
+  false
+
+#### Scenario: La entrada más específica prevalece sobre el comodín
+- **WHEN** un campo coincide con una entrada `esquema.tabla.columna` y con una
+  entrada `ANY.ANY.columna` que declaran roles distintos
+- **THEN** el generador aplica los roles de la entrada `esquema.tabla.columna`
+
+#### Scenario: Un campo escribible no legible se emite tal cual
+- **WHEN** el sidecar `field_roles` declara una columna con `readable: false` y
+  `writable: true`
+- **THEN** el generador emite ese campo escribible y no legible, sin derivar la
+  legibilidad de la escritura
+
+#### Scenario: Un campo inmutable no escribible falla
+- **WHEN** el sidecar `field_roles` declara una columna con `immutable: true` y
+  `writable: false`
+- **THEN** el generador falla identificando la entrada, de forma coherente con la
+  invariante del cargador
+
+#### Scenario: Una columna de field_roles inexistente falla
+- **WHEN** una entrada de `field_roles` sin comodín nombra una columna que no existe
+  en su tabla del DBML
+- **THEN** el generador falla identificando la entrada
+
+### Requirement: Aristas de consulta de solo lectura por el sidecar lookup
+El generador SHALL tratar una entrada del sidecar `lookup`, direccionada como la
+columna que porta una FK, como una arista en el objeto que porta la columna hacia
+el objeto referenciado, con dirección `local_to_related`, cardinalidad `one`,
+propagación de llave vacía y política sin verbos, aunque el sidecar `write` declare
+política para el objeto referenciado. Una entrada que no corresponde a una FK
+declarada, o que también aparece en `expand`, `fk_inbound`, `flatten` o
+`blacklist`, SHALL fallar identificando la entrada.
+
+#### Scenario: Una entrada de lookup produce una arista de solo lectura
+- **WHEN** el sidecar `lookup` nombra la columna `pais_nacimiento_id` de
+  `proveedor_natural`, FK hacia `ubicaciones.lugar`
+- **THEN** el objeto `ProveedorNatural` lleva una arista hacia `Lugar` con
+  dirección `local_to_related`, cardinalidad `one`, `local_field: PaisNacimientoId`,
+  `related_field: Id`, `mapped_name: PaisNacimiento`, propagación vacía y política
+  sin verbos
+
+#### Scenario: La política de write no alcanza una arista de lookup
+- **WHEN** el sidecar `write` declara verbos para el objeto referenciado por una
+  entrada de `lookup`
+- **THEN** la arista de lookup se emite con la política sin verbos
+
+#### Scenario: Entrada de lookup en conflicto falla
+- **WHEN** una columna aparece en `lookup` y en `expand`, `fk_inbound`, `flatten` o
+  `blacklist`, o no corresponde a una FK declarada
+- **THEN** el generador falla identificando la entrada
+
+### Requirement: Nombre de las aristas hacia el objeto referenciado
+El generador SHALL nombrar una arista de `lookup` o de `fk_inbound` con la columna
+portadora en PascalCase sin el sufijo `_id` (por ejemplo `tercero_id` produce
+`Tercero`), salvo que la entrada de mapa declare `mapped_name`, que prevalece. Un
+nombre que coincide con un campo del objeto que lleva la arista SHALL fallar
+identificando la entrada, porque ocultaría el campo plano.
+
+#### Scenario: El nombre se deriva de la columna sin sufijo
+- **WHEN** una entrada de `fk_inbound` o `lookup` nombra `proveedores.proveedor.tercero_id`
+- **THEN** la arista generada lleva `mapped_name: Tercero`
+
+#### Scenario: El nombre explícito prevalece
+- **WHEN** una entrada de mapa declara `mapped_name`
+- **THEN** la arista generada lleva ese nombre
+
+#### Scenario: Un nombre que coincide con un campo falla
+- **WHEN** el nombre derivado o explícito de una arista coincide con un campo del
+  objeto que la lleva (por ejemplo `tipo_proveedor` sin sufijo `_id`)
+- **THEN** el generador falla identificando la entrada
+
+### Requirement: Detección de ciclos de referencias en la generación
+El generador SHALL fallar, identificando el objeto que cierra el ciclo, cuando los
+objetos generados forman un ciclo de referencias, el mismo que el cargador rechaza
+al arranque, en lugar de emitir una configuración que impide el inicio del API.
+
+#### Scenario: Un ciclo de referencias falla en la generación
+- **WHEN** `expand` hace que `Tercero` referencie `SeguridadSocialTercero` y `lookup`
+  hace que `SeguridadSocialTercero` referencie `Tercero`
+- **THEN** el generador falla nombrando el ciclo y no escribe la salida
