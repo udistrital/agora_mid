@@ -1,0 +1,10 @@
+# Borrador pendiente de revisión.
+#
+# blacklist: lista de columnas en formato esquema.tabla.columna que no llegan a la
+# configuración generada. La columna sigue en el DBML. Una columna en blacklist no
+# puede aparecer en expand ni en fk_inbound.
+#
+# Las columnas listadas tienen en el DBML una nota que indica procedencia
+# desconocida.
+- terceros.tercero.lugar_origen
+- terceros.datos_identificacion.documento_soporte

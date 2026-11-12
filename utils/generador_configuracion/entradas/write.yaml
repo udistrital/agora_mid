@@ -1,0 +1,73 @@
+# Borrador pendiente de revisión.
+#
+# write: mapa de esquema.tabla a su política de escritura. Cada campo es opcional
+# y vale false si se omite.
+#   creatable, updatable, deletable: verbos admitidos. El generador copia la
+#     política a las aristas cuyo objeto es esa tabla; no la escribe en el objeto.
+#   natural_key: columnas que identifican un registro existente en la escritura
+#     idempotente. Deben ser escribibles (no id ni campos de auditoría).
+#
+# La política de la raíz (proveedor) se declara en relaciones_proveedor.yaml, en
+# write.policy, porque ninguna arista generada apunta a la raíz.
+
+proveedores.proveedor:
+  creatable: true
+  updatable: true
+  deletable: false
+  natural_key:
+    - tercero_id
+
+proveedores.contacto:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.cuenta_bancaria:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.estado_proveedor:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.documento:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.perfil_proveedor:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.titulo_proveedor_natural:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.actividad_economica_proveedor:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.representacion:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.persona_juridica_tipo_entidad:
+  creatable: true
+  updatable: true
+  deletable: true
+
+proveedores.proveedor_natural:
+  creatable: true
+  updatable: true
+  deletable: false
+
+proveedores.proveedor_juridico:
+  creatable: true
+  updatable: true
+  deletable: false
