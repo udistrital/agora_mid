@@ -63,9 +63,9 @@
 
 ## 1g. Lista negra de ejecución para campos de auditoría (motor, fuera del alcance de configuración)
 
-- [ ] 1g.1 Escribir la prueba de lectura (con marcador de rojo) que verifica que `FechaCreacion`, `FechaModificacion` y `Activo` no aparecen en la respuesta de consulta de `proveedor` cuando la solicitud no envía `fields`, y que `UsuarioModificacionId` tampoco aparece, y confirmar que falla
-- [ ] 1g.2 Declarar en la lista negra global de ejecución (`config/blacklist.go`) los campos de auditoría de todo objeto, de modo que el motor de expansión los recorte de cada registro antes de anidarlo, y verificar que la prueba 1g.1 pasa y se retira su marcador
-- [ ] 1g.3 Verificar con la prueba de escritura existente que `UsuarioModificacionId` enviado en el cuerpo sigue llegando al CRUD dueño, porque la lista negra de lectura no recorta la escritura, y confirmar que la prueba pasa
+- [x] 1g.1 Escribir la prueba de lectura (con marcador de rojo) que verifica que en una consulta de `proveedor` sin `fields` los objetos anidados (`Tercero`, `ProveedorNatural`) no entregan los campos de auditoría (`FechaCreacion`, `FechaModificacion`, `Activo`, `UsuarioModificacionId`), recortados por la lista negra global de ejecución; el recurso raíz es una proyección del servicio y conserva `Activo`, de modo que la prueba no lo asevera, y confirmar que falla
+- [x] 1g.2 Declarar en la lista negra global de ejecución (`config/blacklist.go`) los campos de auditoría de todo objeto, de modo que el motor de expansión los recorte de cada registro anidado antes de anidarlo, y verificar que la prueba 1g.1 pasa y se retira su marcador
+- [x] 1g.3 Escribir la prueba de escritura (con marcador de rojo) que verifica que `UsuarioModificacionId` enviado en el cuerpo de una entidad cuyo partial de auditoría declara la columna (`Contacto`, del CRUD `gestion_personas_crud`) sigue llegando al CRUD dueño, porque la lista negra de lectura no recorta la escritura, y confirmar que pasa
 
 ## 2. Configuración del árbol #58 y tabla de campos tipada
 
@@ -95,6 +95,12 @@
 - [ ] 5.2 Escribir la prueba (con marcador de rojo) de que `FechaCreacion`, `FechaModificacion` o `Activo` en el cuerpo producen `400` como campo no escribible sin materializar escrituras, y confirmar que falla
 - [ ] 5.3 Implementar la autoría por cuerpo (`UsuarioModificacionId` escribible) retirando el camino de autoría por contexto de petición, y el rechazo de los demás campos de auditoría, y verificar que las pruebas 5.1–5.2 pasan y se retiran sus marcadores
 
+## 5b. Propagación de la autoría por cuerpo a entidades anidadas
+
+- [ ] 5b.1 Escribir la prueba (con marcador de rojo) de que `UsuarioModificacionId` enviado solo en la raíz se propaga al CRUD dueño de cada entidad anidada que declara el campo (p. ej. `Contacto`), y confirmar que falla
+- [ ] 5b.2 Escribir la prueba (con marcador de rojo) de que un `UsuarioModificacionId` propio de una entidad anidada prevalece sobre el de la raíz, y que una entidad sin el campo (`terceros`) no lo recibe, y confirmar que falla
+- [ ] 5b.3 Implementar en el servicio de escritura del proveedor la composición que propaga el `UsuarioModificacionId` de la raíz a los objetos anidados que declaran el campo y carecen de valor propio, sobre el árbol que entrega al motor, y verificar que 5b.1–5b.2 pasan y se retiran sus marcadores
+
 ## 6. Transición de estado del proveedor
 
 - [ ] 6.1 Escribir la prueba (con marcador de rojo) de que registrar un `estado_proveedor` con `estado_id` distinto del activo vigente crea el nuevo estado y da de baja el previo (a lo sumo un activo), con el nuevo creado antes que la baja del previo (inspección del orden de peticiones), y confirmar que falla
@@ -103,5 +109,5 @@
 
 ## 7. Documentación del contrato y verificación de integración
 
-- [ ] 7.1 Actualizar en el contrato publicado y `API.md` el nombre del campo de auditoría de autor a `UsuarioModificacionId`, y verificar que el único requisito de `openapi-publication` que lo nombra queda coherente con la documentación generada
+- [ ] 7.1 Actualizar el contrato publicado (`swagger/`) y `API.md` para el campo de auditoría de autor `UsuarioModificacionId`: renombrarlo desde `AutorModificacionId`, describirlo como campo escribible que el cliente envía en el cuerpo (propagado desde la raíz a las entidades anidadas) y retirar toda mención a su inyección desde la cabecera `X-Autor-Id`; verificar que el único requisito de `openapi-publication` que lo nombra queda coherente con la documentación generada
 - [ ] 7.2 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes

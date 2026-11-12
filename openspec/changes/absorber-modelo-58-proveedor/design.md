@@ -70,14 +70,29 @@ detector de ciclos de composición trataría como ciclo, y issue-65 solo ejercit
 `/v1/proveedor`.
 
 ### Decisión 2: La autoría se toma del cuerpo; los demás campos de auditoría se rechazan
-`UsuarioModificacionId` es un campo escribible por entidad con auditoría y su valor
-viene del cuerpo. `FechaCreacion`, `FechaModificacion` y `Activo` no son escribibles
-y se rechazan con `400` si llegan.
+`UsuarioModificacionId` es un campo escribible, tomado del cuerpo, en las entidades
+cuya tabla de auditoría del DBML lo declara: las del CRUD `gestion_personas_crud`
+(`proveedor`, `contacto`, `documento`, `estado_proveedor`, `perfil_proveedor`,
+`representacion`, las especializaciones y demás), que usan el partial
+`campos_auditoria`. Las entidades de `terceros` usan `terceros_campos_auditoria`,
+que no incluye `usuario_modificacion_id`, de modo que `Tercero` y las demás entidades
+de `terceros` no tienen ese campo escribible. `FechaCreacion`, `FechaModificacion` y
+`Activo` no son escribibles y se rechazan con `400` si llegan.
+
+El cliente envía `UsuarioModificacionId` una vez en la raíz; el servicio de escritura
+del proveedor compone el árbol propagando ese valor a cada objeto anidado cuya
+configuración de escritura declara el campo y que no trae un valor propio. Un valor
+explícito en un objeto anidado se conserva. Si la raíz no envía el campo, no se
+propaga nada y los registros se materializan sin autor. La propagación es del
+servicio, no del motor genérico: el motor recibe el árbol ya compuesto, como en la
+transición de estado.
 
 Por qué: el método de servicio no entrega un encabezado de autoría al backend, de
-modo que el cuerpo es la única fuente viable del autor. Mantener los demás campos de
-auditoría como administrados por el sistema evita que el cliente falsee marcas de
-tiempo o el estado activo.
+modo que el cuerpo es la única fuente viable del autor. Componer la propagación en el
+servicio mantiene al motor genérico agnóstico del campo de auditoría y hace que las
+entidades sin el campo (las de `terceros`) se omitan sin un caso especial. Mantener
+los demás campos de auditoría como administrados por el sistema evita que el cliente
+falsee marcas de tiempo o el estado activo.
 
 ### Decisión 3: La transición de estado es decisión del servicio, mecanismo del motor
 El servicio de escritura del proveedor resuelve el estado activo vigente y compone el
@@ -348,11 +363,12 @@ representante.
 ## Risks / Trade-offs
 
 - [`readable: false` no oculta un campo cuando la consulta no envía `fields`] → El motor
-  solo recorta la respuesta por la selección de `fields` y por la lista negra global de
-  ejecución (`config/blacklist.go`); sin `fields` entrega el registro completo del CRUD,
-  auditoría incluida. Para que la auditoría no salga nunca en lectura, se declara en la
-  lista negra global de ejecución, que no genera este generador. Reportado; no se cambia
-  el motor en este cambio.
+  solo recorta la respuesta por la selección de `fields` y, en los objetos anidados, por la
+  lista negra global de ejecución (`config/blacklist.go`), que recorta solo la salida de
+  expansión; el recurso raíz es una proyección construida por el servicio
+  (`ProveedorRecord`) que conserva `Activo`. Así, sin `fields` los objetos anidados no
+  llevan auditoría, pero la raíz entrega `Activo`. Esto se acepta en este cambio; no se
+  cambia el motor.
 - [Un cuerpo de escritura con un objeto de `lookup` se rechaza] → La arista de consulta
   no tiene bloque `write`, así que el motor responde `400` si el cliente envía
   `PaisNacimiento: {...}`; el cliente envía la FK plana (`PaisNacimientoId`). El reenvío

@@ -47,15 +47,36 @@ sin exigir un objeto anidado aparte.
   tipo, sin materializar escrituras
 
 ### Requirement: Autoría de la modificación por cuerpo
-El sistema SHALL aceptar `UsuarioModificacionId` como campo escribible en cada
-entidad que tenga campos de auditoría, tomando su valor del cuerpo de la escritura
-y propagándolo al CRUD dueño de esa entidad.
+El sistema SHALL aceptar `UsuarioModificacionId` como campo escribible, tomado del
+cuerpo, en las entidades cuya tabla de auditoría del DBML declara la columna
+`usuario_modificacion_id` (las del CRUD `gestion_personas_crud`, que usan el partial
+`campos_auditoria`), propagándolo al CRUD dueño de esa entidad. Las entidades de
+`terceros` usan `terceros_campos_auditoria`, que no incluye esa columna, de modo que
+`UsuarioModificacionId` no es escribible en ellas. El valor enviado en la raíz se
+propaga a cada entidad anidada que declara el campo y no trae un valor propio.
 
 #### Scenario: UsuarioModificacionId se toma del cuerpo
-- **WHEN** el cuerpo de una entidad con campos de auditoría incluye
-  `UsuarioModificacionId`
+- **WHEN** el cuerpo de una entidad cuyo partial de auditoría declara
+  `usuario_modificacion_id` incluye `UsuarioModificacionId`
 - **THEN** el MID envía ese valor al CRUD dueño como autor de la modificación de esa
   entidad
+
+#### Scenario: UsuarioModificacionId de la raíz se propaga a entidades anidadas
+- **WHEN** el cuerpo envía `UsuarioModificacionId` en la raíz y un objeto anidado
+  cuyo partial de auditoría declara la columna no trae un valor propio
+- **THEN** el MID envía ese valor como autor de la modificación tanto de la raíz como
+  de ese objeto anidado
+
+#### Scenario: Un valor propio de la entidad anidada prevalece
+- **WHEN** un objeto anidado trae su propio `UsuarioModificacionId` distinto del de
+  la raíz
+- **THEN** el MID envía el valor propio del objeto anidado, no el de la raíz
+
+#### Scenario: Una entidad de terceros no acepta UsuarioModificacionId
+- **WHEN** el cuerpo de una entidad de `terceros` (por ejemplo `Tercero`) incluye
+  `UsuarioModificacionId`
+- **THEN** el sistema responde `400 Bad Request` identificando el campo no escribible
+  y no materializa ninguna escritura
 
 ### Requirement: Campos de auditoría administrados por el sistema
 El sistema SHALL rechazar los campos de auditoría administrados por el sistema
