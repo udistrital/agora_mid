@@ -334,3 +334,38 @@ func TestCargarComposicion_UbicacionDeObjetoInvalidaAborta(t *testing.T) {
 		t.Errorf("natural_key fuera de writable debe abortar nombrando el campo, obtuvo: %v", err)
 	}
 }
+
+// Una relación anidada no raíz recibe en NonNullableFields sus campos que no admiten
+// null, tomados de la tabla de campos de su objeto.
+func TestCargarComposicion_RelacionAnidadaProyectaCamposNoNulables(t *testing.T) {
+	datos := strings.Replace(objetoDatosIdentificacion,
+		"  - name: CiudadExpedicion\n    type: integer\n",
+		"  - name: CiudadExpedicion\n    type: integer\n    nullable: true\n", 1)
+	if datos == objetoDatosIdentificacion {
+		t.Fatal("el fixture no se modificó; el reemplazo no encontró el campo CiudadExpedicion")
+	}
+	comp, err := escribirComposicion(t, map[string]string{
+		"objetos_tercero.yaml":              objetoTercero,
+		"objetos_datos_identificacion.yaml": datos,
+		"objetos_tipo_contribuyente.yaml":   objetoTipoContribuyente,
+		"relaciones_proveedor.yaml":         servicioProveedorComposicion,
+	})
+	if err != nil {
+		t.Fatalf("composición válida rechazada: %v", err)
+	}
+	sc, ok := comp.Servicios["proveedor"]
+	if !ok || len(sc.Relations) == 0 {
+		t.Fatal("no se produjo el árbol efectivo del servicio proveedor")
+	}
+	rel := sc.Relations[0]
+	if len(rel.NestedRelations) == 0 {
+		t.Fatal("Tercero debe tener relaciones anidadas")
+	}
+	datosRel := rel.NestedRelations[0]
+	if datosRel.Name != "DatosIdentificacion" || datosRel.Write == nil {
+		t.Fatalf("nodo anidado DatosIdentificacion no encontrado o sin write: %+v", datosRel)
+	}
+	if !sonIgualesCadenas(datosRel.Write.NonNullableFields, []string{"Numero", "TipoDocumentoId"}) {
+		t.Errorf("NonNullableFields = %v, se esperaba [Numero TipoDocumentoId]", datosRel.Write.NonNullableFields)
+	}
+}

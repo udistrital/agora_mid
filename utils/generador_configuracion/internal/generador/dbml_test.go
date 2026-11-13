@@ -92,12 +92,12 @@ func TestConstruirObjetos_TablaProduceObjetoConCamposTipadosYOmiteBlacklist(t *t
 		t.Fatalf("ubicación del objeto incorrecta: api=%q tabla=%q endpoint=%q", o.RelatedAPI, o.RelatedTable, o.Endpoint)
 	}
 	esperados := []CampoConfig{
-		{Name: "Id", Type: "integer", Readable: true, Writable: false},
-		{Name: "PaisNacimientoId", Type: "integer", Readable: true, Writable: true},
-		{Name: "Activo", Type: "boolean", Readable: true, Writable: false},
-		{Name: "FechaCreacion", Type: "timestamp", Readable: true, Writable: false},
-		{Name: "FechaModificacion", Type: "timestamp", Readable: true, Writable: false},
-		{Name: "UsuarioModificacionId", Type: "integer", Readable: true, Writable: true},
+		{Name: "Id", Type: "integer", Nullable: false, Readable: true, Writable: false},
+		{Name: "PaisNacimientoId", Type: "integer", Nullable: false, Readable: true, Writable: true},
+		{Name: "Activo", Type: "boolean", Nullable: false, Readable: true, Writable: false},
+		{Name: "FechaCreacion", Type: "timestamp", Nullable: false, Readable: true, Writable: false},
+		{Name: "FechaModificacion", Type: "timestamp", Nullable: true, Readable: true, Writable: false},
+		{Name: "UsuarioModificacionId", Type: "integer", Nullable: true, Readable: true, Writable: true},
 	}
 	if !reflect.DeepEqual(o.Campos, esperados) {
 		t.Fatalf("campos = %+v\nse esperaban %+v", o.Campos, esperados)
@@ -105,6 +105,48 @@ func TestConstruirObjetos_TablaProduceObjetoConCamposTipadosYOmiteBlacklist(t *t
 	for _, c := range o.Campos {
 		if strings.EqualFold(c.Name, "Cargo") {
 			t.Fatal("la columna en blacklist no debe aparecer en el objeto")
+		}
+	}
+}
+
+func TestParsearDBML_NoNulaDesdeNotNullYPK(t *testing.T) {
+	dbml := `
+Table proveedores.a {
+  id serial [pk]
+  nombre varchar(50) [not null]
+  activo boolean [not null, default: true]
+  descripcion varchar(255)
+  otro integer [unique]
+}
+`
+	m, err := ParsearDBML(dbml)
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if len(m.Tablas) != 1 {
+		t.Fatalf("tablas = %d, se esperaba 1", len(m.Tablas))
+	}
+	esperados := []struct {
+		nombre, tipo string
+		noNula       bool
+	}{
+		{"id", "serial", true},
+		{"nombre", "varchar", true},
+		{"activo", "boolean", true},
+		{"descripcion", "varchar", false},
+		{"otro", "integer", false},
+	}
+	cols := m.Tablas[0].Columnas
+	if len(cols) != len(esperados) {
+		t.Fatalf("columnas = %d, se esperaban %d", len(cols), len(esperados))
+	}
+	for i, e := range esperados {
+		c := cols[i]
+		if c.Nombre != e.nombre || c.Tipo != e.tipo {
+			t.Errorf("columna %d = %s %s, se esperaba %s %s", i, c.Nombre, c.Tipo, e.nombre, e.tipo)
+		}
+		if c.NoNula != e.noNula {
+			t.Errorf("columna %s: NoNula = %v, se esperaba %v", c.Nombre, c.NoNula, e.noNula)
 		}
 	}
 }

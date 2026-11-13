@@ -207,6 +207,7 @@ func construirCampos(t Tabla, api string, blacklist map[string]bool, pol Politic
 		o.Campos = append(o.Campos, CampoConfig{
 			Name:      pascal(c.Nombre),
 			Type:      tiposAlmacenamiento[c.Tipo],
+			Nullable:  !c.NoNula,
 			Readable:  rol.Readable,
 			Writable:  rol.Writable,
 			Immutable: rol.Immutable,

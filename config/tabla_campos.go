@@ -24,13 +24,17 @@ const (
 // CampoObjeto describe un campo de un objeto de configuración: su nombre, su tipo
 // de almacenamiento y sus banderas de rol.
 //
+//   - Nullable: el campo admite null en el almacenamiento. Un campo sin la clave no
+//     admite null, de modo que un null en una escritura se rechaza por omisión.
 //   - Readable: el campo se incluye en la vista de lectura del objeto.
 //   - Writable: el cliente puede enviar el campo en una escritura.
 //   - Immutable: el campo no cambia tras la creación. Exige Writable.
-//   - Required: el campo es obligatorio en una escritura. Exige Writable.
+//   - Required: el campo es obligatorio en una escritura. Exige Writable. Es una
+//     obligación del cliente, independiente de Nullable.
 type CampoObjeto struct {
 	Name      string    `yaml:"name"`
 	Type      TipoCampo `yaml:"type"`
+	Nullable  bool      `yaml:"nullable"`
 	Readable  bool      `yaml:"readable"`
 	Writable  bool      `yaml:"writable"`
 	Immutable bool      `yaml:"immutable"`
@@ -116,6 +120,12 @@ func (t TablaCampos) CamposLectura() []string {
 // declaración. Es la lista de campos que el cliente puede enviar.
 func (t TablaCampos) CamposEscritura() []string {
 	return proyectarCampos(t, func(c CampoObjeto) bool { return c.Writable })
+}
+
+// CamposNoNulables devuelve los nombres de los campos que no admiten null, en orden de
+// declaración. Un campo con null en una escritura debe rechazarse si está en esta lista.
+func (t TablaCampos) CamposNoNulables() []string {
+	return proyectarCampos(t, func(c CampoObjeto) bool { return !c.Nullable })
 }
 
 // CamposInmutables devuelve los nombres de los campos con rol immutable, en orden

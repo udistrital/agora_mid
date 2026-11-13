@@ -475,6 +475,7 @@ func aplicarRaiz(sc *ServiceConfig, catalogo CatalogoObjetos) error {
 	}
 	w.WritableFields = obj.Campos.CamposEscritura()
 	w.ImmutableFields = obj.Campos.CamposInmutables()
+	w.NonNullableFields = obj.Campos.CamposNoNulables()
 	w.NaturalKey = append([]string(nil), obj.NaturalKey...)
 	sc.Write = &w
 	return nil
@@ -579,11 +580,12 @@ func construirRelacion(obj ObjetoDireccionable, arista Arista, hijos []RelationC
 	}
 	if arista.KeyPropagation != "" || arista.Policy.algunoAdmitido() {
 		rel.Write = &WriteConfig{
-			WritableFields:  obj.Campos.CamposEscritura(),
-			ImmutableFields: obj.Campos.CamposInmutables(),
-			NaturalKey:      obj.NaturalKey,
-			KeyPropagation:  arista.KeyPropagation,
-			Policy:          arista.Policy,
+			WritableFields:    obj.Campos.CamposEscritura(),
+			NonNullableFields: obj.Campos.CamposNoNulables(),
+			ImmutableFields:   obj.Campos.CamposInmutables(),
+			NaturalKey:        obj.NaturalKey,
+			KeyPropagation:    arista.KeyPropagation,
+			Policy:            arista.Policy,
 		}
 	}
 	return rel

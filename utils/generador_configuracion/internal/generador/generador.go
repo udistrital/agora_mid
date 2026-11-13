@@ -54,9 +54,12 @@ type Tabla struct {
 }
 
 // Columna es una columna del DBML con su tipo sin parámetros (p. ej. "varchar").
+// NoNula es verdadera cuando la columna declara `not null` o es llave primaria, y en
+// ese caso el campo generado no admite null.
 type Columna struct {
 	Nombre string
 	Tipo   string
+	NoNula bool
 }
 
 // ColumnaRef identifica una columna como esquema.tabla.columna.
@@ -91,9 +94,12 @@ type ObjetoConfig struct {
 }
 
 // CampoConfig es una fila de la tabla de campos tipada de un objeto generado.
+// Nullable indica si el campo admite null; se deriva de la ausencia de `not null` en
+// la columna del DBML y es independiente de Required, que el generador no deriva.
 type CampoConfig struct {
 	Name      string `yaml:"name"`
 	Type      string `yaml:"type"`
+	Nullable  bool   `yaml:"nullable"`
 	Readable  bool   `yaml:"readable"`
 	Writable  bool   `yaml:"writable"`
 	Immutable bool   `yaml:"immutable"`

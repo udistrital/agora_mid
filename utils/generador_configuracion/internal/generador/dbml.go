@@ -35,8 +35,9 @@ var (
 	reIndexes = regexp.MustCompile(`^indexes\s*\{$`)
 	// reSpread reconoce la inclusión ~nombre de una TablePartial dentro de una Table.
 	reSpread = regexp.MustCompile(`^~(\w+)$`)
-	// reColumna reconoce una columna: nombre, tipo con parámetros opcionales y atributos entre corchetes.
-	reColumna = regexp.MustCompile(`^(\w+)\s+(\w+)(?:\([^)]*\))?(?:\s*\[.*\])?$`)
+	// reColumna reconoce una columna: nombre, tipo con parámetros opcionales y, opcionalmente,
+	// el contenido de los atributos entre corchetes (grupo 3).
+	reColumna = regexp.MustCompile(`^(\w+)\s+(\w+)(?:\([^)]*\))?(?:\s*\[(.*)\])?$`)
 	// reRelacion reconoce una relación a.b.c < d.e.f, con ? opcional y operador <, > o -.
 	reRelacion = regexp.MustCompile(`^([\w.]+)\s*\??([<>-])\s*([\w.]+)$`)
 )
@@ -187,7 +188,7 @@ func agregarLinea(b *bloqueDBML, linea string, n int, anidado *int) error {
 		if _, ok := tiposAlmacenamiento[g[2]]; !ok {
 			return fmt.Errorf("línea %d: tipo %q no soportado en %s", n, g[2], b.nombre)
 		}
-		b.items = append(b.items, itemDBML{columna: Columna{Nombre: g[1], Tipo: g[2]}})
+		b.items = append(b.items, itemDBML{columna: Columna{Nombre: g[1], Tipo: g[2], NoNula: esNoNula(g[3])}})
 		return nil
 	}
 	return fmt.Errorf("línea %d no reconocida dentro de %s: %q", n, b.nombre, linea)
@@ -261,4 +262,18 @@ func validarRefs(m *Modelo) error {
 		}
 	}
 	return nil
+}
+
+// esNoNula indica si el contenido de los atributos de una columna declara que la
+// columna no admite null: el atributo `not null` o la llave primaria (`pk` o
+// `primary key`). Los atributos se comparan como tokens separados por coma, de modo
+// que el texto de una nota no produce coincidencias falsas.
+func esNoNula(atributos string) bool {
+	for _, tok := range strings.Split(atributos, ",") {
+		switch strings.TrimSpace(tok) {
+		case "not null", "pk", "primary key":
+			return true
+		}
+	}
+	return false
 }

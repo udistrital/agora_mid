@@ -117,3 +117,42 @@ func TestCargarComposicion_RaizConCamposEnWriteAborta(t *testing.T) {
 		t.Errorf("el error debe nombrar write y raiz; error: %v", err)
 	}
 }
+
+// La raíz recibe en NonNullableFields los campos de su tabla que no admiten null, sin
+// incluir los que sí admiten null.
+func TestCargarComposicion_RaizProyectaCamposNoNulables(t *testing.T) {
+	objeto := `name: Proveedor
+related_api: gestion_personas_crud
+related_table: proveedor
+endpoint: /v1/proveedor
+natural_key:
+  - TerceroId
+campos:
+  - name: TerceroId
+    type: integer
+    nullable: false
+    readable: true
+    writable: true
+    immutable: true
+  - name: DescripcionPortafolio
+    type: string
+    nullable: true
+    readable: true
+    writable: true
+referencias: []
+`
+	comp, err := escribirComposicion(t, map[string]string{
+		"objetos_proveedor.yaml":    objeto,
+		"relaciones_proveedor.yaml": servicioProveedorRaiz,
+	})
+	if err != nil {
+		t.Fatalf("raíz válida rechazada: %v", err)
+	}
+	w := comp.Servicios["proveedor"].Write
+	if w == nil {
+		t.Fatal("la raíz debe tener bloque write compuesto")
+	}
+	if !reflect.DeepEqual(w.NonNullableFields, []string{"TerceroId"}) {
+		t.Errorf("non_nullable_fields = %v, se esperaba [TerceroId]", w.NonNullableFields)
+	}
+}

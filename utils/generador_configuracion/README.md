@@ -67,6 +67,10 @@ En `expand` y `fk_inbound`, una entrada es una cadena simple (profundidad por om
 
 Una FK que no aparece en `expand` ni en `fk_inbound` queda como identificador plano en el hijo. Si una FK aparece en `expand` y en `fk_inbound`, prevalece `fk_inbound`. Un archivo de sidecar ausente equivale a una lista vacía. Las claves desconocidas en un sidecar son error.
 
+## Nulabilidad de los campos
+
+Cada campo de la tabla de campos lleva `nullable`, derivada del DBML: es `false` cuando la columna declara `[not null]` o es llave primaria (`[pk]` o `[primary key]`), y `true` en cualquier otro caso. La bandera `nullable` solo indica si el campo admite `null`; no indica si el cliente debe enviarlo. La obligación del cliente (`required`) no se deriva en el generador y permanece sin poblar.
+
 ## Pruebas
 
 ```shell

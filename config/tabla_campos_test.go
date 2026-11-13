@@ -309,3 +309,40 @@ func TestDecodificarTablaCampos_CasosLimite(t *testing.T) {
 		}
 	})
 }
+
+// Prueba que la bandera nullable se decodifica por campo, que CamposNoNulables devuelve
+// solo los campos que no admiten null en orden de declaración, y que un campo sin la
+// clave no admite null (valor por omisión seguro).
+func TestDecodificarTablaCampos_NullableYCamposNoNulables(t *testing.T) {
+	contenido := []byte(`
+- name: Numero
+  type: string
+  nullable: false
+  writable: true
+- name: Observacion
+  type: string
+  nullable: true
+  writable: true
+- name: Sin
+  type: string
+  writable: true
+- name: Activo
+  type: boolean
+  nullable: false
+  readable: true
+`)
+
+	tabla, err := DecodificarTablaCampos("Demo", contenido)
+	if err != nil {
+		t.Fatalf("se esperaba una tabla válida, error: %v", err)
+	}
+	esperados := map[string]bool{"Numero": false, "Observacion": true, "Sin": false, "Activo": false}
+	for _, c := range tabla {
+		if c.Nullable != esperados[c.Name] {
+			t.Errorf("campo %s: Nullable = %v, se esperaba %v", c.Name, c.Nullable, esperados[c.Name])
+		}
+	}
+	if got, want := tabla.CamposNoNulables(), []string{"Numero", "Sin", "Activo"}; !sonIgualesCadenas(got, want) {
+		t.Errorf("CamposNoNulables() = %v, se esperaba %v", got, want)
+	}
+}

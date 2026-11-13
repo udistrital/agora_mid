@@ -92,6 +92,10 @@ type WriteConfig struct {
 	// relación. Un campo fuera de esta lista se rechaza con 400. La lista vacía o
 	// ausente indica que la relación no acepta campos propios.
 	WritableFields []string `yaml:"writable_fields"`
+	// NonNullableFields son los campos de la tabla de campos del objeto que no admiten
+	// null. Se proyectan desde Campos al componer el árbol y no se leen de YAML: una
+	// declaración explícita en el archivo de relaciones es un campo desconocido.
+	NonNullableFields []string `yaml:"-"`
 	// ImmutableFields son campos que, una vez creado el registro, no pueden
 	// modificarse; enviarlos en una actualización se rechaza con 400. Deben estar
 	// contenidos en WritableFields.

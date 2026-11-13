@@ -115,3 +115,47 @@ func TestConstruirObjetos_ErroresDeSemanticaFallan(t *testing.T) {
 		}
 	}
 }
+
+func TestConstruirObjetos_NullableDerivadoDeNotNullYPK(t *testing.T) {
+	objetos := mustConstruir(t, "", "", "", "")
+	proveedor := buscarObjeto(t, objetos, "Proveedor")
+
+	esperados := map[string]bool{
+		"Id":                    false, // llave primaria: no nulable.
+		"TipoProveedor":         false, // [not null].
+		"TerceroId":             true,  // sin atributos.
+		"Activo":                false, // [not null, default: true].
+		"FechaCreacion":         false, // [not null, default: now()].
+		"FechaModificacion":     true,  // sin atributos.
+		"UsuarioModificacionId": true,  // sin atributos.
+	}
+	if len(proveedor.Campos) != len(esperados) {
+		t.Fatalf("campos = %d, se esperaban %d", len(proveedor.Campos), len(esperados))
+	}
+	for _, c := range proveedor.Campos {
+		esperado, ok := esperados[c.Name]
+		if !ok {
+			t.Errorf("campo inesperado %s", c.Name)
+			continue
+		}
+		if c.Nullable != esperado {
+			t.Errorf("campo %s: Nullable = %v, se esperaba %v", c.Name, c.Nullable, esperado)
+		}
+	}
+}
+
+func TestConstruirObjetos_NullableEsDeterministaEnPosicionFija(t *testing.T) {
+	primera := buscarObjeto(t, mustConstruir(t, "", "", "", ""), "Proveedor")
+	segunda := buscarObjeto(t, mustConstruir(t, "", "", "", ""), "Proveedor")
+	if !reflect.DeepEqual(primera.Campos, segunda.Campos) {
+		t.Fatalf("dos construcciones difieren:\n%+v\n%+v", primera.Campos, segunda.Campos)
+	}
+	orden := []string{}
+	for _, c := range primera.Campos {
+		orden = append(orden, c.Name)
+	}
+	esperado := []string{"Id", "TipoProveedor", "TerceroId", "Activo", "FechaCreacion", "FechaModificacion", "UsuarioModificacionId"}
+	if !reflect.DeepEqual(orden, esperado) {
+		t.Fatalf("orden de campos = %v, se esperaba %v", orden, esperado)
+	}
+}
