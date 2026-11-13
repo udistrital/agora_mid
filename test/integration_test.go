@@ -550,7 +550,7 @@ func TestIntegracionReenvioDataCoincide200(t *testing.T) {
 }
 
 // --- Grupo 3.3: conflicto de entidad existente -> 400; fallo de relación
-// tolerada (notify) -> 206 con Kind relation ---
+// tolerada (notify) -> 206 con Kind dependency_failure ---
 
 // Un proveedor EXISTENTE (con Id propio) cuya FK ascendente reenviada difiere del
 // Id del tercero referenciado es un conflicto fk_inbound: se rechaza con 400 sin
@@ -595,7 +595,7 @@ func TestIntegracionConflictoFKAscendenteExistente400(t *testing.T) {
 
 // Fallo de una relación tolerada (notify): con la FK ascendente ausente (para
 // aislar el aviso), el CRUD de contacto responde 503; el motor conserva lo ya
-// materializado y responde 206 con un aviso Kind relation, sin exponer el error
+// materializado y responde 206 con un aviso Kind dependency_failure, sin exponer el error
 // interno del CRUD.
 func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, nil)
@@ -613,7 +613,7 @@ func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
 	}
 	var vioRelation bool
 	for _, e := range env.MetaData.Errors {
-		if kind, _ := e["kind"].(string); kind == "relation" {
+		if kind, _ := e["kind"].(string); kind == "dependency_failure" {
 			vioRelation = true
 		}
 		// El aviso no debe exponer el cuerpo interno del CRUD.
@@ -622,7 +622,7 @@ func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
 		}
 	}
 	if !vioRelation {
-		t.Errorf("se esperaba un aviso con Kind relation; errors=%+v", env.MetaData.Errors)
+		t.Errorf("se esperaba un aviso con Kind dependency_failure; errors=%+v", env.MetaData.Errors)
 	}
 	// El proveedor sí se materializó pese al fallo del contacto (creación parcial).
 	post, _, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")

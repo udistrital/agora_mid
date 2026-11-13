@@ -2,9 +2,9 @@
 
 ## 1. Taxonomía de avisos de fallo por Kind
 
-- [ ] 1.1 Escribir pruebas unitarias que afirmen que el envoltorio emite un aviso con `Kind: dependency_failure` ante un fallo de dependencia y `Kind: timeout` ante un tiempo de espera, cada uno respaldado por una constante declarada; confirmar que las pruebas fallan porque las constantes aún no existen.
-- [ ] 1.2 Declarar las constantes de `Kind` `dependency_failure` y `timeout` junto a las existentes y verificar que las pruebas de 1.1 pasan y que no existe ningún `Kind` emitido sin constante.
-- [ ] 1.3 Escribir y verificar una prueba que afirme que la clasificación de fallo se expresa solo por el valor de `Kind`, sin un campo discriminador paralelo en `MetaData.Errors`.
+- [x] 1.1 Escribir pruebas unitarias que afirmen que el envoltorio emite un aviso con `Kind: dependency_failure` ante un fallo de dependencia y `Kind: timeout` ante un tiempo de espera, cada uno respaldado por una constante declarada; confirmar que las pruebas fallan porque las constantes aún no existen.
+- [x] 1.2 Declarar las constantes de `Kind` `dependency_failure` y `timeout` junto a las existentes y verificar que las pruebas de 1.1 pasan y que no existe ningún `Kind` emitido sin constante.
+- [x] 1.3 Escribir y verificar una prueba que afirme que la clasificación de fallo se expresa solo por el valor de `Kind`, sin un campo discriminador paralelo en `MetaData.Errors`.
 
 ## 2. Mapa de códigos de estado de la escritura
 

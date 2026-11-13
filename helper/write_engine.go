@@ -2,7 +2,9 @@ package helper
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/udistrital/agora_mid/config"
@@ -516,7 +518,7 @@ func (me *motorEscritura) materializarHijos(
 
 		res, ok := me.registry.resolverPara(rel)
 		if !ok {
-			if err := me.manejarErrorRelacion(rel, rutaStr); err != nil {
+			if err := me.manejarErrorRelacion(rel, rutaStr, nil); err != nil {
 				return err
 			}
 			continue
@@ -747,7 +749,7 @@ func (me *motorEscritura) prepass(
 		if esRaiz {
 			return &errorFatalEscritura{path: "(raíz)", servicio: me.servicioRaiz, err: err}
 		}
-		if err := me.manejarErrorRelacion(rel, ruta); err != nil {
+		if err := me.manejarErrorRelacion(rel, ruta, err); err != nil {
 			return err
 		}
 		me.retenido[claveNodo(nodo)] = nodoRetenido{omitido: true}
@@ -894,7 +896,7 @@ func (me *motorEscritura) prepassHijos(
 		rutaHijo := unirRuta(ruta, hijo.MappedName)
 		res, ok := me.registry.resolverPara(hijo)
 		if !ok {
-			if err := me.manejarErrorRelacion(hijo, rutaHijo); err != nil {
+			if err := me.manejarErrorRelacion(hijo, rutaHijo, nil); err != nil {
 				return err
 			}
 			continue
@@ -979,7 +981,7 @@ func (me *motorEscritura) materializarInbound(
 
 		res, ok := me.registry.resolverPara(rel)
 		if !ok {
-			if err := me.manejarErrorRelacion(rel, rutaStr); err != nil {
+			if err := me.manejarErrorRelacion(rel, rutaStr, nil); err != nil {
 				return err
 			}
 			continue
@@ -988,7 +990,7 @@ func (me *motorEscritura) materializarInbound(
 		// Materializar la entidad referenciada y propagar su Id.
 		materializado, err := me.materializarEntidad(res, rel, referida, *rel.Write, rutaStr, rel.NestedRelations)
 		if err != nil {
-			return me.manejarErrorRelacion(rel, rutaStr)
+			return me.manejarErrorRelacion(rel, rutaStr, err)
 		}
 		for k, v := range materializado {
 			referida[k] = v
@@ -1026,7 +1028,7 @@ func (me *motorEscritura) eliminarEntidad(
 	id := me.retenido[claveNodo(elem)].registro["Id"]
 	me.observar(faseEscritura, ruta, rel.RelatedService)
 	if err := res.Eliminar(me.ctx, rel, id); err != nil {
-		return me.manejarErrorRelacion(rel, ruta)
+		return me.manejarErrorRelacion(rel, ruta, err)
 	}
 	return nil
 }
@@ -1059,7 +1061,7 @@ func (me *motorEscritura) materializarValorRelacion(
 		}
 		materializado, err := me.materializarEntidad(res, rel, elem, *rel.Write, ruta, rel.NestedRelations)
 		if err != nil {
-			return me.manejarErrorRelacion(rel, ruta)
+			return me.manejarErrorRelacion(rel, ruta, err)
 		}
 		// Reemplazar el elemento por su versión materializada y recorrer sus
 		// propios hijos en orden topológico.
@@ -1248,9 +1250,10 @@ func (me *motorEscritura) llaveDescendente(
 
 // manejarErrorRelacion aplica la política de error de relación. En modo fail
 // aborta con *errorFatalEscritura conservando lo ya materializado implícitamente
-// en el cuerpo del llamador; en modo notify agrega un aviso no sensible y
-// continúa.
-func (me *motorEscritura) manejarErrorRelacion(rel config.RelationConfig, rutaStr string) error {
+// en el cuerpo del llamador; en modo notify agrega un aviso no sensible cuyo Kind
+// depende de causa y continúa. causa puede ser nil cuando la relación no tiene
+// resolver, caso que se reporta como KindDependencyFailure.
+func (me *motorEscritura) manejarErrorRelacion(rel config.RelationConfig, rutaStr string, causa error) error {
 	if me.onRelError == config.OnRelationErrorFail {
 		return &errorFatalEscritura{path: rutaStr, servicio: rel.RelatedService}
 	}
@@ -1258,9 +1261,21 @@ func (me *motorEscritura) manejarErrorRelacion(rel config.RelationConfig, rutaSt
 		Path:    rutaStr,
 		Service: rel.RelatedService,
 		Message: "no se pudo materializar la relación; se conserva lo ya materializado",
-		Kind:    KindRelation,
+		Kind:    clasificarFalloDependencia(causa),
 	})
 	return nil
+}
+
+// clasificarFalloDependencia devuelve el Kind de un fallo tolerado de escritura
+// según su causa: KindTimeout cuando la causa es un tiempo de espera agotado
+// (context.DeadlineExceeded o un error de red con Timeout verdadero) y
+// KindDependencyFailure en cualquier otro caso, incluido causa nil.
+func clasificarFalloDependencia(causa error) string {
+	var netErr net.Error
+	if errors.Is(causa, context.DeadlineExceeded) || (errors.As(causa, &netErr) && netErr.Timeout()) {
+		return KindTimeout
+	}
+	return KindDependencyFailure
 }
 
 // agregarAviso añade un aviso si no está duplicado por path+kind.

@@ -14,7 +14,8 @@ import (
 // verdad del conjunto de Kinds y de KindsDeAviso. No debe emitirse ningún Kind
 // sin una constante registrada que lo respalde.
 const (
-	// KindRelation marca un error de relación tolerado en modo notify.
+	// KindRelation marca un error de relación tolerado en la expansión de lectura
+	// (modo notify). Las escrituras usan KindDependencyFailure o KindTimeout.
 	KindRelation = "relation"
 	// KindDepth marca la reducción de profundidad por configuración hija.
 	KindDepth = "depth"
@@ -32,6 +33,13 @@ const (
 	// KindEliminacionOmitida marca un nodo marcado para eliminación que no tiene
 	// registro que borrar: la baja se omite sin bloquear la escritura.
 	KindEliminacionOmitida = "eliminacion_omitida"
+	// KindDependencyFailure marca un fallo tolerado de una dependencia remota
+	// durante la escritura (lectura previa o materialización) cuya causa no es un
+	// tiempo de espera agotado.
+	KindDependencyFailure = "dependency_failure"
+	// KindTimeout marca un fallo tolerado de escritura causado por un tiempo de
+	// espera agotado en una dependencia remota.
+	KindTimeout = "timeout"
 )
 
 // KindOrigen identifica el subsistema que emite un tipo de aviso. Distinguir el
@@ -65,6 +73,8 @@ var catalogoKinds = map[string]KindOrigen{
 	KindGenericResolver:    KindOrigenExpansion,
 	KindFieldNormalization: KindOrigenEscritura,
 	KindEliminacionOmitida: KindOrigenEscritura,
+	KindDependencyFailure:  KindOrigenEscritura,
+	KindTimeout:            KindOrigenEscritura,
 }
 
 // KindsDeAviso devuelve las constantes de tipo de aviso declaradas, derivadas del

@@ -383,8 +383,8 @@ func TestWriteTolerante(t *testing.T) {
 	if aCadena(res.Data["Id"]) != "100" {
 		t.Errorf("la raíz debe conservar su Id materializado; data=%+v", res.Data)
 	}
-	if len(res.Warnings) != 1 || res.Warnings[0].Kind != KindRelation {
-		t.Fatalf("se esperaba un aviso relation; warnings=%+v", res.Warnings)
+	if len(res.Warnings) != 1 || res.Warnings[0].Kind != KindDependencyFailure {
+		t.Fatalf("se esperaba un aviso dependency_failure; warnings=%+v", res.Warnings)
 	}
 	w := res.Warnings[0]
 	if w.Path != "Hijo[0]" || w.Service != "hijo" {
@@ -973,8 +973,28 @@ func TestInvarianteKindEscritura(t *testing.T) {
 		recolectar(res.Warnings)
 	}
 
-	// Toda constante de origen escritura debe haber sido emitida por alguna ruta
-	// ejercida; de lo contrario quedaría declarada pero muerta.
+	// Fallo tolerado de dependencia -> dependency_failure; tiempo de espera -> timeout.
+	{
+		var ll []registroMaterializacion
+		registry := registryFalso(&ll, map[string]error{"hijo": errors.New("503 service unavailable")})
+		body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Valor": "a"}}}
+		res, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{OnRelationError: config.OnRelationErrorNotify})
+		if err != nil {
+			t.Fatalf("el fallo tolerado de dependencia no debe ser fatal: %v", err)
+		}
+		recolectar(res.Warnings)
+	}
+	{
+		var ll []registroMaterializacion
+		registry := registryFalso(&ll, map[string]error{"hijo": context.DeadlineExceeded})
+		body := map[string]any{"TerceroId": float64(25), "Hijo": []any{map[string]any{"Valor": "a"}}}
+		res, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{OnRelationError: config.OnRelationErrorNotify})
+		if err != nil {
+			t.Fatalf("el tiempo de espera tolerado no debe ser fatal: %v", err)
+		}
+		recolectar(res.Warnings)
+	}
+
 	for _, k := range KindsDeAviso() {
 		origen, _ := OrigenDeKind(k)
 		if origen != KindOrigenEscritura {
@@ -1115,8 +1135,8 @@ func TestWriteInboundFalloRecuperacionTolerante(t *testing.T) {
 	if err != nil {
 		t.Fatalf("modo tolerante no debe devolver error fatal ante un fallo de recuperación: %v", err)
 	}
-	if len(res.Warnings) != 1 || res.Warnings[0].Kind != KindRelation {
-		t.Fatalf("se esperaba un aviso relation por el fallo de recuperación; warnings=%+v", res.Warnings)
+	if len(res.Warnings) != 1 || res.Warnings[0].Kind != KindDependencyFailure {
+		t.Fatalf("se esperaba un aviso dependency_failure por el fallo de recuperación; warnings=%+v", res.Warnings)
 	}
 	if res.Warnings[0].Path != "Referida" || res.Warnings[0].Service != "referida" {
 		t.Errorf("el aviso debe identificar la relación Referida; aviso=%+v", res.Warnings[0])
