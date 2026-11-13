@@ -7,7 +7,6 @@ que materializa un árbol anidado de entidades contra otros CRUD a partir de
 configuración versionada por servicio, sin que el MID sea dueño de los datos.
 
 ## Requirements
-
 ### Requirement: Escritura declarativa dirigida por configuración
 El sistema SHALL ejecutar la escritura en cascada únicamente a partir del árbol
 efectivo compuesto por servicio (ver `config-composition`), cargado y aplanado al
@@ -137,7 +136,8 @@ si ya existe por esa clave, reutilizándola en lugar de crear un duplicado.
 ### Requirement: Reporte tolerante de errores de escritura
 El sistema SHALL honrar la política de error de relación configurada durante la
 escritura: en modo tolerante conserva lo ya materializado y reporta avisos; en
-modo estricto aborta la cascada.
+modo estricto detiene la cascada, y el código y el cuerpo de la respuesta dependen
+de si ya se materializó alguna entidad.
 
 #### Scenario: Fallo de relación tolerado durante la escritura
 - **WHEN** una relación no bloqueante falla y la política es tolerante
@@ -145,9 +145,17 @@ modo estricto aborta la cascada.
   demás y agrega un aviso no sensible con la ruta lógica de la relación
 
 #### Scenario: Fallo de relación bloqueante
-- **WHEN** una relación bloqueante falla o la política es estricta
+- **WHEN** una relación bloqueante falla o la política es estricta, y aún no se ha
+  materializado ninguna entidad
 - **THEN** el motor detiene la cascada y reporta el error sin exponer URLs,
-  credenciales ni cuerpos remotos
+  credenciales ni cuerpos remotos, sin devolver ningún subárbol parcial
+
+#### Scenario: Fallo estricto después de materializar (stop-abort)
+- **WHEN** una relación bloqueante falla o la política es estricta después de que
+  el motor materializó al menos una entidad
+- **THEN** el motor detiene la cascada, no intenta los nodos posteriores y devuelve
+  el subárbol ya materializado con un aviso tipado que nombra el nodo de parada,
+  sin exponer URLs, credenciales ni cuerpos remotos
 
 ### Requirement: Validación antes de cualquier escritura
 El sistema SHALL evaluar toda validación capaz de producir `400` —un campo
