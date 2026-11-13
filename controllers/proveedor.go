@@ -324,9 +324,22 @@ func (h *ProveedorHandler) responderErrorEscritura(w http.ResponseWriter, err er
 		return
 	}
 
-	// No exponer mensajes internos de los CRUD ante un error no clasificado.
-	h.responder(w, http.StatusBadGateway, false,
+	// Lectura previa bloqueante (por ejemplo, el estado activo de la transición): un
+	// tiempo de espera agotado responde 504 y cualquier otro fallo de dependencia 502.
+	// No exponer mensajes internos de los CRUD.
+	status := http.StatusBadGateway
+	if esTiempoAgotado(err) {
+		status = http.StatusGatewayTimeout
+	}
+	h.responder(w, status, false,
 		"Error al registrar el proveedor o sus relaciones", nil, nil)
+}
+
+// esTiempoAgotado informa si err está causado por un tiempo de espera agotado: un
+// contexto vencido o un error de red con Timeout verdadero en su cadena.
+func esTiempoAgotado(err error) bool {
+	var netErr net.Error
+	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout())
 }
 
 // verboEscritura traduce el método HTTP al verbo de escritura del motor. Devuelve

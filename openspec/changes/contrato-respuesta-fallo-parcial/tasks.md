@@ -8,10 +8,10 @@
 
 ## 2. Mapa de códigos de estado de la escritura
 
-- [ ] 2.1 Escribir pruebas de contrato que, sobre el motor de escritura con CRUD dueños simulados, afirmen: `200` en cascada completa sin avisos; `502` ante dependencia inalcanzable en el pre-pass; `504` ante tiempo de espera en el pre-pass; sin `Data` parcial en los dos últimos. Incluir dos casos de lectura caída en el pre-pass: una relación bajo política `fail` (o bloqueante) produce `502`/`504` sin materializar ninguna escritura; y la lectura de `estado_proveedor`, cuya política es `notify`, produce `206` con un aviso `Kind: dependency_failure`, omite ese nodo y materializa los demás. Confirmar que fallan antes de implementar el mapeo.
-- [ ] 2.1a Extender el CRUD simulado para inducir fallos no solo en `POST` sino también en la lectura (`GET`) del pre-pass y en la baja (`DELETE`), de modo que 2.1 y 3.1 puedan simular un CRUD dueño caído en el nodo y método exactos; verificar que el fallo inducido se observa en el método esperado y no en otros.
-- [ ] 2.2 Implementar en el pre-pass de solo lectura la detección de dependencia inalcanzable/timeout que responde `502`/`504` sin materializar nada, y verificar que las pruebas de 2.1 pasan.
-- [ ] 2.3 Escribir y verificar una prueba que afirme que una validación previa produce `400` y nunca `206`, delimitando la frontera con el control de escritura por relación.
+- [x] 2.1 Escribir pruebas de contrato que, sobre el motor de escritura con CRUD dueños simulados, afirmen: `200` en cascada completa sin avisos; `502` ante dependencia inalcanzable en el pre-pass; `504` ante tiempo de espera en el pre-pass; sin `Data` parcial en los dos últimos. Incluir dos casos de lectura caída en el pre-pass: una relación bajo política `fail` (o bloqueante) produce `502`/`504` sin materializar ninguna escritura; y la lectura de `estado_proveedor`, cuya política es `notify`, produce `206` con un aviso `Kind: dependency_failure`, omite ese nodo y materializa los demás. Confirmar que fallan antes de implementar el mapeo.
+- [x] 2.1a Extender el CRUD simulado para inducir fallos no solo en `POST` sino también en la lectura (`GET`) del pre-pass y en la baja (`DELETE`), de modo que 2.1 y 3.1 puedan simular un CRUD dueño caído en el nodo y método exactos; verificar que el fallo inducido se observa en el método esperado y no en otros.
+- [x] 2.2 Implementar en el pre-pass de solo lectura la detección de dependencia inalcanzable/timeout que responde `502`/`504` sin materializar nada, y verificar que las pruebas de 2.1 pasan.
+- [x] 2.3 Escribir y verificar una prueba que afirme que una validación previa produce `400` y nunca `206`, delimitando la frontera con el control de escritura por relación.
 
 ## 3. Respuesta 206 de stop-abort a mitad de cascada
 

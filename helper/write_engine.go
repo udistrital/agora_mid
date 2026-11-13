@@ -1255,7 +1255,7 @@ func (me *motorEscritura) llaveDescendente(
 // resolver, caso que se reporta como KindDependencyFailure.
 func (me *motorEscritura) manejarErrorRelacion(rel config.RelationConfig, rutaStr string, causa error) error {
 	if me.onRelError == config.OnRelationErrorFail {
-		return &errorFatalEscritura{path: rutaStr, servicio: rel.RelatedService}
+		return &errorFatalEscritura{path: rutaStr, servicio: rel.RelatedService, err: causa}
 	}
 	me.agregarAviso(responses.RelationError{
 		Path:    rutaStr,
