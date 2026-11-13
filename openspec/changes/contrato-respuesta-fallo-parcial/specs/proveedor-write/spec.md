@@ -92,3 +92,32 @@ baja que el motor no infiere.
 - **WHEN** el cuerpo omite una colección o la envía como `[]`
 - **THEN** en ambos casos el MID conserva los elementos existentes y no infiere
   eliminaciones, reservando la baja a los nodos que el árbol marca explícitamente
+
+## MODIFIED Requirements
+
+### Requirement: Transición de estado del proveedor
+El sistema SHALL resolver el registro de un `estado_proveedor` comparándolo con el estado activo vigente del proveedor, con esta precedencia: si el registro trae el `Id` de un estado existente, el MID lo actualiza en sitio con los campos enviados, sin crear ni dar de baja ningún estado; si no trae `Id` y todos sus campos coinciden con los del estado activo vigente, la operación es un no-op idempotente; si no trae `Id` y algún campo difiere del estado activo vigente, el MID crea el nuevo estado y da de baja el estado activo previo. La baja del estado previo se expresa en el árbol que el servicio entrega al motor.
+
+#### Scenario: Id existente se actualiza en sitio
+- **WHEN** se registra un `estado_proveedor` que trae el `Id` del estado activo vigente y una `Observacion` distinta
+- **THEN** el MID actualiza ese estado en sitio, sin crear un nuevo estado ni dar de baja ninguno
+
+#### Scenario: Id existente con EstadoId distinto se actualiza en sitio
+- **WHEN** se registra un `estado_proveedor` que trae el `Id` del estado activo vigente y un `EstadoId` distinto del actual
+- **THEN** el MID actualiza ese mismo registro con el `EstadoId` enviado, sin crear un nuevo estado ni dar de baja ninguno, porque la coincidencia por `Id` tiene precedencia sobre `estado_id`
+
+#### Scenario: Reenvío del estado activo vigente es idempotente
+- **WHEN** se registra un `estado_proveedor` sin `Id` cuyos campos coinciden todos con los del estado activo vigente
+- **THEN** el MID no crea ni da de baja ningún estado, conservando el estado activo actual
+
+#### Scenario: Sin Id y mismo EstadoId con Observacion distinta crea y da de baja
+- **WHEN** se registra un `estado_proveedor` sin `Id` cuyo `EstadoId` coincide con el estado activo vigente pero cuya `Observacion` difiere
+- **THEN** el MID crea el nuevo estado y da de baja el estado activo previo, en ese orden
+
+#### Scenario: Nuevo estado da de baja el activo previo
+- **WHEN** se registra un `estado_proveedor` sin `Id` cuyo `estado_id` difiere del estado activo vigente del proveedor
+- **THEN** el MID crea el nuevo estado y da de baja el estado activo previo por la capacidad de eliminación del motor, de modo que a lo sumo un estado queda activo
+
+#### Scenario: La nueva transición precede a la baja del estado previo
+- **WHEN** una transición de estado crea el nuevo estado y da de baja el previo
+- **THEN** el MID crea primero el nuevo estado y da de baja el previo después, de modo que un fallo intermedio no deja al proveedor sin estado activo

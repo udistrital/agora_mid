@@ -62,7 +62,14 @@ escritura.
   reintento tras `206` (re-find por `Id`/clave natural; colecciones sin clave solo
   idempotentes por reenvío del `Data`; `estado_id` para la transición de estado) y
   la distinción omisión/vacío/null del contrato de escritura, incluido que `[]`
-  nunca elimina.
+  nunca elimina. Modifica la transición de estado del proveedor (requisito del cambio
+  absorbido) con esta precedencia: `Id` presente actualiza en sitio; sin `Id` y con
+  campos coincidentes es no-op; sin `Id` y con campos distintos crea el nuevo estado
+  y da de baja el previo.
+- `declarative-write-engine`: Se precisa el fallo de escritura en modo estricto: un
+  fallo bloqueante antes de materializar detiene la cascada sin subárbol parcial,
+  mientras que un fallo después de materializar al menos una entidad es un stop-abort
+  que devuelve el subárbol parcial con un aviso tipado que nombra el nodo de parada.
 
 ## Impact
 

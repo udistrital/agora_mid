@@ -8,7 +8,8 @@
 
 ## 2. Mapa de códigos de estado de la escritura
 
-- [ ] 2.1 Escribir pruebas de contrato que, sobre el motor de escritura con CRUD dueños simulados, afirmen: `200` en cascada completa sin avisos; `502` ante dependencia inalcanzable en el pre-pass; `504` ante tiempo de espera en el pre-pass; sin `Data` parcial en los dos últimos. Confirmar que fallan antes de implementar el mapeo.
+- [ ] 2.1 Escribir pruebas de contrato que, sobre el motor de escritura con CRUD dueños simulados, afirmen: `200` en cascada completa sin avisos; `502` ante dependencia inalcanzable en el pre-pass; `504` ante tiempo de espera en el pre-pass; sin `Data` parcial en los dos últimos. Incluir dos casos de lectura caída en el pre-pass: una relación bajo política `fail` (o bloqueante) produce `502`/`504` sin materializar ninguna escritura; y la lectura de `estado_proveedor`, cuya política es `notify`, produce `206` con un aviso `Kind: dependency_failure`, omite ese nodo y materializa los demás. Confirmar que fallan antes de implementar el mapeo.
+- [ ] 2.1a Extender el CRUD simulado para inducir fallos no solo en `POST` sino también en la lectura (`GET`) del pre-pass y en la baja (`DELETE`), de modo que 2.1 y 3.1 puedan simular un CRUD dueño caído en el nodo y método exactos; verificar que el fallo inducido se observa en el método esperado y no en otros.
 - [ ] 2.2 Implementar en el pre-pass de solo lectura la detección de dependencia inalcanzable/timeout que responde `502`/`504` sin materializar nada, y verificar que las pruebas de 2.1 pasan.
 - [ ] 2.3 Escribir y verificar una prueba que afirme que una validación previa produce `400` y nunca `206`, delimitando la frontera con el control de escritura por relación.
 
@@ -20,16 +21,17 @@
 
 ## 4. Identidad de reconciliación para el reintento
 
-- [ ] 4.1 Escribir pruebas de integración que, tras un `206`, reenvíen el `Data` materializado y afirmen que cada entidad se re-encuentra por `Id` (reutilización/actualización, sin duplicar) y que una entidad sin `Id` pero con clave natural se re-encuentra por su clave natural. Confirmar que fallan antes de implementar el re-find.
+- [ ] 4.1 Escribir pruebas de integración que, tras un `206`, reenvíen el `Data` materializado y afirmen que cada entidad se re-encuentra por `Id` (reutilización/actualización, sin duplicar) y que una entidad sin `Id` pero con clave natural se re-encuentra por su clave natural, incluido el caso de creación en frío (una entidad sin `Id` ni FK ascendente, resuelta únicamente por su clave natural) que crea sin duplicar. Confirmar que fallan antes de implementar el re-find.
 - [ ] 4.2 Implementar el re-find por `Id` y clave natural en el reintento y verificar que las pruebas de 4.1 pasan sin crear duplicados.
 - [ ] 4.3 Escribir y verificar pruebas que afirmen la idempotencia limitada de colecciones sin clave estable: reenviar el `Data` no duplica elementos (traen `Id`); reenviar el cuerpo original puede duplicarlos, de acuerdo con la limitación declarada.
 - [ ] 4.4 Escribir y verificar una prueba del caso de transición de estado a medio camino: reintento re-encuentra el nuevo `estado_proveedor` por `estado_id` como no-op y re-intenta solo la baja pendiente del estado previo, sin crear un segundo estado.
+- [ ] 4.5 Escribir y verificar pruebas de la transición de estado en la escritura normal (no en el reintento), por precedencia: un `estado_proveedor` con el `Id` del activo se actualiza en sitio sin alta ni baja, aunque cambien sus campos; sin `Id` y con todos los campos iguales al activo es no-op; sin `Id` y con `EstadoId` igual pero `Observacion` distinta crea el nuevo estado y da de baja el previo. Reemplazar `TestIntegracionTransicionEstadoMismoEstadoEsNoOp` por el caso sin `Id` y campos iguales, y añadir el caso sin `Id` con `Observacion` distinta. Confirmar que fallan antes de implementar.
 
 ## 5. Distinción omisión / vacío / null
 
 - [ ] 5.1 Escribir pruebas unitarias que afirmen, por tipo de campo: campo ausente conserva el valor; `null` en escalar nullable lo fija a null; `null` en escalar no nullable responde `400` sin escrituras; `null` en FK relacional se trata como ausente y deriva la llave. Confirmar que fallan antes de implementar la distinción.
 - [ ] 5.2 Implementar la distinción omisión/null por tipo de campo en el motor de escritura y verificar que las pruebas de 5.1 pasan.
-- [ ] 5.3 Escribir y verificar pruebas que afirmen que una colección `[]` y una colección ausente conservan los elementos existentes y no materializan ninguna baja (el motor no infiere eliminaciones).
+- [ ] 5.3 Escribir y verificar pruebas que afirmen que una colección `[]` y una colección ausente conservan los elementos existentes y no materializan ninguna baja (el motor no infiere eliminaciones), incluido `EstadoProveedor: []` como caso concreto: una lista de estados vacía no da de baja el estado activo vigente.
 
 ## 6. Verificación de integración del contrato de fallo parcial
 
