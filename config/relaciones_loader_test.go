@@ -12,6 +12,7 @@ func urlsPrueba() ServiceURLs {
 		"terceros":              "http://terceros.test",
 		"parametros":            "http://parametros.test",
 		"gestion_personas_crud": "http://gestion.test",
+		"ubicaciones":           "http://ubicaciones.test",
 	}
 }
 
@@ -228,7 +229,7 @@ max_related_ids: 100
 write:
   writable_fields:
     - TerceroId
-    - TipoRegistroId
+    - TipoProveedor
   immutable_fields:
     - TerceroId
   natural_key:
@@ -365,5 +366,39 @@ func TestLoadRelacionesWriteIncoherente(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Una relación con related_api ubicaciones carga sin rechazarse cuando las URLs
+// provienen de Config.URLs con ubicaciones_crud_url configurada.
+func TestLoadRelacionesRelacionUbicacionesCargaConURLs(t *testing.T) {
+	contenido := `service: lugar
+max_depth: 1
+on_relation_error: notify
+max_related_ids: 100
+relations:
+  - name: TipoLugar
+    related_service: tipo_lugar
+    related_api: ubicaciones
+    related_table: tipo_lugar
+    direction: related_to_local
+    local_field: TipoLugarId
+    related_field: Id
+    cardinality: one
+    depth: 1
+    mapped_name: TipoLugar
+    endpoint: /v1/tipo_lugar
+    query_template: "Id:{ids}"
+`
+	dir := escribirRelaciones(t, "lugar", contenido)
+	urls := Config{UbicacionesCRUDURL: "http://ubicaciones.test"}.URLs()
+
+	configs, err := LoadRelaciones(dir, urls)
+	if err != nil {
+		t.Fatalf("una relación con related_api ubicaciones debe cargar: %v", err)
+	}
+	sc, ok := configs["lugar"]
+	if !ok || len(sc.Relations) != 1 || sc.Relations[0].RelatedAPI != "ubicaciones" {
+		t.Fatalf("configuración de lugar inesperada: %+v", configs)
 	}
 }

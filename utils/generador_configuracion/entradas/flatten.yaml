@@ -1,0 +1,6 @@
+# flatten: lista de esquema.tabla.columna de PK compartida del lado hijo (relación 1-1
+# con `-`). Marca con flatten: true la arista padre->hijo de esa unión, de modo que los
+# campos del hijo se proyectan al padre, y suprime la arista hijo->padre. Falla si la
+# columna no es PK compartida o si también está en fk_inbound.
+- proveedores.proveedor_natural.id
+- proveedores.proveedor_juridico.id

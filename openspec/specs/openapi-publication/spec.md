@@ -5,7 +5,6 @@
 Publica el contrato OpenAPI del API en los formatos que consumen las herramientas, derivando el JSON desde el YAML fuente de forma determinística para que ambos describan siempre el mismo contrato.
 
 ## Requirements
-
 ### Requirement: Derivación determinística de JSON desde el YAML fuente
 El sistema SHALL derivar el documento OpenAPI en formato JSON a partir del documento YAML fuente mediante una reserialización 1:1, de modo que el YAML sea la única fuente de verdad y el JSON represente exactamente el mismo modelo de datos.
 
@@ -77,7 +76,7 @@ materializado y la reutilización de sus campos relacionales derivados.
 - **WHEN** se consulta el esquema de respuesta de `POST`/`PATCH /v1/proveedor`
 - **THEN** el esquema del `Data` refleja el subárbol materializado real que el API
   devuelve, incluyendo las entidades anidadas y el campo de auditoría
-  `AutorModificacionId`, y no un subconjunto reducido de identificadores
+  `UsuarioModificacionId`, y no un subconjunto reducido de identificadores
 
 #### Scenario: El contrato describe la normalización de campos derivados
 - **WHEN** se consulta la documentación del endpoint de escritura

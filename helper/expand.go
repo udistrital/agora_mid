@@ -14,7 +14,8 @@ import (
 // verdad del conjunto de Kinds y de KindsDeAviso. No debe emitirse ningún Kind
 // sin una constante registrada que lo respalde.
 const (
-	// KindRelation marca un error de relación tolerado en modo notify.
+	// KindRelation marca un error de relación tolerado en la expansión de lectura
+	// (modo notify). Las escrituras usan KindDependencyFailure o KindTimeout.
 	KindRelation = "relation"
 	// KindDepth marca la reducción de profundidad por configuración hija.
 	KindDepth = "depth"
@@ -29,6 +30,16 @@ const (
 	// autoritativa y lo reporta sin exponer datos remotos. Es distinto de
 	// KindRelation, reservado a fallos remotos tolerados.
 	KindFieldNormalization = "field_normalization"
+	// KindEliminacionOmitida marca un nodo marcado para eliminación que no tiene
+	// registro que borrar: la baja se omite sin bloquear la escritura.
+	KindEliminacionOmitida = "eliminacion_omitida"
+	// KindDependencyFailure marca un fallo tolerado de una dependencia remota
+	// durante la escritura (lectura previa o materialización) cuya causa no es un
+	// tiempo de espera agotado.
+	KindDependencyFailure = "dependency_failure"
+	// KindTimeout marca un fallo tolerado de escritura causado por un tiempo de
+	// espera agotado en una dependencia remota.
+	KindTimeout = "timeout"
 )
 
 // KindOrigen identifica el subsistema que emite un tipo de aviso. Distinguir el
@@ -61,6 +72,9 @@ var catalogoKinds = map[string]KindOrigen{
 	KindCycle:              KindOrigenExpansion,
 	KindGenericResolver:    KindOrigenExpansion,
 	KindFieldNormalization: KindOrigenEscritura,
+	KindEliminacionOmitida: KindOrigenEscritura,
+	KindDependencyFailure:  KindOrigenEscritura,
+	KindTimeout:            KindOrigenEscritura,
 }
 
 // KindsDeAviso devuelve las constantes de tipo de aviso declaradas, derivadas del
@@ -148,9 +162,9 @@ func (r ResolverRegistry) resolverPara(rel config.RelationConfig) (Resolver, boo
 // errorFatalExpansion envuelve un error que aborta toda la expansión en modo
 // fail. El llamador debe mapearlo a 502/504.
 type errorFatalExpansion struct {
-	path    string
+	path     string
 	servicio string
-	err     error
+	err      error
 }
 
 func (e *errorFatalExpansion) Error() string {
@@ -439,6 +453,11 @@ func (ex *expansor) expandirRelacionNivel(
 		}
 	}
 
+	// Una relación aplanada copia sus campos al padre al distribuir, así que la lista
+	// negra del hijo se aplica antes de distribuir para no filtrar auditoría a la raíz.
+	if rel.Flatten {
+		ex.recortarVetados(registros, rel)
+	}
 	// Distribuir las coincidencias a cada recurso por su llave local.
 	for _, recurso := range recursos {
 		llave, ok := ex.llaveLocal(recurso, rel)
@@ -599,6 +618,10 @@ func (ex *expansor) insertarResultado(
 	rel config.RelationConfig,
 	coincidencias []map[string]any,
 ) {
+	if rel.Flatten {
+		aplanarCoincidencia(recurso, coincidencias)
+		return
+	}
 	if rel.Cardinality == config.CardinalityMany {
 		lista := make([]any, len(coincidencias))
 		for i := range coincidencias {
@@ -618,6 +641,9 @@ func (ex *expansor) insertarResultado(
 // insertarVacio inserta el valor vacío de la cardinalidad: null para one, [] para
 // many.
 func (ex *expansor) insertarVacio(recurso map[string]any, rel config.RelationConfig) {
+	if rel.Flatten {
+		return
+	}
 	if rel.Cardinality == config.CardinalityMany {
 		recurso[rel.MappedName] = []any{}
 		return
@@ -706,5 +732,21 @@ func aCadena(v any) string {
 		return fmt.Sprintf("%v", t)
 	default:
 		return fmt.Sprintf("%v", t)
+	}
+}
+
+// aplanarCoincidencia copia los campos de la primera coincidencia de una relación
+// aplanada al recurso padre. El Id de la coincidencia se omite porque la especialización
+// comparte la PK del padre. Sin coincidencias no se inserta nada: la especialización que
+// no corresponde al tipo del registro no aparece.
+func aplanarCoincidencia(recurso map[string]any, coincidencias []map[string]any) {
+	if len(coincidencias) == 0 {
+		return
+	}
+	for clave, valor := range coincidencias[0] {
+		if clave == "Id" {
+			continue
+		}
+		recurso[clave] = valor
 	}
 }

@@ -51,3 +51,9 @@
 #       - ANY
 
 global_blacklist:
+  ANY:
+    ANY:
+      - FechaCreacion
+      - FechaModificacion
+      - Activo
+      - UsuarioModificacionId

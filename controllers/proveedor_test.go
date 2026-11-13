@@ -222,15 +222,13 @@ func TestProveedorHandlerConsultarMetodoNoPermitido(t *testing.T) {
 	}
 }
 
-// proveedorWriterStub simula el servicio de escritura y captura el verbo, el
-// cuerpo y el autor recibidos.
+// proveedorWriterStub simula el servicio de escritura y captura el verbo y el
+// cuerpo recibidos.
 type proveedorWriterStub struct {
 	resultado helper.WriteResult
 	err       error
 	verb      string
 	body      map[string]any
-	autor     int
-	autorOK   bool
 }
 
 func (s *proveedorWriterStub) EscribirProveedor(
@@ -240,7 +238,6 @@ func (s *proveedorWriterStub) EscribirProveedor(
 ) (helper.WriteResult, error) {
 	s.verb = verb
 	s.body = body
-	s.autor, s.autorOK = services.AutorDeContexto(ctx)
 	return s.resultado, s.err
 }
 
@@ -260,7 +257,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "creación completa 200",
 			metodo: http.MethodPost,
-			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":25,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10, "TerceroId": 25},
 			},
@@ -270,7 +267,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "materialización parcial 206",
 			metodo: http.MethodPatch,
-			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":25,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10},
 				Warnings: []responses.RelationError{
@@ -283,7 +280,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "canonización de campo derivado 206 field_normalization",
 			metodo: http.MethodPost,
-			cuerpo: `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":25,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10, "TerceroId": 201},
 				Warnings: []responses.RelationError{
@@ -296,7 +293,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:   "campo derivado coincidente 200 sin aviso",
 			metodo: http.MethodPost,
-			cuerpo: `{"TerceroId":201,"TipoRegistroId":1}`,
+			cuerpo: `{"TerceroId":201,"TipoProveedor":1}`,
 			resultado: helper.WriteResult{
 				Data: map[string]any{"Id": 10, "TerceroId": 201},
 			},
@@ -313,7 +310,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "campo inválido 400",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        &helper.ErrorEscritura{Path: "Foo", Motivo: "campo no escribible"},
 			wantStatus: 400,
 			wantBody:   `"Status":"400"`,
@@ -321,7 +318,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "rama incoherente 400",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        services.ErrRamaDetalleIncoherente,
 			wantStatus: 400,
 			wantBody:   `"Status":"400"`,
@@ -329,7 +326,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "fallo bloqueante 502",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        fatalErr,
 			wantStatus: 502,
 			wantBody:   `"Status":"502"`,
@@ -337,7 +334,7 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 		{
 			name:       "fallo bloqueante por timeout 504",
 			metodo:     http.MethodPost,
-			cuerpo:     `{"TerceroId":25,"TipoRegistroId":1}`,
+			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,
 			err:        timeoutErr,
 			wantStatus: 504,
 			wantBody:   `"Status":"504"`,
@@ -349,7 +346,6 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 			stub := &proveedorWriterStub{resultado: tt.resultado, err: tt.err}
 			handler := NewProveedorHandlerCompleto(&proveedorReaderStub{}, stub)
 			req := httptest.NewRequest(tt.metodo, "/v1/proveedor", strings.NewReader(tt.cuerpo))
-			req.Header.Set("X-Autor-Id", "9")
 			rec := httptest.NewRecorder()
 
 			handler.Escribir(rec, req)
@@ -364,11 +360,8 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 			if tt.wantStatus == 200 && strings.Contains(rec.Body.String(), `"Errors"`) {
 				t.Errorf("una respuesta 200 no debe incluir MetaData.Errors: %s", rec.Body.String())
 			}
-			// En los casos que llegan al servicio, el autor viaja por el contexto.
+			// En los casos que llegan al servicio, el verbo corresponde al método HTTP.
 			if tt.err == nil && tt.wantStatus < 400 {
-				if !stub.autorOK || stub.autor != 9 {
-					t.Errorf("el autor 9 debe viajar por el contexto; autor=%d ok=%v", stub.autor, stub.autorOK)
-				}
 				wantVerb := helper.WriteVerbCreate
 				if tt.metodo == http.MethodPatch {
 					wantVerb = helper.WriteVerbUpdate

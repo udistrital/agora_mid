@@ -22,7 +22,7 @@ func cfgProveedorWritePrueba() config.ServiceConfig {
 		OnRelationError: config.OnRelationErrorNotify,
 		MaxRelatedIDs:   100,
 		Write: &config.WriteConfig{
-			WritableFields:  []string{"TerceroId", "TipoRegistroId", "DescripcionPortafolio"},
+			WritableFields:  []string{"TerceroId", "TipoProveedor", "DescripcionPortafolio"},
 			ImmutableFields: []string{"TerceroId"},
 			NaturalKey:      []string{"TerceroId"},
 			Policy:          config.WriteVerbPolicy{Creatable: true, Updatable: true},
@@ -127,8 +127,8 @@ func TestEscribirProveedorCreacionCompleta(t *testing.T) {
 	svc := servicioWritePrueba(urlsDe(server), clients.HTTPClient{Client: server.Client()})
 
 	body := map[string]any{
-		"TerceroId":      float64(25),
-		"TipoRegistroId": float64(tipoRegistroNaturalPrueba),
+		"TerceroId":     float64(25),
+		"TipoProveedor": float64(tipoRegistroNaturalPrueba),
 		"Tercero": map[string]any{
 			"NombreCompleto":    "Ana",
 			"TipoContribuyente": map[string]any{"Id": float64(2)},
@@ -142,7 +142,7 @@ func TestEscribirProveedorCreacionCompleta(t *testing.T) {
 		},
 	}
 
-	ctx := ConContextoAutor(context.Background(), 9)
+	ctx := context.Background()
 	res, err := svc.EscribirProveedor(ctx, body, helper.WriteVerbCreate)
 	if err != nil {
 		t.Fatalf("creación completa no debe fallar: %v", err)
@@ -223,7 +223,7 @@ func TestEscribirProveedorRamaIncoherente(t *testing.T) {
 			nombre: "natural trae rama jurídica",
 			body: map[string]any{
 				"TerceroId":         float64(25),
-				"TipoRegistroId":    float64(tipoRegistroNaturalPrueba),
+				"TipoProveedor":     float64(tipoRegistroNaturalPrueba),
 				"ProveedorJuridico": map[string]any{"NombreComercial": "ACME"},
 			},
 		},
@@ -231,7 +231,7 @@ func TestEscribirProveedorRamaIncoherente(t *testing.T) {
 			nombre: "ambas ramas a la vez",
 			body: map[string]any{
 				"TerceroId":         float64(25),
-				"TipoRegistroId":    float64(tipoRegistroNaturalPrueba),
+				"TipoProveedor":     float64(tipoRegistroNaturalPrueba),
 				"ProveedorNatural":  map[string]any{"PerfilDeclarado": float64(3)},
 				"ProveedorJuridico": map[string]any{"NombreComercial": "ACME"},
 			},
@@ -274,9 +274,9 @@ func TestEscribirProveedorReenvioFKInmutableCoincide(t *testing.T) {
 	// El proveedor y el tercero traen su Id; la FK ascendente reenviada (TerceroId)
 	// coincide con el Id autoritativo del tercero (20). Reenvía el Data materializado.
 	body := map[string]any{
-		"Id":             float64(10),
-		"TerceroId":      float64(20),
-		"TipoRegistroId": float64(tipoRegistroNaturalPrueba),
+		"Id":            float64(10),
+		"TerceroId":     float64(20),
+		"TipoProveedor": float64(tipoRegistroNaturalPrueba),
 		"Tercero": map[string]any{
 			"Id":             float64(20),
 			"NombreCompleto": "Ana",
@@ -317,9 +317,9 @@ func TestEscribirProveedorReenvioFKInmutableDifiereExistente(t *testing.T) {
 	// El tercero referenciado es Id=20, pero la FK local reenviada difiere (99) en
 	// un proveedor existente (Id=10): conflicto, no reasignación.
 	body := map[string]any{
-		"Id":             float64(10),
-		"TerceroId":      float64(99),
-		"TipoRegistroId": float64(tipoRegistroNaturalPrueba),
+		"Id":            float64(10),
+		"TerceroId":     float64(99),
+		"TipoProveedor": float64(tipoRegistroNaturalPrueba),
 		"Tercero": map[string]any{
 			"Id":             float64(20),
 			"NombreCompleto": "Ana",

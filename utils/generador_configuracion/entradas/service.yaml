@@ -1,0 +1,22 @@
+# service: parámetros de servicio por tabla raíz. La clave es esquema.tabla de la raíz; el
+# generador emite relaciones_<service>.yaml en el CRUD de esa tabla.
+#   service: nombre explícito del servicio (archivo y campo service del archivo).
+#   max_depth: profundidad máxima global de la expansión. Entero positivo.
+#   on_relation_error: notify o fail. Política ante un fallo al resolver una relación.
+#   max_related_ids: llaves máximas por lote al resolver una relación. Entero positivo.
+#   filterable_fields: columnas de la raíz por las que se puede filtrar.
+proveedores.proveedor:
+  service: proveedor
+  max_depth: 5
+  on_relation_error: notify
+  max_related_ids: 100
+  filterable_fields:
+    - id
+    - tipo_proveedor
+    - descripcion_portafolio
+    - consentimiento
+    - tercero_id
+    - activo
+    - fecha_creacion
+    - fecha_modificacion
+    - usuario_modificacion_id

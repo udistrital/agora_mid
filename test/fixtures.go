@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/udistrital/agora_mid/clients"
 	"github.com/udistrital/agora_mid/config"
@@ -26,9 +27,13 @@ import (
 )
 
 // tipoRegistroNatural es el identificador de tipo de contribuyente que las
-// pruebas tratan como persona natural. Debe coincidir con el TipoRegistroId
+// pruebas tratan como persona natural. Debe coincidir con el TipoProveedor
 // enviado en los cuerpos para que el servicio conserve la rama natural.
 const tipoRegistroNatural = 1
+
+// tipoCanalCorreo es el identificador de catálogo del canal de contacto correo que usan
+// las pruebas como FK de Contacto.TipoCanalContactoId.
+const tipoCanalCorreo = 1
 
 // PeticionCRUD registra una petición recibida por el CRUD simulado para que las
 // pruebas verifiquen método, path, query y cuerpo. No se exponen URLs ni
@@ -53,11 +58,13 @@ type PeticionCRUD struct {
 type CRUDSimulado struct {
 	server *httptest.Server
 
-	mu         sync.Mutex
-	capturas   []PeticionCRUD
-	siguiente  map[string]int              // recurso -> próximo Id a asignar
-	existentes map[string][]map[string]any // "GET /v1/<recurso>" -> registros
-	fallarPost map[string]int              // recurso -> status HTTP a devolver en POST
+	mu             sync.Mutex
+	capturas       []PeticionCRUD
+	siguiente      map[string]int              // recurso -> próximo Id a asignar
+	existentes     map[string][]map[string]any // "GET /v1/<recurso>" -> registros
+	fallas         map[string]int              // "METODO recurso" -> status HTTP a devolver
+	retardos       map[string]time.Duration    // "METODO recurso" -> retardo antes de responder
+	timeoutCliente time.Duration               // tiempo de espera del cliente; 0 usa el valor por defecto de la prueba
 }
 
 // FallarPostDe configura el CRUD simulado para que el POST de un recurso
@@ -65,12 +72,37 @@ type CRUDSimulado struct {
 // caído. Sirve para ejercitar la política de fallo tolerado (notify) de una
 // relación en el flujo extremo a extremo.
 func (c *CRUDSimulado) FallarPostDe(recurso string, status int) {
+	c.FallarMetodoDe(http.MethodPost, recurso, status)
+}
+
+// FallarMetodoDe configura el CRUD simulado para que una petición del método y
+// recurso dados responda con el status HTTP indicado. Las demás peticiones, incluidas
+// las del mismo recurso con otro método, responden con normalidad.
+func (c *CRUDSimulado) FallarMetodoDe(metodo, recurso string, status int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.fallarPost == nil {
-		c.fallarPost = map[string]int{}
+	if c.fallas == nil {
+		c.fallas = map[string]int{}
 	}
-	c.fallarPost[recurso] = status
+	c.fallas[metodo+" "+recurso] = status
+}
+
+// RetardarMetodoDe configura el CRUD simulado para que una petición del método y
+// recurso dados espere el retardo antes de responder. Si el cliente corta antes,
+// la petición termina sin respuesta.
+func (c *CRUDSimulado) RetardarMetodoDe(metodo, recurso string, retardo time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.retardos == nil {
+		c.retardos = map[string]time.Duration{}
+	}
+	c.retardos[metodo+" "+recurso] = retardo
+}
+
+// ConTimeoutCliente fija el tiempo de espera del cliente HTTP que devuelve Client.
+// Debe llamarse antes de construir el router de la prueba.
+func (c *CRUDSimulado) ConTimeoutCliente(d time.Duration) {
+	c.timeoutCliente = d
 }
 
 // NuevoCRUDSimulado arranca el CRUD simulado. existentes precarga, por clave
@@ -101,11 +133,15 @@ func (c *CRUDSimulado) URLs() config.ServiceURLs {
 		"terceros":              c.server.URL,
 		"parametros":            c.server.URL,
 		"gestion_personas_crud": c.server.URL,
+		"ubicaciones":           c.server.URL,
 	}
 }
 
 // Client devuelve un cliente HTTP ligado al servidor de prueba.
 func (c *CRUDSimulado) Client() clients.HTTPClient {
+	if c.timeoutCliente > 0 {
+		return clients.HTTPClient{Client: &http.Client{Timeout: c.timeoutCliente}}
+	}
 	return clients.HTTPClient{Client: c.server.Client()}
 }
 
@@ -143,16 +179,25 @@ func (c *CRUDSimulado) manejar(w http.ResponseWriter, r *http.Request) {
 		Query:  r.URL.Query().Get("query"),
 		Cuerpo: cuerpo,
 	})
-	// Fallo inducido: un POST a un recurso marcado responde con el status de error
-	// configurado, simulando un CRUD dueño caído para ejercitar la política notify.
-	if r.Method == http.MethodPost {
-		if status, ok := c.fallarPost[recursoDePath(r.URL.Path)]; ok {
-			c.mu.Unlock()
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(status)
-			_, _ = io.WriteString(w, `{"Error":"servicio no disponible"}`)
+	// Fallo y retardo inducidos por método y recurso, simulando un CRUD dueño caído
+	// o lento. El retardo libera el candado mientras espera y lo retoma para
+	// responder con normalidad si el cliente aún no ha cortado.
+	clave := r.Method + " " + recursoDePath(r.URL.Path)
+	if status, ok := c.fallas[clave]; ok {
+		c.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, `{"Error":"servicio no disponible"}`)
+		return
+	}
+	if retardo, ok := c.retardos[clave]; ok {
+		c.mu.Unlock()
+		select {
+		case <-time.After(retardo):
+		case <-r.Context().Done():
 			return
 		}
+		c.mu.Lock()
 	}
 	claveGet := "GET " + strings.TrimRight(r.URL.Path, "/")
 	respuesta := c.responder(r.Method, r.URL.Path, claveGet, r.URL.Query(), cuerpo)
@@ -307,7 +352,7 @@ func routerProveedorConBlacklist(
 func cuerpoProveedorNatural() map[string]any {
 	return map[string]any{
 		"TerceroId":             float64(25),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"NombreCompleto":      "Ana Pérez",
@@ -316,12 +361,13 @@ func cuerpoProveedorNatural() map[string]any {
 				map[string]any{"Numero": "123456", "TipoDocumentoId": float64(1)},
 			},
 		},
-		"ProveedorNatural": map[string]any{"PerfilDeclarado": float64(3)},
+		"PerfilProveedor":  []any{map[string]any{"PerfilId": float64(3)}},
+		"ProveedorNatural": map[string]any{"ExperienciaLaboral": float64(12)},
 		"Contacto": []any{
 			map[string]any{
-				"Finalidad":       "notificaciones",
-				"TipoCanal":       "correo",
-				"ValorEspecifico": "ana@correo.co",
+				"Proposito":           "notificaciones",
+				"TipoCanalContactoId": float64(tipoCanalCorreo),
+				"ValorEspecifico":     "ana@correo.co",
 			},
 		},
 	}
@@ -350,7 +396,7 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 
 	return map[string]any{
 		"Id":                    float64(provID),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría (actualizado)",
 		"Tercero": map[string]any{
 			"Id":             float64(terceroID),
@@ -359,12 +405,12 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 				datos,
 			},
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(provID), "PerfilDeclarado": float64(4)},
+		"ProveedorNatural": map[string]any{"Id": float64(provID)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(4)}},
 		"Contacto": []any{
 			map[string]any{
-				"Finalidad":       "notificaciones",
-				"TipoCanal":       "correo",
-				"ValorEspecifico": "ana@correo.co",
+				"Proposito":           "notificaciones",
+				"TipoCanalContactoId": float64(tipoCanalCorreo),
+				"ValorEspecifico":     "ana@correo.co",
 			},
 		},
 	}
@@ -379,7 +425,7 @@ func cuerpoProveedorNaturalUpdate(provID, terceroID, diID int) map[string]any {
 // el flujo extremo a extremo.
 func cuerpoProveedorNaturalConTerceroID(terceroID any, incluir bool) map[string]any {
 	cuerpo := map[string]any{
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"NombreCompleto":      "Ana Pérez",
@@ -388,12 +434,12 @@ func cuerpoProveedorNaturalConTerceroID(terceroID any, incluir bool) map[string]
 				map[string]any{"Numero": "123456", "TipoDocumentoId": float64(1)},
 			},
 		},
-		"ProveedorNatural": map[string]any{"PerfilDeclarado": float64(3)},
+		"PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 		"Contacto": []any{
 			map[string]any{
-				"Finalidad":       "notificaciones",
-				"TipoCanal":       "correo",
-				"ValorEspecifico": "ana@correo.co",
+				"Proposito":           "notificaciones",
+				"TipoCanalContactoId": float64(tipoCanalCorreo),
+				"ValorEspecifico":     "ana@correo.co",
 			},
 		},
 	}

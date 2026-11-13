@@ -70,10 +70,10 @@ type ProveedorService struct {
 // lectura resuelve desde el CRUD de gestión de personas antes de expandir su
 // subárbol. Vive aquí porque el expansor del proveedor es su único consumidor.
 type ProveedorRecord struct {
-	Id             int  `json:"Id"`
-	TerceroId      int  `json:"TerceroId"`
-	TipoRegistroId int  `json:"TipoRegistroId"`
-	Activo         bool `json:"Activo"`
+	Id            int  `json:"Id"`
+	TerceroId     int  `json:"TerceroId"`
+	TipoProveedor int  `json:"TipoProveedor"`
+	Activo        bool `json:"Activo"`
 }
 
 // LeerProveedor trae el proveedor base por id y devuelve el recurso expandido
@@ -115,16 +115,16 @@ func (s ProveedorService) LeerProveedor(
 	// Podar la rama de detalle que no corresponde al tipo de registro; el nodo de
 	// selección de la rama descartada queda inerte porque el expansor recorre las
 	// relaciones (ya podadas), no el árbol de selección.
-	cfg := s.configParaTipo(base.TipoRegistroId)
+	cfg := s.configParaTipo(base.TipoProveedor)
 
 	// El recurso raíz se representa como mapa genérico para que el expansor
 	// pueda anidar las relaciones bajo sus mapped_name conservando las llaves
-	// locales (Id, TerceroId, TipoRegistroId).
+	// locales (Id, TerceroId, TipoProveedor).
 	data := map[string]any{
-		"Id":             base.Id,
-		"TerceroId":      base.TerceroId,
-		"TipoRegistroId": base.TipoRegistroId,
-		"Activo":         base.Activo,
+		"Id":            base.Id,
+		"TerceroId":     base.TerceroId,
+		"TipoProveedor": base.TipoProveedor,
+		"Activo":        base.Activo,
 	}
 
 	return helper.Expand(ctx, data, cfg, s.Registry, helper.ExpandOptions{Seleccion: seleccion, Blacklist: s.Blacklist})
@@ -184,13 +184,13 @@ func (s ProveedorService) ListarProveedores(
 	for _, registro := range lista.Data {
 		records = append(records, map[string]any{
 			"Id": registro.Id, "TerceroId": registro.TerceroId,
-			"TipoRegistroId": registro.TipoRegistroId, "Activo": registro.Activo,
+			"TipoProveedor": registro.TipoProveedor, "Activo": registro.Activo,
 		})
 	}
-	// Cada registro expande su propia rama según su TipoRegistroId, de modo que una
+	// Cada registro expande su propia rama según su TipoProveedor, de modo que una
 	// página mixta de proveedores naturales y jurídicos expande la rama correcta.
 	cfgDe := func(record map[string]any) config.ServiceConfig {
-		tipo, _ := record["TipoRegistroId"].(int)
+		tipo, _ := record["TipoProveedor"].(int)
 		return s.configParaTipo(tipo)
 	}
 	return helper.ListCollection(ctx, records, lista.Total, cfgDe, s.Registry,

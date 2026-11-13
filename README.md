@@ -24,6 +24,7 @@ AGORA_MID_RUN_MODE=[modo de ejecución: dev, prod, test]
 AGORA_MID_TERCEROS_CRUD_URL=[URL base del CRUD de Terceros, sin el sufijo /v1]
 AGORA_MID_GESTION_PERSONAS_CRUD_URL=[URL base del CRUD de Gestión de Personas, sin el sufijo /v1]
 AGORA_MID_PARAMETROS_CRUD_URL=[URL base del CRUD de Parámetros, sin el sufijo /v1]
+AGORA_MID_UBICACIONES_CRUD_URL=[URL base del CRUD de Ubicaciones, sin el sufijo /v1]
 ```
 
 ### Ejecución del Proyecto

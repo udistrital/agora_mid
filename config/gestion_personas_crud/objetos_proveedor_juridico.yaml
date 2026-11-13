@@ -1,0 +1,205 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: ProveedorJuridico
+related_api: gestion_personas_crud
+related_table: proveedor_juridico
+endpoint: /v1/proveedor_juridico
+campos:
+    - name: Id
+      type: integer
+      nullable: false
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: ProcedenciaEmpresaId
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: CiudadOrigenId
+      type: integer
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PaisOrigenId
+      type: integer
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: CodigoPostal
+      type: string
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TipoConformacionId
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ExclusividadProducto
+      type: boolean
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: RegimenContributivo
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Pyme
+      type: boolean
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: RegistroMercantil
+      type: boolean
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: SujetoRetencion
+      type: boolean
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: AgenteRetenedor
+      type: boolean
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ResponsableIca
+      type: boolean
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ResponsableIva
+      type: boolean
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      nullable: true
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      nullable: true
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+referencias:
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: CiudadOrigenId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: CiudadOrigen
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: PaisOrigenId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: PaisOrigen
+    - objeto: PersonaJuridicaTipoEntidad
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: PersonaJuridicaId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 2
+      mapped_name: PersonaJuridicaTipoEntidad
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: ProcedenciaEmpresaId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: ProcedenciaEmpresa
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: RegimenContributivo
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: RegimenContributivoDetalle
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoConformacionId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoConformacion

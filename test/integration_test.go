@@ -39,7 +39,6 @@ type respuestaListaEnvoltorio struct {
 func ejecutar(t *testing.T, router http.Handler, metodo, cuerpo string) (*httptest.ResponseRecorder, respuestaEnvoltorio) {
 	t.Helper()
 	req := httptest.NewRequest(metodo, "/v1/proveedor", strings.NewReader(cuerpo))
-	req.Header.Set("X-Autor-Id", "9")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -72,7 +71,6 @@ func ejecutarListaProveedor(
 		"/v1/proveedor/consulta/lista",
 		strings.NewReader(comoJSON(t, cuerpo)),
 	)
-	req.Header.Set("X-Autor-Id", "9")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -111,8 +109,8 @@ func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, patch, 
 func TestIntegracionListadoProveedor(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor": {
-			{"Id": float64(101), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
-			{"Id": float64(102), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(101), "TerceroId": float64(15), "TipoProveedor": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(102), "TerceroId": float64(15), "TipoProveedor": float64(tipoRegistroNatural), "Activo": true},
 		},
 		"GET /v1/tercero": {
 			{"Id": float64(15), "NombreCompleto": "Ana Pérez"},
@@ -216,8 +214,8 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 	if id, _ := tercero["Id"].(float64); int(id) != 201 {
 		t.Errorf("Tercero (fk_inbound) debe materializar su propio Id=201; tercero=%+v", tercero)
 	}
-	if autorModificacion, _ := tercero["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
-		t.Errorf("Tercero debe heredar AutorModificacionId=9 del proveedor; tercero=%+v", tercero)
+	if _, trae := tercero["AutorModificacionId"]; trae {
+		t.Errorf("Tercero no debe recibir AutorModificacionId desde la cabecera; tercero=%+v", tercero)
 	}
 
 	// La FK ascendente se propaga preservando su tipo numérico (no texto).
@@ -237,8 +235,8 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 	if id, _ := proveedorNatural["Id"].(float64); int(id) != 101 {
 		t.Errorf("ProveedorNatural debe heredar Id=101 del proveedor; proveedor_natural=%+v", proveedorNatural)
 	}
-	if autorModificacion, _ := proveedorNatural["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
-		t.Errorf("ProveedorNatural debe heredar AutorModificacionId=9 del proveedor; proveedor_natural=%+v", proveedorNatural)
+	if _, trae := proveedorNatural["AutorModificacionId"]; trae {
+		t.Errorf("ProveedorNatural no debe recibir AutorModificacionId desde la cabecera; proveedor_natural=%+v", proveedorNatural)
 	}
 
 	// FK descendiente: los contactos son dueños de su propio Id (rango 600+), destinto
@@ -262,8 +260,8 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 		} else if int(provIDRef) != 101 {
 			t.Errorf("Los contactos deben referenciar al proveedor por ProveedorId=101; contacto=%+v", contacto)
 		}
-		if autorModificacion, _ := c["AutorModificacionId"].(float64); int(autorModificacion) != 9 {
-			t.Errorf("Contacto debe heredar AutorModificacionId=9 del proveedor; contacto=%+v", c)
+		if _, trae := c["AutorModificacionId"]; trae {
+			t.Errorf("Contacto no debe recibir AutorModificacionId desde la cabecera; contacto=%+v", c)
 		}
 	}
 
@@ -294,17 +292,13 @@ func TestIntegracionCreacionCompleta(t *testing.T) {
 			t.Errorf("no debe materializar la rama jurídica para un natural; capturas=%+v", crud.Capturas())
 		}
 	}
-	// El autor de auditoría viaja al CRUD desde la cabecera X-Autor-Id.
-	var vioAutor bool
+	// Ningún POST lleva AutorModificacionId: el autor solo viaja en UsuarioModificacionId del cuerpo.
 	for _, c := range crud.Capturas() {
 		if c.Metodo == http.MethodPost {
-			if a, _ := c.Cuerpo["AutorModificacionId"].(float64); int(a) == 9 {
-				vioAutor = true
+			if _, trae := c.Cuerpo["AutorModificacionId"]; trae {
+				t.Errorf("ningún POST debe llevar AutorModificacionId desde la cabecera; captura=%+v", c)
 			}
 		}
-	}
-	if !vioAutor {
-		t.Errorf("el autor 9 debe inyectarse en los POST; capturas=%+v", crud.Capturas())
 	}
 }
 
@@ -528,13 +522,13 @@ func TestIntegracionReenvioDataCoincide200(t *testing.T) {
 	cuerpo := map[string]any{
 		"Id":                    float64(101),
 		"TerceroId":             float64(201),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"Id":             float64(201),
 			"NombreCompleto": "Ana Pérez",
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+		"ProveedorNatural": map[string]any{"Id": float64(101)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 	}
 
 	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
@@ -556,7 +550,7 @@ func TestIntegracionReenvioDataCoincide200(t *testing.T) {
 }
 
 // --- Grupo 3.3: conflicto de entidad existente -> 400; fallo de relación
-// tolerada (notify) -> 206 con Kind relation ---
+// tolerada (notify) -> 206 con Kind dependency_failure ---
 
 // Un proveedor EXISTENTE (con Id propio) cuya FK ascendente reenviada difiere del
 // Id del tercero referenciado es un conflicto fk_inbound: se rechaza con 400 sin
@@ -572,13 +566,13 @@ func TestIntegracionConflictoFKAscendenteExistente400(t *testing.T) {
 	cuerpo := map[string]any{
 		"Id":                    float64(101),
 		"TerceroId":             float64(999),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"Id":             float64(201),
 			"NombreCompleto": "Ana Pérez",
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+		"ProveedorNatural": map[string]any{"Id": float64(101)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 	}
 
 	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
@@ -589,16 +583,19 @@ func TestIntegracionConflictoFKAscendenteExistente400(t *testing.T) {
 	if env.Status != "400" || env.Success {
 		t.Errorf("envoltorio inesperado para un conflicto: %+v", env)
 	}
-	// No debe materializarse el proveedor en conflicto (ni POST ni PATCH).
-	post, patch, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
-	if post != 0 || patch != 0 {
-		t.Errorf("no debe materializarse el proveedor en conflicto; POST=%d PATCH=%d capturas=%+v", post, patch, crud.Capturas())
+	// El rechazo ocurre antes de cualquier escritura: ningún CRUD recibe POST, PATCH
+	// ni DELETE, incluido el tercero que la FK ascendente referencia. Solo se permiten
+	// lecturas (GET) durante el pre-pass.
+	for _, c := range crud.Capturas() {
+		if c.Metodo != http.MethodGet {
+			t.Errorf("un 400 por conflicto no debe escribir en ningún CRUD; petición=%s %s capturas=%+v", c.Metodo, c.Path, crud.Capturas())
+		}
 	}
 }
 
 // Fallo de una relación tolerada (notify): con la FK ascendente ausente (para
 // aislar el aviso), el CRUD de contacto responde 503; el motor conserva lo ya
-// materializado y responde 206 con un aviso Kind relation, sin exponer el error
+// materializado y responde 206 con un aviso Kind dependency_failure, sin exponer el error
 // interno del CRUD.
 func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, nil)
@@ -616,7 +613,7 @@ func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
 	}
 	var vioRelation bool
 	for _, e := range env.MetaData.Errors {
-		if kind, _ := e["kind"].(string); kind == "relation" {
+		if kind, _ := e["kind"].(string); kind == "dependency_failure" {
 			vioRelation = true
 		}
 		// El aviso no debe exponer el cuerpo interno del CRUD.
@@ -625,7 +622,7 @@ func TestIntegracionFalloRelacionToleradaNotify206(t *testing.T) {
 		}
 	}
 	if !vioRelation {
-		t.Errorf("se esperaba un aviso con Kind relation; errors=%+v", env.MetaData.Errors)
+		t.Errorf("se esperaba un aviso con Kind dependency_failure; errors=%+v", env.MetaData.Errors)
 	}
 	// El proveedor sí se materializó pese al fallo del contacto (creación parcial).
 	post, _, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
@@ -652,13 +649,13 @@ func TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales(t *testing.T)
 	cuerpo := map[string]any{
 		"Id":                    float64(101),
 		"TerceroId":             float64(999),
-		"TipoRegistroId":        float64(tipoRegistroNatural),
+		"TipoProveedor":         float64(tipoRegistroNatural),
 		"DescripcionPortafolio": "Servicios de consultoría",
 		"Tercero": map[string]any{
 			"Id":             float64(201),
 			"NombreCompleto": "Ana Pérez",
 		},
-		"ProveedorNatural": map[string]any{"Id": float64(101), "PerfilDeclarado": float64(3)},
+		"ProveedorNatural": map[string]any{"Id": float64(101)}, "PerfilProveedor": []any{map[string]any{"PerfilId": float64(3)}},
 	}
 
 	rec, env := ejecutar(t, router, http.MethodPatch, comoJSON(t, cuerpo))
@@ -690,21 +687,27 @@ func TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales(t *testing.T)
 func TestIntegracionListadoProveedorPaginaMixta(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor": {
-			{"Id": float64(101), "TerceroId": float64(15), "TipoRegistroId": float64(tipoRegistroNatural), "Activo": true},
-			{"Id": float64(102), "TerceroId": float64(16), "TipoRegistroId": float64(2), "Activo": true},
+			{"Id": float64(101), "TerceroId": float64(15), "TipoProveedor": float64(tipoRegistroNatural), "Activo": true},
+			{"Id": float64(102), "TerceroId": float64(16), "TipoProveedor": float64(2), "Activo": true},
 		},
 		"GET /v1/proveedor_natural": {
-			{"Id": float64(101), "PerfilDeclarado": float64(3)},
+			{"Id": float64(101), "ExperienciaLaboral": float64(12)},
+		},
+		"GET /v1/perfil_proveedor": {
+			{"Id": float64(1), "PerfilId": float64(3), "ProveedorId": float64(101)},
 		},
 		"GET /v1/proveedor_juridico": {
-			{"Id": float64(102), "NombreComercial": "ACME"},
+			{"Id": float64(102)},
+		},
+		"GET /v1/tercero": {
+			{"Id": float64(16), "NombreCompleto": "ACME"},
 		},
 	})
 	router := routerProveedor(t, crud)
 
 	rec, env := ejecutarListaProveedor(t, router, map[string]any{
 		"query":  []string{"Id__in:101|102"},
-		"fields": []string{"ProveedorNatural.PerfilDeclarado", "ProveedorJuridico.NombreComercial"},
+		"fields": []string{"PerfilProveedor.PerfilId", "Tercero.NombreCompleto", "ProveedorNatural.ExperienciaLaboral"},
 		"limit":  10,
 		"offset": 0,
 	})
@@ -719,16 +722,19 @@ func TestIntegracionListadoProveedorPaginaMixta(t *testing.T) {
 	}
 
 	natural := env.Data[0]
-	if pn, ok := natural["ProveedorNatural"].(map[string]any); !ok || pn["PerfilDeclarado"] != float64(3) {
-		t.Errorf("el proveedor natural debe expandir ProveedorNatural: %+v", natural)
+	if meses, _ := natural["ExperienciaLaboral"].(float64); int(meses) != 12 {
+		t.Errorf("el proveedor natural del listado debe aplanar su ExperienciaLaboral en la raíz: %+v", natural)
+	}
+	if perfiles, ok := natural["PerfilProveedor"].([]any); !ok || len(perfiles) != 1 || perfiles[0].(map[string]any)["PerfilId"] != float64(3) {
+		t.Errorf("el proveedor natural debe expandir PerfilProveedor con PerfilId 3: %+v", natural)
 	}
 	if _, presente := natural["ProveedorJuridico"]; presente {
 		t.Errorf("el proveedor natural no debe expandir ProveedorJuridico: %+v", natural)
 	}
 
 	juridico := env.Data[1]
-	if pj, ok := juridico["ProveedorJuridico"].(map[string]any); !ok || pj["NombreComercial"] != "ACME" {
-		t.Errorf("el proveedor jurídico debe expandir ProveedorJuridico: %+v", juridico)
+	if tc, ok := juridico["Tercero"].(map[string]any); !ok || tc["NombreCompleto"] != "ACME" {
+		t.Errorf("el proveedor jurídico debe expandir Tercero con NombreCompleto ACME: %+v", juridico)
 	}
 	if _, presente := juridico["ProveedorNatural"]; presente {
 		t.Errorf("el proveedor jurídico no debe expandir ProveedorNatural: %+v", juridico)

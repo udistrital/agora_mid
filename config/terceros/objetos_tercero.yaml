@@ -1,0 +1,170 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: Tercero
+related_api: terceros
+related_table: tercero
+endpoint: /v1/tercero
+campos:
+    - name: Id
+      type: integer
+      nullable: false
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: NombreCompleto
+      type: string
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PrimerNombre
+      type: string
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: SegundoNombre
+      type: string
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: PrimerApellido
+      type: string
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: SegundoApellido
+      type: string
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: LugarOrigen
+      type: integer
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: FechaNacimiento
+      type: timestamp
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TipoContribuyenteId
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: UsuarioWso2
+      type: string
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      nullable: true
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+referencias:
+    - objeto: DatosIdentificacion
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 3
+      mapped_name: DatosIdentificacion
+    - objeto: InfoComplementariaTercero
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 2
+      mapped_name: InfoComplementariaTercero
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: LugarOrigen
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: LugarOrigenDetalle
+    - objeto: SeguridadSocialTercero
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: true
+      depth: 1
+      mapped_name: SeguridadSocialTercero
+    - objeto: TerceroTipoTercero
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: TerceroTipoTercero
+    - objeto: TipoContribuyente
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoContribuyenteId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoContribuyente
