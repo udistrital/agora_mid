@@ -54,11 +54,12 @@ referencias: []
 
 ### Tabla de campos tipada
 
-Cada campo declara su tipo de almacenamiento y sus roles. Es la única fuente de verdad de los campos del objeto: la lectura usa `readable` y la escritura usa `writable` e `immutable`.
+Cada campo declara su tipo de almacenamiento y sus roles. Es la única fuente de verdad de los campos del objeto: la lectura usa `readable`, la escritura usa `writable` e `immutable`, y un `null` en un campo escribible con `nullable: false` se rechaza con `400`.
 
 | Bandera | Significado |
 | --- | --- |
 | `type` | Obligatorio. Uno de: `boolean`, `integer`, `jsonb`, `numeric`, `string`, `timestamp`, `uuid`. |
+| `nullable` | El campo admite `null` en el almacenamiento. Lo genera el generador desde el DBML: `false` cuando la columna es `[not null]` o llave primaria. Un campo sin la clave no admite `null`. Es independiente de `required`. |
 | `readable` | El campo se entrega en las respuestas de lectura. |
 | `writable` | El cliente puede enviar el campo en una escritura. |
 | `immutable` | El campo no cambia tras crearse. Exige `writable: true`. |

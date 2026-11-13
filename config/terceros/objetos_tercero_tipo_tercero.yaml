@@ -6,36 +6,42 @@ endpoint: /v1/tercero_tipo_tercero
 campos:
     - name: Id
       type: integer
+      nullable: false
       readable: true
       writable: false
       immutable: false
       required: false
     - name: TerceroId
       type: integer
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: TipoTerceroId
       type: integer
+      nullable: false
       readable: true
       writable: true
       immutable: false
       required: false
     - name: Activo
       type: boolean
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: FechaCreacion
       type: timestamp
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: FechaModificacion
       type: timestamp
+      nullable: true
       readable: false
       writable: false
       immutable: false

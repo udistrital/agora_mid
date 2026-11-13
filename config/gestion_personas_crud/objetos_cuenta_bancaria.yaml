@@ -6,66 +6,77 @@ endpoint: /v1/cuenta_bancaria
 campos:
     - name: Id
       type: integer
+      nullable: false
       readable: true
       writable: false
       immutable: false
       required: false
     - name: TipoCuentaId
       type: integer
+      nullable: false
       readable: true
       writable: true
       immutable: false
       required: false
     - name: NumeroCuenta
       type: string
+      nullable: false
       readable: true
       writable: true
       immutable: false
       required: false
     - name: EntidadBancariaId
       type: integer
+      nullable: false
       readable: true
       writable: true
       immutable: false
       required: false
     - name: ContactoId
       type: integer
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: MontoCapitalAutorizado
       type: numeric
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: ProveedorId
       type: integer
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: Activo
       type: boolean
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: FechaCreacion
       type: timestamp
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: FechaModificacion
       type: timestamp
+      nullable: true
       readable: false
       writable: false
       immutable: false
       required: false
     - name: UsuarioModificacionId
       type: integer
+      nullable: true
       readable: false
       writable: true
       immutable: false

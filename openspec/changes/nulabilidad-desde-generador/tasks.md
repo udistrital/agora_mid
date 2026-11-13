@@ -20,15 +20,15 @@
 
 ## 4. Configuración regenerada con nulabilidad
 
-- [ ] 4.1 Regenerar `config/` con el generador y verificar que cada campo de cada objeto generado lleva `nullable`, que dos ejecuciones producen archivos idénticos byte a byte, y versionar la salida regenerada
+- [x] 4.1 Regenerar `config/` con el generador y verificar que cada campo de cada objeto generado lleva `nullable`, que dos ejecuciones producen archivos idénticos byte a byte, y versionar la salida regenerada
 
 ## 5. El motor rechaza null en escalar no nulable
 
-- [ ] 5.1 Escribir la prueba del motor (con marcador de rojo) que verifica que `validarNivel` devuelve `*ErrorEscritura` ante un `null` en un campo escalar escribible no nulable, que no lo rechaza en un campo nulable, que un `null` en una FK derivada o en una relación no se rechaza, y que el rechazo ocurre antes de cualquier lectura o escritura, y confirmar que falla
-- [ ] 5.2 Añadir en `validarNivel` el rechazo de `null` en un campo de `NonNullableFields` que no sea relación, FK derivada reconocida ni `Id`, y verificar que la prueba 5.1 pasa y se retira su marcador
+- [x] 5.1 Escribir la prueba del motor (con marcador de rojo) que verifica que `validarNivel` devuelve `*ErrorEscritura` ante un `null` en un campo escalar escribible no nulable, que no lo rechaza en un campo nulable, que un `null` en una FK derivada o en una relación no se rechaza, y que el rechazo ocurre antes de cualquier lectura o escritura, y confirmar que falla
+- [x] 5.2 Añadir en `validarNivel` el rechazo de `null` en un campo de `NonNullableFields` que no sea relación, FK derivada reconocida ni `Id`, y verificar que la prueba 5.1 pasa y se retira su marcador
 
 ## 6. Retiro del marcador y verificación de integración
 
-- [ ] 6.1 Eliminar `services/generar_campos_nulables.py`, `services/campos_nulables_gen.go` y el camino `validarNulos`/`camposNulables`/`snakeDeClave` de `services/nulos.go`, retirar su invocación en `services/proveedor_write.go`, y verificar con `grep` que no quedan referencias a esos símbolos
-- [ ] 6.2 Verificar que `test/nulos_test.go` pasa sin cambios de comportamiento observable: `null` en no nulable responde `400` sin escrituras; `null` en nulable se fija; `null` en FK relacional se trata como ausente; la colección vacía no elimina
-- [ ] 6.3 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes
+- [x] 6.1 Eliminar `services/generar_campos_nulables.py`, `services/campos_nulables_gen.go` y el camino `validarNulos`/`camposNulables`/`snakeDeClave` de `services/nulos.go`, retirar su invocación en `services/proveedor_write.go`, y verificar con `grep` que no quedan referencias a esos símbolos
+- [x] 6.2 Verificar que `test/nulos_test.go` pasa sin cambios de comportamiento observable: `null` en no nulable responde `400` sin escrituras; `null` en nulable se fija; `null` en FK relacional se trata como ausente; la colección vacía no elimina
+- [x] 6.3 Ejecutar `go test ./...` y `go build ./...` y verificar que toda la suite pasa sin marcadores de rojo remanentes

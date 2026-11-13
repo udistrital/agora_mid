@@ -6,78 +6,91 @@ endpoint: /v1/tercero
 campos:
     - name: Id
       type: integer
+      nullable: false
       readable: true
       writable: false
       immutable: false
       required: false
     - name: NombreCompleto
       type: string
+      nullable: false
       readable: true
       writable: true
       immutable: false
       required: false
     - name: PrimerNombre
       type: string
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: SegundoNombre
       type: string
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: PrimerApellido
       type: string
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: SegundoApellido
       type: string
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: LugarOrigen
       type: integer
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: FechaNacimiento
       type: timestamp
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: TipoContribuyenteId
       type: integer
+      nullable: false
       readable: true
       writable: true
       immutable: false
       required: false
     - name: UsuarioWso2
       type: string
+      nullable: true
       readable: true
       writable: true
       immutable: false
       required: false
     - name: Activo
       type: boolean
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: FechaCreacion
       type: timestamp
+      nullable: false
       readable: false
       writable: false
       immutable: false
       required: false
     - name: FechaModificacion
       type: timestamp
+      nullable: true
       readable: false
       writable: false
       immutable: false

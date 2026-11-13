@@ -354,6 +354,10 @@ func avisoDeAbortoMidCascada(err error) (responses.RelationError, bool) {
 //
 // Un campo derivado con valor null se trata como ausente (el motor lo completará
 // con la llave autoritativa) y no se valida como campo escribible.
+//
+// Un null en un campo escribible listado en NonNullableFields de WriteConfig se
+// rechaza con *ErrorEscritura. Una FK (clave con sufijo Id) con null se trata como
+// ausente y no se rechaza, en coherencia con la regla de la escritura.
 func validarNivel(
 	entidad map[string]any,
 	wc config.WriteConfig,
@@ -363,6 +367,7 @@ func validarNivel(
 	derivadosInyectados map[string]struct{},
 ) error {
 	escribibles := conjunto(wc.WritableFields)
+	noNulables := conjunto(wc.NonNullableFields)
 	porMapped := indexarPorMapped(relaciones)
 
 	// Campos derivados reconocibles en este nivel: los inyectados por el padre más
@@ -444,6 +449,12 @@ func validarNivel(
 
 		if !contiene(escribibles, clave) {
 			return &ErrorEscritura{Path: rutaCampo, Motivo: "campo no escribible"}
+		}
+
+		// Un null en un escalar que no admite null se rechaza antes de cualquier lectura.
+		// Una FK (sufijo Id) con null se trata como ausente y el motor deriva su llave.
+		if valor == nil && contiene(noNulables, clave) && !strings.HasSuffix(clave, sufijoFK) {
+			return &ErrorEscritura{Path: rutaCampo, Motivo: "no admite null"}
 		}
 	}
 
