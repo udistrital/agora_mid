@@ -81,6 +81,10 @@ func (s ProveedorWriteService) EscribirProveedor(
 		}
 	}
 
+	if err := validarNulos(body, "proveedor", ""); err != nil {
+		return helper.WriteResult{}, err
+	}
+
 	tipoRegistro := idEntero(body["TipoProveedor"])
 	if tipoRegistro <= 0 {
 		return helper.WriteResult{}, &helper.ErrorEscritura{

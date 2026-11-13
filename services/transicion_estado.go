@@ -19,13 +19,16 @@ type estadoRecord struct {
 	ProveedorId int  `json:"ProveedorId"`
 	EstadoId    int  `json:"EstadoId"`
 	Activo      bool `json:"Activo"`
+	// Observacion se compara con el intento para decidir si es una reconciliación.
+	Observacion any `json:"Observacion"`
 }
 
 // componerTransicionEstado devuelve una copia del cuerpo con la transición de
-// estado_proveedor compuesta. La escritura registra un solo estado: si su EstadoId
-// difiere de los estados activos del proveedor, el nuevo se crea primero y cada
-// activo previo se marca con _Eliminar después. Si coincide con el activo vigente,
-// el intento se reconcilia con ese registro y no se crea ni da de baja nada.
+// estado_proveedor compuesta, según la precedencia: un Id presente que coincide con un
+// estado activo lo actualiza en sitio; sin Id, un activo con todos los campos iguales
+// (EstadoId y Observacion) es un no-op; en otro caso el nuevo estado se crea primero y
+// cada activo previo se da de baja después. Un intento sin Id puede reconciliarse con
+// un activo sobrante de un reintento a medio camino, aunque haya más de un activo.
 //
 // Un proveedor sin Id en el cuerpo es una creación: no tiene estados previos y el
 // estado se crea tal cual. Sin el campo EstadoProveedor, el cuerpo no cambia.
@@ -36,6 +39,12 @@ func (s ProveedorWriteService) componerTransicionEstado(
 	valor, presente := cuerpo[campoEstadoProveedor]
 	if !presente || valor == nil {
 		return cuerpo, nil
+	}
+	// Una lista vacía es ausencia: no afirma ningún estado ni dispara bajas.
+	if lista, ok := valor.([]any); ok && len(lista) == 0 {
+		sinEstados := copiaProfunda(cuerpo)
+		delete(sinEstados, campoEstadoProveedor)
+		return sinEstados, nil
 	}
 	lista, ok := valor.([]any)
 	if !ok || len(lista) != 1 {
@@ -68,36 +77,72 @@ func (s ProveedorWriteService) componerTransicionEstado(
 	if err != nil {
 		return nil, err
 	}
-	if len(activos) > 1 {
+	conId := idEntero(copia[campoEstadoProveedor].([]any)[0].(map[string]any)["Id"]) > 0
+	intentoCopia := copia[campoEstadoProveedor].([]any)[0].(map[string]any)
+	estadoNuevo := idEntero(intentoCopia["EstadoId"])
+
+	actual, hayActual := estadoActualDelIntento(activos, intentoCopia, estadoNuevo)
+	if len(activos) > 1 && !hayActual {
 		return nil, &helper.ErrorEscritura{
 			Path: campoEstadoProveedor, Motivo: "el proveedor tiene más de un estado activo",
 		}
 	}
 
-	intentoCopia := copia[campoEstadoProveedor].([]any)[0].(map[string]any)
-	delete(intentoCopia, "Id")
-	estadoNuevo := idEntero(intentoCopia["EstadoId"])
-
-	// Un activo con el mismo EstadoId hace de no-op: el intento lo referencia.
-	mismo := 0
-	for _, a := range activos {
-		if a.EstadoId == estadoNuevo {
-			mismo = a.Id
-			break
-		}
+	// Precedencia: un Id presente que coincide con un activo lo actualiza en sitio; sin
+	// Id, un activo con todos los campos iguales es un no-op. En cualquier otro caso
+	// el intento es una transición: el nuevo estado se crea primero y todo activo previo
+	// se da de baja después.
+	if hayActual {
+		intentoCopia["Id"] = float64(actual.Id)
+	} else {
+		delete(intentoCopia, "Id")
 	}
 	salida := []any{intentoCopia}
-	if mismo > 0 {
-		intentoCopia["Id"] = float64(mismo)
-	}
 	for _, a := range activos {
-		if a.Id == mismo {
+		if hayActual && a.Id == actual.Id && (conId || camposIguales(intentoCopia, a)) {
 			continue
 		}
 		salida = append(salida, map[string]any{"Id": float64(a.Id), "_Eliminar": true})
 	}
 	copia[campoEstadoProveedor] = salida
 	return copia, nil
+}
+
+// estadoActualDelIntento devuelve el estado activo con el que el intento se
+// reconcilia. Con Id presente, es el activo con ese Id. Sin Id, es el activo con el
+// mismo EstadoId y todos los campos iguales. Devuelve false si no hay ninguno.
+func estadoActualDelIntento(activos []estadoRecord, intento map[string]any, estadoNuevo int) (estadoRecord, bool) {
+	if id := idEntero(intento["Id"]); id > 0 {
+		for _, a := range activos {
+			if a.Id == id {
+				return a, true
+			}
+		}
+		return estadoRecord{}, false
+	}
+	for _, a := range activos {
+		if a.EstadoId == estadoNuevo && camposIguales(intento, a) {
+			return a, true
+		}
+	}
+	return estadoRecord{}, false
+}
+
+// camposIguales informa si los campos del intento que el registro expone (hoy,
+// Observacion) coinciden con el registro activo. Un campo ausente en el intento no
+// cuenta como diferencia.
+func camposIguales(intento map[string]any, a estadoRecord) bool {
+	valor, presente := intento["Observacion"]
+	if !presente {
+		return true
+	}
+	return observacionDe(valor) == observacionDe(a.Observacion)
+}
+
+// observacionDe normaliza una Observacion a texto: null y ausente equivalen a vacío.
+func observacionDe(v any) string {
+	texto, _ := v.(string)
+	return texto
 }
 
 // estadosActivos lee del CRUD de gestión de personas los estados activos del

@@ -396,8 +396,9 @@ func TestWriteTolerante(t *testing.T) {
 	}
 }
 
-// En modo estricto (fail), el fallo de una relación aborta la cascada con un
-// error fatal que el controlador mapea a 502/504.
+// En modo estricto (fail), el fallo de un hijo tras materializar la raíz detiene la
+// cascada: devuelve el subárbol parcial con un aviso que nombra el nodo de parada,
+// sin exponer el mensaje interno del CRUD.
 func TestWriteEstricto(t *testing.T) {
 	var llamadas []registroMaterializacion
 	registry := registryFalso(&llamadas, map[string]error{"hijo": errors.New("crud caído")})
@@ -407,12 +408,18 @@ func TestWriteEstricto(t *testing.T) {
 		"Hijo":      []any{map[string]any{"Valor": "a"}},
 	}
 
-	_, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{OnRelationError: config.OnRelationErrorFail})
-	if !EsErrorFatalEscritura(err) {
-		t.Fatalf("modo estricto debe devolver un error fatal de escritura; err=%v", err)
+	res, err := Write(context.Background(), body, cfgEscritura(), registry, WriteOptions{OnRelationError: config.OnRelationErrorFail})
+	if err != nil {
+		t.Fatalf("el stop-abort devuelve el subárbol parcial, no un error; err=%v", err)
 	}
-	if contieneTexto(err.Error(), "crud caído") {
-		t.Errorf("el error fatal no debe exponer el mensaje interno del CRUD; err=%v", err)
+	if aCadena(res.Data["Id"]) != "100" {
+		t.Errorf("la raíz debe conservar su Id materializado; data=%+v", res.Data)
+	}
+	if len(res.Warnings) != 1 || res.Warnings[0].Kind != KindDependencyFailure || res.Warnings[0].Path != "Hijo[0]" {
+		t.Fatalf("se esperaba un aviso dependency_failure en Hijo[0]; warnings=%+v", res.Warnings)
+	}
+	if contieneTexto(res.Warnings[0].Message, "crud caído") {
+		t.Errorf("el aviso no debe exponer el mensaje interno del CRUD; aviso=%+v", res.Warnings[0])
 	}
 }
 

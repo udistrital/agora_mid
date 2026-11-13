@@ -309,10 +309,34 @@ func writeObservado(
 	}
 
 	if err := me.materializarHijos(body, cfg.Relations, nil); err != nil {
-		return WriteResult{}, err
+		aviso, abortada := avisoDeAbortoMidCascada(err)
+		if !abortada {
+			return WriteResult{}, err
+		}
+		// Stop-abort: la raíz y los nodos previos ya están materializados, así que se
+		// devuelve el subárbol parcial con el aviso que nombra el nodo de parada.
+		me.agregarAviso(aviso)
+		return WriteResult{Data: body, Warnings: me.warnings}, nil
 	}
 
 	return WriteResult{Data: body, Warnings: me.warnings}, nil
+}
+
+// avisoDeAbortoMidCascada convierte un aborto de escritura ocurrido durante la
+// materialización de los hijos en el aviso que nombra el nodo donde se detuvo la
+// cascada. Devuelve false si err no es un aborto de escritura, caso en el que el
+// llamador debe propagarlo sin cambios.
+func avisoDeAbortoMidCascada(err error) (responses.RelationError, bool) {
+	fatal, ok := err.(*errorFatalEscritura)
+	if !ok {
+		return responses.RelationError{}, false
+	}
+	return responses.RelationError{
+		Path:    fatal.path,
+		Service: fatal.servicio,
+		Message: "la cascada se detuvo en este nodo; se conserva lo ya materializado",
+		Kind:    clasificarFalloDependencia(fatal.err),
+	}, true
 }
 
 // validarNivel valida y aplana recursivamente un nivel del cuerpo contra la
