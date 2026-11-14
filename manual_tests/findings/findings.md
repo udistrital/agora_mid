@@ -4,17 +4,18 @@ Cada hallazgo tiene una carpeta con `finding.md`: explicación, causa, estado y 
 
 ## Resumen de estado
 
-Última comprobación: 14/11/2026, 15:5x (hora local). Se actualiza al cerrar cada sesión (`../manual_tests.md`, 3.8).
+Última comprobación: 14/11/2026, 16:50 (hora local). Se actualiza al cerrar cada sesión (`../manual_tests.md`, 3.8).
 
 - **Hallazgos:** 29. Por estado: resuelto 4, en_decision 3, abierto 13, aceptado 5. Por solución: aplicada_sin_commit 11, propuesta 11, ninguna 3. Por gravedad: crítica 2, alta 12, media 6, baja 5. `findings.py verificar`: incumplimientos 0.
 - **Pruebas del gestor (`utils/tests`):** 55 pruebas, OK.
-- **Pruebas Go:** `go build ./...` pasa. `go test -count=1 ./...` pasa en todos los paquetes, incluido `test`. No hay fallos conocidos.
+- **Pruebas Go:** comprobadas el 14/11, 16:50. `go build ./...` pasa. `go test -count=1 ./...` pasa en todos los paquetes con tests. No hay fallos conocidos.
 - **Lecturas (`scripts/`):** ejecutadas el 14/11, 15:5x. Nueve con 200, `mid_proveedor_consulta_1` con 206 (17 avisos `depth` y 3 `relation`, F14 y F15).
 - **Matriz de escritura:** corrida el 14/11, 15:5x, contra el MID de `/tmp/agora_mid_run_f04`. 39 casos. 38 coinciden en código HTTP. Discrepancias: P11 (F22), P05 (F20, efecto `tercero_id` 0), U11 y U05 (F29). Registro en `../escritura/resultados.md`. Se restauró el respaldo y los conteos volvieron a la línea base.
-- **Verificación de comportamiento de los hallazgos (14/11, 15:5x):** ver la columna de cada `finding.md`. Verificados en vivo: F00, F03, F04, F05, F10, F14, F15, F19, F20, F22, F23, F24, F25 (indirecto), F26, F27 (solo PATCH sin Id), F28, F29. Solo con pruebas unitarias: F17. No verificados: F11, F13. Afirmaciones corregidas: F06 (no se reproduce con filtros), F07 (parcial).
-- **Servicios (14/11, 15:5x):** MID en `8080` responde 405 (`/tmp/agora_mid_run_f04`, instancia propia). CRUD `gestion_personas` en `8081` responde 200.
-- **Base `proveedores`:** proveedor 2, natural 1, jurídico 1, contacto 1, cuenta 1 (línea base).
-- **Cambios sin commit:** `clients/`, `config/`, `controllers/`, `helper/`, `services/`, `test/`, `main.go` y `manual_tests/`. Git solo en lectura.
+- **Verificación de comportamiento de los hallazgos (14/11, 15:5x):** ver la columna de cada `finding.md`. Verificados en vivo: F00, F03, F04, F05, F10, F14, F15 (16:40, ubicaciones responde), F19, F20, F22, F23, F24, F25 (indirecto), F26, F27 (solo PATCH sin Id), F28, F29. Solo con pruebas unitarias: F17. No verificados: F11, F13. Afirmaciones corregidas: F06 (no se reproduce con filtros), F07 (parcial).
+- **Servicios (14/11, 16:50):** MID en `8080` con el proceso `/tmp/agora_mid_run` (PID 51617), arrancado por el tester a las 16:40 con el procedimiento de 3.2. Log en `/tmp/agora_mid_run.log`. Responde 405 a GET de `/v1/proveedor/consulta`. CRUD `gestion_personas` en `8081` responde 200. Ubicaciones responde 200 con la URL actual de `.env`.
+- **Base `proveedores`:** última comprobación con la línea base (proveedor 2, natural 1, jurídico 1, contacto 1, cuenta 1) en la corrida del 14/11 15:5x. No se volvió a comprobar en esta sesión.
+- **Git (solo lectura, 14/11 16:50):** rama `feature/manual_tests`. El commit `815c76d` (16:01) incluye los cambios de código de la sesión anterior (`clients/`, `config/`, `controllers/`, `services/`, `test/`, `main.go`, `manual_tests/`). `git status` muestra solo `manual_tests/findings/F15_relacion_lugar_falla/finding.md`, `manual_tests/findings/findings.md` y dos `__pycache__/*.pyc` versionados que cambian con las pruebas del gestor. Los hallazgos con solución `aplicada_sin_commit` describen cambios que ya están en el commit; su etiqueta está desactualizada (ver Decisiones pendientes, 17).
+- La corrida de la matriz (código del 15:37) corresponde al código que quedó en `815c76d`.
 - **Pendientes de decisión:**
   - F03: aceptar o mantener en decisión.
   - F04: aprobar el texto de `nested-object-expansion` y retirar la solución provisional al aprobarlo.
@@ -73,5 +74,6 @@ Ordenadas por prioridad. Ninguna está aplicada salvo que se indique.
 12. **F05, F08, F18 (documentación).** Regenerar el swagger del CRUD. Corregir los nombres de `API.md` según la tabla de naming de `../escritura/matriz.md`.
 13. **F13 (entorno).** Probar `seed/cleanup_dummy_data.sql` en una base de pruebas y verificar los catálogos del seed.
 14. **F10, F11 (operación).** Borrar los YAML sin referencia o ignorar la advertencia. Arrancar siempre el binario, no `bee run`.
-15. **F15 (dependencia).** No se corrige desde el MID. Repetir la comprobación del host de ubicaciones antes de cada corrida.
+15. **F15 (dependencia).** No se corrige desde el MID. Comprobado el 14/11 16:40: la URL de ubicaciones actual responde y `PaisNacimiento` se expande. Repetir la comprobación antes de cada corrida. Decidir si el hallazgo se cierra como `resuelto` (requiere `## Cambio aplicado`) o se deja abierto.
 16. **Cambios de atajo.** F03, F25 y F26 están como arreglos rápidos sin commit. Decidir si se reemplazan por un diseño definitivo o se aceptan. F25 y F26 son parches de forma; F03 aplana cualquier mapa con `Id`.
+17. **Etiquetas de commit.** Los hallazgos con solución `aplicada_sin_commit` (F03, F23, F24, F25, F26, F27, F28 y otros) ya están en `815c76d`. Decidir si pasan a otra etiqueta. Cambiarlas requiere `findings.py cambiar` con `--aplicar`, una por una, tras revisar cada propuesta.

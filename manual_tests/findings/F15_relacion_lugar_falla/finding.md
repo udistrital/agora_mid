@@ -1,6 +1,6 @@
 # F15: fallan las relaciones a `lugar`
 
-Estado: abierto. Causa confirmada: dependencia externa no disponible.
+Estado: abierto. Causa original (14/11, 15:50) obsoleta: el servicio de ubicaciones responde desde la URL actual de `.env` (ver `## Verificación en vivo (14/11/2026, 16:40)`).
 Solución: ninguna. Sin corrección desde el MID. Ver `## Propuesta`.
 Gravedad: media. Clasificación propuesta, ver utils/README.md.
 
@@ -16,3 +16,14 @@ curl -s -m 20 -o /dev/null -w 'code=%{http_code} exit=%{exitcode}\n' "${AGORA_MI
 
 ## Propuesta
 No se corrige desde el MID. Esperar a que el servicio de ubicaciones responda, o apuntar a un CRUD de ubicaciones disponible. Repetir la comprobación antes de cada corrida.
+
+## Verificación en vivo (14/11/2026, 16:40)
+
+La URL de `AGORA_MID_UBICACIONES_CRUD_URL` cambió después de la causa original. El valor de la variable no se registra aquí.
+
+- GET directo: `GET ${AGORA_MID_UBICACIONES_CRUD_URL}/v1/lugar/?limit=1` responde `code=200` y devuelve registros de lugar (por ejemplo `Id 1, Nombre "Afganistán"`).
+- MID: se arrancó el binario con el procedimiento de 3.2 (puerto 8080, log en `/tmp/agora_mid_run.log`). `POST /v1/proveedor/consulta` con `requests/mid_proveedor_consulta_1.json` responde `206` con 17 avisos `depth` y ningún aviso `relation`.
+- `Data.PaisNacimiento` se expande como objeto (`Id 1`, `Nombre "Afganistán"`, `TipoLugarId 1`). Antes quedaba vacío.
+- `Data.Tercero.DatosIdentificacion[0].CiudadExpedicion` sigue como escalar (96), y `Data.Tercero.LugarOrigen` es 0. No se revisó si el proveedor de prueba tiene esos datos cargados.
+
+Conclusión: la falla por conexión rechazada ya no ocurre. Queda abierto solo porque el hallazgo depende del servicio externo. Los avisos `depth` que aún aparecen pertenecen a F14, no a este hallazgo.
