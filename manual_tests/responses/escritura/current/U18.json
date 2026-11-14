@@ -1,0 +1,1 @@
+{"Success":true,"Status":"200","Message":"Proveedor registrado correctamente","Data":{"Contacto":[{"Id":1,"NombreContacto":"Ana Perez","Proposito":"Notificaciones","ProveedorId":1,"TipoCanalContactoId":1,"UsuarioModificacionId":9,"ValorEspecifico":"ana.perez@example.com"}],"Id":1,"TipoProveedor":1,"UsuarioModificacionId":9}}

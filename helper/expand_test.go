@@ -572,6 +572,15 @@ func TestInvarianteKindsDeAviso(t *testing.T) {
 	// alguna ruta de expansión real (no hay constante de expansión muerta). El
 	// origen se lee del catálogo de producción, no de una lista paralela en el
 	// test. Las constantes de origen escritura las respalda TestInvarianteKindEscritura.
+	// fk_no_aplanable: FK de objeto sin Id, entregada sin cambios con aviso.
+	{
+		res, err := expandirContactoConFK(t, map[string]any{"Nombre": "sin id"})
+		if err != nil {
+			t.Fatalf("expansión con FK no aplanable: %v", err)
+		}
+		recolectar(res.Warnings)
+	}
+
 	for _, k := range KindsDeAviso() {
 		origen, _ := OrigenDeKind(k)
 		if origen != KindOrigenExpansion {

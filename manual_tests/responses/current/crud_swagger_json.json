@@ -1,0 +1,2671 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "title": "beego Test API",
+        "description": "beego has a very cool tools to autogenerate documents for your API\n",
+        "version": "1.0.0",
+        "termsOfService": "http://beego.me/",
+        "contact": {
+            "email": "astaxie@gmail.com"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        }
+    },
+    "basePath": "/v1",
+    "paths": {
+        "/actividad_economica_proveedor/": {
+            "get": {
+                "tags": [
+                    "actividad_economica_proveedor"
+                ],
+                "description": "get ActividadEconomicaProveedor\n\u003cbr\u003e",
+                "operationId": "ActividadEconomicaProveedorController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ActividadEconomicaProveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "actividad_economica_proveedor"
+                ],
+                "description": "create ActividadEconomicaProveedor\n\u003cbr\u003e",
+                "operationId": "ActividadEconomicaProveedorController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for ActividadEconomicaProveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ActividadEconomicaProveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.ActividadEconomicaProveedor"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/actividad_economica_proveedor/{id}": {
+            "get": {
+                "tags": [
+                    "actividad_economica_proveedor"
+                ],
+                "description": "get ActividadEconomicaProveedor by id\n\u003cbr\u003e",
+                "operationId": "ActividadEconomicaProveedorController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ActividadEconomicaProveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "actividad_economica_proveedor"
+                ],
+                "description": "update the ActividadEconomicaProveedor\n\u003cbr\u003e",
+                "operationId": "ActividadEconomicaProveedorController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for ActividadEconomicaProveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ActividadEconomicaProveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ActividadEconomicaProveedor"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "actividad_economica_proveedor"
+                ],
+                "description": "delete the ActividadEconomicaProveedor\n\u003cbr\u003e",
+                "operationId": "ActividadEconomicaProveedorController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/contacto/": {
+            "get": {
+                "tags": [
+                    "contacto"
+                ],
+                "description": "get Contacto\n\u003cbr\u003e",
+                "operationId": "ContactoController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Contacto"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "contacto"
+                ],
+                "description": "create Contacto\n\u003cbr\u003e",
+                "operationId": "ContactoController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Contacto content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Contacto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.Contacto"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/contacto/{id}": {
+            "get": {
+                "tags": [
+                    "contacto"
+                ],
+                "description": "get Contacto by id\n\u003cbr\u003e",
+                "operationId": "ContactoController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Contacto"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "contacto"
+                ],
+                "description": "update the Contacto\n\u003cbr\u003e",
+                "operationId": "ContactoController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Contacto content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Contacto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Contacto"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "contacto"
+                ],
+                "description": "delete the Contacto\n\u003cbr\u003e",
+                "operationId": "ContactoController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/cuenta_bancaria/": {
+            "get": {
+                "tags": [
+                    "cuenta_bancaria"
+                ],
+                "description": "get CuentaBancaria\n\u003cbr\u003e",
+                "operationId": "CuentaBancariaController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.CuentaBancaria"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "cuenta_bancaria"
+                ],
+                "description": "create CuentaBancaria\n\u003cbr\u003e",
+                "operationId": "CuentaBancariaController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for CuentaBancaria content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CuentaBancaria"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.CuentaBancaria"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/cuenta_bancaria/{id}": {
+            "get": {
+                "tags": [
+                    "cuenta_bancaria"
+                ],
+                "description": "get CuentaBancaria by id\n\u003cbr\u003e",
+                "operationId": "CuentaBancariaController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.CuentaBancaria"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "cuenta_bancaria"
+                ],
+                "description": "update the CuentaBancaria\n\u003cbr\u003e",
+                "operationId": "CuentaBancariaController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for CuentaBancaria content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CuentaBancaria"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.CuentaBancaria"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "cuenta_bancaria"
+                ],
+                "description": "delete the CuentaBancaria\n\u003cbr\u003e",
+                "operationId": "CuentaBancariaController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/documento/": {
+            "get": {
+                "tags": [
+                    "documento"
+                ],
+                "description": "get Documento\n\u003cbr\u003e",
+                "operationId": "DocumentoController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Documento"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "documento"
+                ],
+                "description": "create Documento\n\u003cbr\u003e",
+                "operationId": "DocumentoController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Documento content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Documento"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.Documento"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/documento/{id}": {
+            "get": {
+                "tags": [
+                    "documento"
+                ],
+                "description": "get Documento by id\n\u003cbr\u003e",
+                "operationId": "DocumentoController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Documento"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "documento"
+                ],
+                "description": "update the Documento\n\u003cbr\u003e",
+                "operationId": "DocumentoController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Documento content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Documento"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Documento"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "documento"
+                ],
+                "description": "delete the Documento\n\u003cbr\u003e",
+                "operationId": "DocumentoController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/estado_proveedor/": {
+            "get": {
+                "tags": [
+                    "estado_proveedor"
+                ],
+                "description": "get EstadoProveedor\n\u003cbr\u003e",
+                "operationId": "EstadoProveedorController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.EstadoProveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "estado_proveedor"
+                ],
+                "description": "create EstadoProveedor\n\u003cbr\u003e",
+                "operationId": "EstadoProveedorController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for EstadoProveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.EstadoProveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.EstadoProveedor"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/estado_proveedor/{id}": {
+            "get": {
+                "tags": [
+                    "estado_proveedor"
+                ],
+                "description": "get EstadoProveedor by id\n\u003cbr\u003e",
+                "operationId": "EstadoProveedorController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.EstadoProveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "estado_proveedor"
+                ],
+                "description": "update the EstadoProveedor\n\u003cbr\u003e",
+                "operationId": "EstadoProveedorController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for EstadoProveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.EstadoProveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.EstadoProveedor"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "estado_proveedor"
+                ],
+                "description": "delete the EstadoProveedor\n\u003cbr\u003e",
+                "operationId": "EstadoProveedorController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/perfil_proveedor/": {
+            "get": {
+                "tags": [
+                    "perfil_proveedor"
+                ],
+                "description": "get PerfilProveedor\n\u003cbr\u003e",
+                "operationId": "PerfilProveedorController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.PerfilProveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "perfil_proveedor"
+                ],
+                "description": "create PerfilProveedor\n\u003cbr\u003e",
+                "operationId": "PerfilProveedorController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for PerfilProveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PerfilProveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.PerfilProveedor"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/perfil_proveedor/{id}": {
+            "get": {
+                "tags": [
+                    "perfil_proveedor"
+                ],
+                "description": "get PerfilProveedor by id\n\u003cbr\u003e",
+                "operationId": "PerfilProveedorController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.PerfilProveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "perfil_proveedor"
+                ],
+                "description": "update the PerfilProveedor\n\u003cbr\u003e",
+                "operationId": "PerfilProveedorController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for PerfilProveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PerfilProveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.PerfilProveedor"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "perfil_proveedor"
+                ],
+                "description": "delete the PerfilProveedor\n\u003cbr\u003e",
+                "operationId": "PerfilProveedorController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/persona_juridica_tipo_entidad/": {
+            "get": {
+                "tags": [
+                    "persona_juridica_tipo_entidad"
+                ],
+                "description": "get PersonaJuridicaTipoEntidad\n\u003cbr\u003e",
+                "operationId": "PersonaJuridicaTipoEntidadController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonaJuridicaTipoEntidad"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "persona_juridica_tipo_entidad"
+                ],
+                "description": "create PersonaJuridicaTipoEntidad\n\u003cbr\u003e",
+                "operationId": "PersonaJuridicaTipoEntidadController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for PersonaJuridicaTipoEntidad content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonaJuridicaTipoEntidad"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.PersonaJuridicaTipoEntidad"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/persona_juridica_tipo_entidad/{id}": {
+            "get": {
+                "tags": [
+                    "persona_juridica_tipo_entidad"
+                ],
+                "description": "get PersonaJuridicaTipoEntidad by id\n\u003cbr\u003e",
+                "operationId": "PersonaJuridicaTipoEntidadController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonaJuridicaTipoEntidad"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "persona_juridica_tipo_entidad"
+                ],
+                "description": "update the PersonaJuridicaTipoEntidad\n\u003cbr\u003e",
+                "operationId": "PersonaJuridicaTipoEntidadController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for PersonaJuridicaTipoEntidad content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonaJuridicaTipoEntidad"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.PersonaJuridicaTipoEntidad"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "persona_juridica_tipo_entidad"
+                ],
+                "description": "delete the PersonaJuridicaTipoEntidad\n\u003cbr\u003e",
+                "operationId": "PersonaJuridicaTipoEntidadController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/proveedor/": {
+            "get": {
+                "tags": [
+                    "proveedor"
+                ],
+                "description": "get Proveedor\n\u003cbr\u003e",
+                "operationId": "ProveedorController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Proveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "proveedor"
+                ],
+                "description": "create Proveedor\n\u003cbr\u003e",
+                "operationId": "ProveedorController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Proveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Proveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.Proveedor"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/proveedor/{id}": {
+            "get": {
+                "tags": [
+                    "proveedor"
+                ],
+                "description": "get Proveedor by id\n\u003cbr\u003e",
+                "operationId": "ProveedorController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Proveedor"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "proveedor"
+                ],
+                "description": "update the Proveedor\n\u003cbr\u003e",
+                "operationId": "ProveedorController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Proveedor content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Proveedor"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Proveedor"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "proveedor"
+                ],
+                "description": "delete the Proveedor\n\u003cbr\u003e",
+                "operationId": "ProveedorController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/proveedor_juridico/": {
+            "get": {
+                "tags": [
+                    "proveedor_juridico"
+                ],
+                "description": "get ProveedorJuridico\n\u003cbr\u003e",
+                "operationId": "ProveedorJuridicoController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorJuridico"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "proveedor_juridico"
+                ],
+                "description": "create ProveedorJuridico\n\u003cbr\u003e",
+                "operationId": "ProveedorJuridicoController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for ProveedorJuridico content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorJuridico"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.ProveedorJuridico"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/proveedor_juridico/{id}": {
+            "get": {
+                "tags": [
+                    "proveedor_juridico"
+                ],
+                "description": "get ProveedorJuridico by id\n\u003cbr\u003e",
+                "operationId": "ProveedorJuridicoController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorJuridico"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "proveedor_juridico"
+                ],
+                "description": "update the ProveedorJuridico\n\u003cbr\u003e",
+                "operationId": "ProveedorJuridicoController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for ProveedorJuridico content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorJuridico"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorJuridico"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "proveedor_juridico"
+                ],
+                "description": "delete the ProveedorJuridico\n\u003cbr\u003e",
+                "operationId": "ProveedorJuridicoController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/proveedor_natural/": {
+            "get": {
+                "tags": [
+                    "proveedor_natural"
+                ],
+                "description": "get ProveedorNatural\n\u003cbr\u003e",
+                "operationId": "ProveedorNaturalController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorNatural"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "proveedor_natural"
+                ],
+                "description": "create ProveedorNatural\n\u003cbr\u003e",
+                "operationId": "ProveedorNaturalController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for ProveedorNatural content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorNatural"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.ProveedorNatural"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/proveedor_natural/{id}": {
+            "get": {
+                "tags": [
+                    "proveedor_natural"
+                ],
+                "description": "get ProveedorNatural by id\n\u003cbr\u003e",
+                "operationId": "ProveedorNaturalController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorNatural"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "proveedor_natural"
+                ],
+                "description": "update the ProveedorNatural\n\u003cbr\u003e",
+                "operationId": "ProveedorNaturalController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for ProveedorNatural content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorNatural"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.ProveedorNatural"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "proveedor_natural"
+                ],
+                "description": "delete the ProveedorNatural\n\u003cbr\u003e",
+                "operationId": "ProveedorNaturalController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/representacion/": {
+            "get": {
+                "tags": [
+                    "representacion"
+                ],
+                "description": "get Representacion\n\u003cbr\u003e",
+                "operationId": "RepresentacionController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Representacion"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "representacion"
+                ],
+                "description": "create Representacion\n\u003cbr\u003e",
+                "operationId": "RepresentacionController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Representacion content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Representacion"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.Representacion"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/representacion/{id}": {
+            "get": {
+                "tags": [
+                    "representacion"
+                ],
+                "description": "get Representacion by id\n\u003cbr\u003e",
+                "operationId": "RepresentacionController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Representacion"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "representacion"
+                ],
+                "description": "update the Representacion\n\u003cbr\u003e",
+                "operationId": "RepresentacionController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for Representacion content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Representacion"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.Representacion"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "representacion"
+                ],
+                "description": "delete the Representacion\n\u003cbr\u003e",
+                "operationId": "RepresentacionController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        },
+        "/titulo_proveedor_natural/": {
+            "get": {
+                "tags": [
+                    "titulo_proveedor_natural"
+                ],
+                "description": "get TituloProveedorNatural\n\u003cbr\u003e",
+                "operationId": "TituloProveedorNaturalController.Get All",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "query",
+                        "description": "Filter. e.g. col1:v1,col2:v2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "fields",
+                        "description": "Fields returned. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "sortby",
+                        "description": "Sorted-by fields. e.g. col1,col2 ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "order",
+                        "description": "Order corresponding to each sortby field, if single value, apply to all sortby fields. e.g. desc,asc ...",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Limit the size of result set. Must be an integer",
+                        "type": "string"
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Start position of result set. Must be an integer",
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.TituloProveedorNatural"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "titulo_proveedor_natural"
+                ],
+                "description": "create TituloProveedorNatural\n\u003cbr\u003e",
+                "operationId": "TituloProveedorNaturalController.Post",
+                "parameters": [
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for TituloProveedorNatural content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.TituloProveedorNatural"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "{int} models.TituloProveedorNatural"
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            }
+        },
+        "/titulo_proveedor_natural/{id}": {
+            "get": {
+                "tags": [
+                    "titulo_proveedor_natural"
+                ],
+                "description": "get TituloProveedorNatural by id\n\u003cbr\u003e",
+                "operationId": "TituloProveedorNaturalController.Get One",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The key for staticblock",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.TituloProveedorNatural"
+                        }
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "titulo_proveedor_natural"
+                ],
+                "description": "update the TituloProveedorNatural\n\u003cbr\u003e",
+                "operationId": "TituloProveedorNaturalController.Put",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to update",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "in": "body",
+                        "name": "body",
+                        "description": "body for TituloProveedorNatural content",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.TituloProveedorNatural"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/models.TituloProveedorNatural"
+                        }
+                    },
+                    "400": {
+                        "description": "the request contains incorrect syntax"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "titulo_proveedor_natural"
+                ],
+                "description": "delete the TituloProveedorNatural\n\u003cbr\u003e",
+                "operationId": "TituloProveedorNaturalController.Delete",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "description": "The id you want to delete",
+                        "required": true,
+                        "type": "string"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{string} delete success!"
+                    },
+                    "404": {
+                        "description": "not found resource"
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "models.ActividadEconomicaProveedor": {
+            "title": "ActividadEconomicaProveedor",
+            "type": "object",
+            "properties": {
+                "ActividadEconomicaId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "Activo": {
+                    "type": "boolean"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.Contacto": {
+            "title": "Contacto",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "Extension": {
+                    "type": "string"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "NombreContacto": {
+                    "type": "string"
+                },
+                "Proposito": {
+                    "type": "string"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "TipoCanalContactoId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ValorEspecifico": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CuentaBancaria": {
+            "title": "CuentaBancaria",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "ContactoId": {
+                    "$ref": "#/definitions/models.Contacto"
+                },
+                "EntidadBancariaId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "MontoCapitalAutorizado": {
+                    "type": "number",
+                    "format": "double"
+                },
+                "NumeroCuenta": {
+                    "type": "string"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "TipoCuentaId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.Documento": {
+            "title": "Documento",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "Enlace": {
+                    "type": "string"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "TipoDocumentoId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.EstadoProveedor": {
+            "title": "EstadoProveedor",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "EstadoId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "Observacion": {
+                    "type": "string"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.PerfilProveedor": {
+            "title": "PerfilProveedor",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "PerfilId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.PersonaJuridicaTipoEntidad": {
+            "title": "PersonaJuridicaTipoEntidad",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "NombrePerfilEntidad": {
+                    "type": "string"
+                },
+                "PersonaJuridicaId": {
+                    "$ref": "#/definitions/models.ProveedorJuridico"
+                },
+                "TipoEntidadId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.Proveedor": {
+            "title": "Proveedor",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "Consentimiento": {
+                    "type": "boolean"
+                },
+                "DescripcionPortafolio": {
+                    "type": "string"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "TerceroId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "TipoProveedor": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.ProveedorJuridico": {
+            "title": "ProveedorJuridico",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "AgenteRetenedor": {
+                    "type": "boolean"
+                },
+                "CiudadOrigenId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "CodigoPostal": {
+                    "type": "string"
+                },
+                "ExclusividadProducto": {
+                    "type": "boolean"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "PaisOrigenId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ProcedenciaEmpresaId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "Pyme": {
+                    "type": "boolean"
+                },
+                "RegimenContributivo": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "RegistroMercantil": {
+                    "type": "boolean"
+                },
+                "ResponsableIca": {
+                    "type": "boolean"
+                },
+                "ResponsableIva": {
+                    "type": "boolean"
+                },
+                "SujetoRetencion": {
+                    "type": "boolean"
+                },
+                "TipoConformacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.ProveedorNatural": {
+            "title": "ProveedorNatural",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "Cargo": {
+                    "type": "string"
+                },
+                "DependienteConyuge": {
+                    "type": "boolean"
+                },
+                "DependienteHijoMas23Discapacitado": {
+                    "type": "boolean"
+                },
+                "DependienteHijoMejorEdad": {
+                    "type": "boolean"
+                },
+                "DependienteHijoMenos23Estudiando": {
+                    "type": "boolean"
+                },
+                "DependientePadreOHermano": {
+                    "type": "boolean"
+                },
+                "ExperienciaLaboral": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ExperienciaProfesional": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "InteresViviendaAfc": {
+                    "type": "number",
+                    "format": "double"
+                },
+                "MedicinaPrepagada": {
+                    "type": "boolean"
+                },
+                "PaisNacimientoId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "PensionVoluntaria": {
+                    "type": "boolean"
+                },
+                "Pensionado": {
+                    "type": "boolean"
+                },
+                "ResideColombia": {
+                    "type": "boolean"
+                },
+                "ResponsableIva": {
+                    "type": "boolean"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ValorAfc": {
+                    "type": "number",
+                    "format": "double"
+                },
+                "ValorPensionVoluntaria": {
+                    "type": "number",
+                    "format": "double"
+                },
+                "ValorUvtPrepagada": {
+                    "type": "number",
+                    "format": "double"
+                }
+            }
+        },
+        "models.Representacion": {
+            "title": "Representacion",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "RepresentanteId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        },
+        "models.TituloProveedorNatural": {
+            "title": "TituloProveedorNatural",
+            "type": "object",
+            "properties": {
+                "Activo": {
+                    "type": "boolean"
+                },
+                "FechaCreacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "FechaModificacion": {
+                    "type": "string",
+                    "format": "datetime"
+                },
+                "Id": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "NucleoBasicoConocimientoSniesId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "PerfilId": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "ProveedorId": {
+                    "$ref": "#/definitions/models.Proveedor"
+                },
+                "TituloObtenido": {
+                    "type": "string"
+                },
+                "UsuarioModificacionId": {
+                    "type": "integer",
+                    "format": "int64"
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "contacto",
+            "description": "ContactoController operations for Contacto\n"
+        },
+        {
+            "name": "cuenta_bancaria",
+            "description": "CuentaBancariaController operations for CuentaBancaria\n"
+        },
+        {
+            "name": "proveedor_juridico",
+            "description": "ProveedorJuridicoController operations for ProveedorJuridico\n"
+        },
+        {
+            "name": "proveedor",
+            "description": "ProveedorController operations for Proveedor\n"
+        },
+        {
+            "name": "actividad_economica_proveedor",
+            "description": "ActividadEconomicaProveedorController operations for ActividadEconomicaProveedor\n"
+        },
+        {
+            "name": "representacion",
+            "description": "RepresentacionController operations for Representacion\n"
+        },
+        {
+            "name": "persona_juridica_tipo_entidad",
+            "description": "PersonaJuridicaTipoEntidadController operations for PersonaJuridicaTipoEntidad\n"
+        },
+        {
+            "name": "proveedor_natural",
+            "description": "ProveedorNaturalController operations for ProveedorNatural\n"
+        },
+        {
+            "name": "perfil_proveedor",
+            "description": "PerfilProveedorController operations for PerfilProveedor\n"
+        },
+        {
+            "name": "documento",
+            "description": "DocumentoController operations for Documento\n"
+        },
+        {
+            "name": "titulo_proveedor_natural",
+            "description": "TituloProveedorNaturalController operations for TituloProveedorNatural\n"
+        },
+        {
+            "name": "estado_proveedor",
+            "description": "EstadoProveedorController operations for EstadoProveedor\n"
+        }
+    ]
+}

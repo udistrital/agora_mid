@@ -11,6 +11,7 @@ package test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -60,11 +61,12 @@ type CRUDSimulado struct {
 
 	mu             sync.Mutex
 	capturas       []PeticionCRUD
-	siguiente      map[string]int              // recurso -> próximo Id a asignar
-	existentes     map[string][]map[string]any // "GET /v1/<recurso>" -> registros
-	fallas         map[string]int              // "METODO recurso" -> status HTTP a devolver
-	retardos       map[string]time.Duration    // "METODO recurso" -> retardo antes de responder
-	timeoutCliente time.Duration               // tiempo de espera del cliente; 0 usa el valor por defecto de la prueba
+	siguiente      map[string]int                    // recurso -> próximo Id a asignar
+	existentes     map[string][]map[string]any       // "GET /v1/<recurso>" -> registros
+	creados        map[string]map[int]map[string]any // recurso -> Id -> registro creado o actualizado por POST/PUT
+	fallas         map[string]int                    // "METODO recurso" -> status HTTP a devolver
+	retardos       map[string]time.Duration          // "METODO recurso" -> retardo antes de responder
+	timeoutCliente time.Duration                     // tiempo de espera del cliente; 0 usa el valor por defecto de la prueba
 }
 
 // FallarPostDe configura el CRUD simulado para que el POST de un recurso
@@ -156,6 +158,58 @@ func (c *CRUDSimulado) Capturas() []PeticionCRUD {
 
 // recurso extrae el nombre del recurso de un path "/v1/<recurso>" o
 // "/v1/<recurso>/{id}".
+// idDeRuta devuelve el Id de una ruta /v1/<recurso>/{id}. Devuelve false si la ruta no
+// termina en un entero.
+func idDeRuta(path string) (int, bool) {
+	resto := strings.TrimPrefix(strings.TrimPrefix(path, "/v1/"), "/")
+	i := strings.IndexByte(resto, '/')
+	if i < 0 {
+		return 0, false
+	}
+	id, err := strconv.Atoi(strings.TrimRight(resto[i+1:], "/"))
+	return id, err == nil
+}
+
+// registroPorId busca entre los registros precargados del recurso el de Id indicado.
+// Debe llamarse con c.mu tomado.
+func (c *CRUDSimulado) registroPorId(recurso string, id int) (map[string]any, bool) {
+	// Fixture sembrado por ruta completa: "GET /v1/<recurso>/<id>" con el registro.
+	if fijos := c.existentes[fmt.Sprintf("GET /v1/%s/%d", recurso, id)]; len(fijos) > 0 {
+		return fijos[0], true
+	}
+	for _, reg := range c.existentes["GET /v1/"+recurso] {
+		switch v := reg["Id"].(type) {
+		case int:
+			if v == id {
+				return reg, true
+			}
+		case float64:
+			if int(v) == id {
+				return reg, true
+			}
+		}
+	}
+	reg, ok := c.creados[recurso][id]
+	return reg, ok
+}
+
+// guardarCreado conserva el registro recibido en POST o PUT con su Id, para que un GET
+// posterior por Id lo devuelva como lo haría el CRUD real. Debe llamarse con c.mu tomado.
+func (c *CRUDSimulado) guardarCreado(recurso string, id int, cuerpo map[string]any) {
+	if c.creados == nil {
+		c.creados = map[string]map[int]map[string]any{}
+	}
+	if c.creados[recurso] == nil {
+		c.creados[recurso] = map[int]map[string]any{}
+	}
+	registro := make(map[string]any, len(cuerpo)+1)
+	for k, v := range cuerpo {
+		registro[k] = v
+	}
+	registro["Id"] = id
+	c.creados[recurso][id] = registro
+}
+
 func recursoDePath(path string) string {
 	resto := strings.TrimPrefix(strings.TrimPrefix(path, "/v1/"), "/")
 	if i := strings.IndexByte(resto, '/'); i >= 0 {
@@ -199,6 +253,24 @@ func (c *CRUDSimulado) manejar(w http.ResponseWriter, r *http.Request) {
 		}
 		c.mu.Lock()
 	}
+	// El CRUD solo expone PUT para actualizar (ver F19). El 405 ante PATCH es un supuesto no verificado.
+	if r.Method == http.MethodPatch {
+		c.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = io.WriteString(w, `{"Success":false,"Status":"405","Message":"Method Not Allowed"}`)
+		return
+	}
+	// GET por Id de un registro no precargado responde 404, como el CRUD real.
+	if id, ok := idDeRuta(r.URL.Path); ok && r.Method == http.MethodGet {
+		if _, encontrado := c.registroPorId(recursoDePath(r.URL.Path), id); !encontrado {
+			c.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"Success":false,"Status":"404","Message":"no record exists"}`)
+			return
+		}
+	}
 	claveGet := "GET " + strings.TrimRight(r.URL.Path, "/")
 	respuesta := c.responder(r.Method, r.URL.Path, claveGet, r.URL.Query(), cuerpo)
 	c.mu.Unlock()
@@ -217,6 +289,14 @@ func (c *CRUDSimulado) responder(
 	query map[string][]string,
 	cuerpo map[string]any,
 ) string {
+	// Un GET por Id devuelve el registro precargado con todos sus campos.
+	if id, ok := idDeRuta(path); ok && metodo == http.MethodGet {
+		if reg, encontrado := c.registroPorId(recursoDePath(path), id); encontrado {
+			data, _ := json.Marshal(map[string]any{"Data": reg})
+			return string(data)
+		}
+	}
+
 	solicitarPagina := func(registros []map[string]any) []map[string]any {
 		limites, okLimit := query["limit"]
 		offsets, okOffset := query["offset"]
@@ -248,8 +328,11 @@ func (c *CRUDSimulado) responder(
 			return string(data)
 		}
 		return `{"Data":[],"Total":0}`
-	case http.MethodPatch:
-		// La actualización conserva el Id del cuerpo.
+	case http.MethodPut:
+		// La actualización conserva el Id del cuerpo y reemplaza el registro guardado.
+		if id, ok := cuerpo["Id"].(float64); ok {
+			c.guardarCreado(recursoDePath(path), int(id), cuerpo)
+		}
 		if id, ok := cuerpo["Id"]; ok {
 			data, _ := json.Marshal(map[string]any{"Data": map[string]any{"Id": id}})
 			return string(data)
@@ -259,6 +342,11 @@ func (c *CRUDSimulado) responder(
 		res := recursoDePath(path)
 		c.siguiente[res]++
 		id := idBase(res) + c.siguiente[res]
+		// Un Id explícito en el cuerpo (PK compartida) se conserva, como hace el ORM del CRUD.
+		if propuesto, ok := cuerpo["Id"].(float64); ok && propuesto > 0 {
+			id = int(propuesto)
+		}
+		c.guardarCreado(res, id, cuerpo)
 		data, _ := json.Marshal(map[string]any{"Data": map[string]any{"Id": id}})
 		return string(data)
 	}

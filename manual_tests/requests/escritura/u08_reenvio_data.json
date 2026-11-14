@@ -1,0 +1,35 @@
+{
+  "Id": 1,
+  "TipoProveedor": 1,
+  "TerceroId": 101,
+  "DescripcionPortafolio": "Servicios de consultoria",
+  "Consentimiento": true,
+  "ProveedorNatural": {
+    "PaisNacimientoId": 1,
+    "Cargo": "Consultora",
+    "ExperienciaLaboral": 24,
+    "ExperienciaProfesional": 60,
+    "Id": 1
+  },
+  "Contacto": [
+    {
+      "Id": 1,
+      "NombreContacto": "Ana Perez",
+      "ValorEspecifico": "ana.nueva@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1,
+      "ProveedorId": 1
+    }
+  ],
+  "CuentaBancaria": [
+    {
+      "Id": 1,
+      "TipoCuentaId": 1,
+      "NumeroCuenta": "123456789",
+      "EntidadBancariaId": 7,
+      "ContactoId": 1,
+      "MontoCapitalAutorizado": 0,
+      "ProveedorId": 1
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "Id": 2,
+  "TipoProveedor": 2,
+  "DescripcionPortafolio": "Papeleria y oficina",
+  "ProveedorJuridico": {
+    "ProcedenciaEmpresaId": 1,
+    "TipoConformacionId": 1,
+    "ExclusividadProducto": false,
+    "RegimenContributivo": 1,
+    "Pyme": true,
+    "RegistroMercantil": true,
+    "SujetoRetencion": true,
+    "AgenteRetenedor": false,
+    "ResponsableIca": true,
+    "ResponsableIva": true,
+    "CodigoPostal": "110111",
+    "Id": 2
+  }
+}

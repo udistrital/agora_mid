@@ -264,6 +264,7 @@ func (h *ProveedorHandler) responderErrorLectura(w http.ResponseWriter, err erro
 //   - 206 + MetaData.Errors: materialización parcial tolerada.
 //   - 400: cuerpo o campo inválido (estructura, campo no escribible, inmutable o
 //     rama de detalle incoherente), sin materializar.
+//   - 404: PATCH con Id de un proveedor inexistente, sin materializar.
 //   - 502/504: fallo bloqueante de una relación (política estricta); 504 cuando
 //     el fallo es por tiempo de espera agotado.
 func (h *ProveedorHandler) Escribir(w http.ResponseWriter, r *http.Request) {
@@ -301,6 +302,12 @@ func (h *ProveedorHandler) Escribir(w http.ResponseWriter, r *http.Request) {
 // responderErrorEscritura mapea el error del servicio de escritura al código HTTP
 // del contrato, sin exponer mensajes internos de los CRUD.
 func (h *ProveedorHandler) responderErrorEscritura(w http.ResponseWriter, err error) {
+	// 404: el PATCH referencia por Id un proveedor que no existe.
+	if errors.Is(err, services.ErrProveedorNoExiste) {
+		h.responder(w, http.StatusNotFound, false, err.Error(), nil, nil)
+		return
+	}
+
 	// 400: cuerpo o campo inválido, o rama de detalle incoherente.
 	var errEscritura *helper.ErrorEscritura
 	if errors.As(err, &errEscritura) {

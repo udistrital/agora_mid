@@ -165,8 +165,10 @@ func ValidarBlacklist(bl GlobalBlacklist, configs map[string]ServiceConfig) erro
 					continue
 				}
 				if _, ok := modelo.campos[campo]; !ok {
-					return fmt.Errorf(
-						"lista negra inválida: el campo %q (bajo related_api %q, related_table %q) no existe en el modelo conocido",
+					// Solución provisional (F04): un campo que el modelo no declara
+					// (por ejemplo un campo no legible) se advierte y no aborta el arranque.
+					log.Printf(
+						"advertencia lista negra: el campo %q (bajo related_api %q, related_table %q) no existe en el modelo conocido",
 						campo, api, tabla,
 					)
 				}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -69,11 +70,13 @@ func (r upsertRespuesta) id() int {
 }
 
 // Materialize escribe la entidad en el CRUD dueño. Inyecta el autor de la
-// modificación desde el contexto. Un payload con Id identifica el registro existente
-// y se actualiza por PATCH; sin Id se crea por POST. No consulta el CRUD para decidir
+// modificación desde el contexto. Un payload con Id identifica el registro existente:
+// se lee ese registro completo (GET), se le superponen los valores recibidos y el
+// resultado se envía por PUT. Sin Id se crea por POST. No consulta el CRUD para decidir
 // la existencia: esa decisión la toma el motor en el pre-pass, con el registro
 // recuperado por Recuperar, y llega aquí como Id. Devuelve el payload materializado
-// con el Id resultante.
+// con el Id resultante. Si el registro existente no se puede leer completo, devuelve
+// error y no envía ninguna escritura.
 func (r *EntityWriteResolver) Materialize(
 	ctx context.Context,
 	_ config.RelationConfig,
@@ -95,18 +98,25 @@ func (r *EntityWriteResolver) Materialize(
 
 	if idExistente > 0 {
 		cuerpo["Id"] = idExistente
-		destino := fmt.Sprintf("%s%s/%d", base, endpoint, idExistente)
-		var resp upsertRespuesta
-		if _, err := r.client.Patch(ctx, destino, cuerpo, &resp); err != nil {
-			return nil, fmt.Errorf("write-resolver: actualización falló: %w", err)
+		completo, existe, err := r.leerRegistroCompleto(ctx, base, endpoint, idExistente)
+		if err != nil {
+			return nil, fmt.Errorf("write-resolver: lectura previa a la actualización falló: %w", err)
 		}
-		salida := clonarPayload(cuerpo)
-		salida["Id"] = idExistente
-		return salida, nil
+		if existe {
+			destino := fmt.Sprintf("%s%s/%d", base, endpoint, idExistente)
+			var resp upsertRespuesta
+			if _, err := r.client.Put(ctx, destino, envolverFKRelacional(fusionarRegistro(completo, cuerpo, idExistente)), &resp); err != nil {
+				return nil, fmt.Errorf("write-resolver: actualización falló: %w", err)
+			}
+			salida := clonarPayload(cuerpo)
+			salida["Id"] = idExistente
+			return salida, nil
+		}
+		// El registro no existe: se crea con el Id propagado (PK compartida).
 	}
 
 	var resp upsertRespuesta
-	if _, err := r.client.Post(ctx, base+endpoint+"/", cuerpo, &resp); err != nil {
+	if _, err := r.client.Post(ctx, base+endpoint+"/", envolverFKRelacional(clonarPayload(cuerpo)), &resp); err != nil {
 		return nil, fmt.Errorf("write-resolver: creación falló: %w", err)
 	}
 	nuevoID := resp.id()
@@ -154,7 +164,12 @@ func (r *EntityWriteResolver) buscarRegistroExistente(
 ) (map[string]any, error) {
 	if id := idEntero(payload["Id"]); id > 0 {
 		var raw json.RawMessage
-		if _, err := r.client.Get(ctx, fmt.Sprintf("%s%s/%d", base, endpoint, id), &raw); err != nil {
+		status, err := r.client.Get(ctx, fmt.Sprintf("%s%s/%d", base, endpoint, id), &raw)
+		if status == http.StatusNotFound {
+			// Sin registro con ese Id no hay nada que recuperar.
+			return nil, nil
+		}
+		if err != nil {
 			return nil, fmt.Errorf("write-resolver: lectura por Id falló: %w", err)
 		}
 		registro, err := decodeAPIRecord(raw)
@@ -278,4 +293,83 @@ func idEntero(v any) int {
 	default:
 		return 0
 	}
+}
+
+// envolverFKRelacional convierte las FK de relación que el CRUD decodifica como
+// objeto (ProveedorId, ContactoId) en {"Id": n}. Trabaja sobre una copia que se
+// envía al CRUD; el payload interno conserva el entero. Un valor nulo o ya
+// objeto no se toca. Solución rápida: solo cubre las dos FK conocidas.
+func envolverFKRelacional(cuerpo map[string]any) map[string]any {
+	for _, clave := range []string{"ProveedorId", "ContactoId"} {
+		v, ok := cuerpo[clave]
+		if !ok || v == nil {
+			continue
+		}
+		if _, esObjeto := v.(map[string]any); esObjeto {
+			continue
+
+		}
+		cuerpo[clave] = map[string]any{"Id": v}
+	}
+	return cuerpo
+}
+
+// leerRegistroCompleto lee por Id el registro existente con todos sus campos (GET).
+// Devuelve existe=false, sin error, cuando el CRUD responde 404. Devuelve error si el
+// CRUD falla o si trae solo el Id, para que una actualización nunca envíe un PUT que
+// anule campos desconocidos.
+func (r *EntityWriteResolver) leerRegistroCompleto(
+	ctx context.Context,
+	base string,
+	endpoint string,
+	id int,
+) (registro map[string]any, existe bool, err error) {
+	var raw json.RawMessage
+	status, err := r.client.Get(ctx, fmt.Sprintf("%s%s/%d", base, endpoint, id), &raw)
+	if status == http.StatusNotFound {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	registro, err = decodeAPIRecord(raw)
+	if err != nil {
+		return nil, false, err
+	}
+	if idEntero(registro["Id"]) != id || len(registro) < 2 {
+		return nil, false, fmt.Errorf("el registro %d no trae sus campos", id)
+	}
+	return registro, true, nil
+}
+
+// fusionarRegistro devuelve el registro leído con los valores recibidos encima, con el
+// Id indicado. Las FK que el CRUD devuelve como objeto completo se reducen a {"Id": n}.
+// No modifica los mapas recibidos.
+func fusionarRegistro(leido, recibido map[string]any, id int) map[string]any {
+	salida := make(map[string]any, len(leido)+len(recibido)+1)
+	for k, v := range leido {
+		salida[k] = reducirFKObjeto(k, v)
+	}
+	for k, v := range recibido {
+		salida[k] = reducirFKObjeto(k, v)
+	}
+	salida["Id"] = id
+	return salida
+}
+
+// reducirFKObjeto convierte una FK con forma de objeto ({"Id": n, ...}) en {"Id": n}.
+// Cualquier otro valor se devuelve sin cambios.
+func reducirFKObjeto(clave string, valor any) any {
+	if !strings.HasSuffix(clave, "Id") {
+		return valor
+	}
+	objeto, ok := valor.(map[string]any)
+	if !ok {
+		return valor
+	}
+	id, tieneId := objeto["Id"]
+	if !tieneId || id == nil {
+		return valor
+	}
+	return map[string]any{"Id": id}
 }

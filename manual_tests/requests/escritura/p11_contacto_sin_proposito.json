@@ -1,0 +1,10 @@
+{
+  "TipoProveedor": 1,
+  "Contacto": [
+    {
+      "NombreContacto": "Sin proposito",
+      "ValorEspecifico": "x@example.com",
+      "TipoCanalContactoId": 1
+    }
+  ]
+}

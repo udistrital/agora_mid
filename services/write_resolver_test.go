@@ -113,12 +113,13 @@ func TestWriteResolverCreaSinInyectarAutor(t *testing.T) {
 }
 
 // Idempotencia del proveedor por tercero_id: si ya existe un proveedor para el
-// tercero, el resolver lo reutiliza (PATCH) en vez de crear otro.
+// tercero, el resolver lo reutiliza (PUT) en vez de crear otro.
 func TestWriteResolverProveedorIdempotentePorTerceroId(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
-		"GET /v1/proveedor":      `{"Data":[{"Id":88,"TerceroId":25}]}`,
-		"PATCH /v1/proveedor/88": `{"Data":{"Id":88}}`,
+		"GET /v1/proveedor":    `{"Data":[{"Id":88,"TerceroId":25}]}`,
+		"GET /v1/proveedor/88": `{"Data":{"Id":88,"TerceroId":25,"TipoProveedor":1,"DescripcionPortafolio":"Servicios"}}`,
+		"PUT /v1/proveedor/88": `{"Data":{"Id":88}}`,
 	}, &capturas)
 	defer server.Close()
 
@@ -148,20 +149,20 @@ func TestWriteResolverProveedorIdempotentePorTerceroId(t *testing.T) {
 	}
 
 	huboPost := false
-	huboPatch := false
+	huboPut := false
 	for _, c := range capturas {
 		switch c.metodo {
 		case http.MethodPost:
 			huboPost = true
-		case http.MethodPatch:
-			huboPatch = true
+		case http.MethodPut:
+			huboPut = true
 		}
 	}
 	if huboPost {
 		t.Errorf("no debe crear un segundo proveedor; capturas=%+v", capturas)
 	}
-	if !huboPatch {
-		t.Errorf("debe actualizar el proveedor existente por PATCH; capturas=%+v", capturas)
+	if !huboPut {
+		t.Errorf("debe actualizar el proveedor existente por PUT; capturas=%+v", capturas)
 	}
 }
 
@@ -206,11 +207,12 @@ func TestWriteResolverDatosIdentificacionClaveNatural(t *testing.T) {
 }
 
 // Cuando el payload trae Id (PK compartida o colección con Id), el resolver
-// actualiza ese registro por PATCH sin buscar por clave natural.
+// actualiza ese registro por PUT sin buscar por clave natural.
 func TestWriteResolverUpsertPorIdDelCuerpo(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
-		"PATCH /v1/proveedor_natural/5": `{"Data":{"Id":5}}`,
+		"GET /v1/proveedor_natural/5": `{"Data":{"Id":5,"PerfilDeclarado":1}}`,
+		"PUT /v1/proveedor_natural/5": `{"Data":{"Id":5}}`,
 	}, &capturas)
 	defer server.Close()
 
@@ -233,7 +235,7 @@ func TestWriteResolverUpsertPorIdDelCuerpo(t *testing.T) {
 		t.Errorf("debe conservar el Id propagado 5; salida=%+v", salida)
 	}
 	for _, c := range capturas {
-		if c.metodo == http.MethodGet {
+		if c.metodo == http.MethodGet && c.query != "" {
 			t.Errorf("no debe buscar por clave natural cuando hay Id; capturas=%+v", capturas)
 		}
 	}
@@ -273,9 +275,9 @@ func TestWriteResolverRecuperaExistentePorClaveNaturalSoloGET(t *testing.T) {
 		t.Errorf("Recuperar debe devolver los campos del registro existente; registro=%+v", reg)
 	}
 
-	// Solo se permiten lecturas: ninguna escritura (POST/PATCH).
+	// Solo se permiten lecturas: ninguna escritura (POST/PUT/PATCH).
 	for _, c := range capturas {
-		if c.metodo == http.MethodPost || c.metodo == http.MethodPatch {
+		if c.metodo == http.MethodPost || c.metodo == http.MethodPut || c.metodo == http.MethodPatch {
 			t.Errorf("Recuperar no debe emitir escrituras; captura=%+v", c)
 		}
 	}

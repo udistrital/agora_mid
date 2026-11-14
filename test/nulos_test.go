@@ -5,12 +5,12 @@ import (
 	"testing"
 )
 
-// peticionPATCH devuelve el cuerpo de la última petición PATCH enviada al recurso.
-func peticionPATCH(crud *CRUDSimulado, recurso string) (map[string]any, bool) {
+// peticionPUT devuelve el cuerpo de la última petición PUT enviada al CRUD del recurso.
+func peticionPUT(crud *CRUDSimulado, recurso string) (map[string]any, bool) {
 	var cuerpo map[string]any
 	var hallada bool
 	for _, c := range crud.Capturas() {
-		if c.Metodo == http.MethodPatch && recursoDePath(c.Path) == recurso {
+		if c.Metodo == http.MethodPut && recursoDePath(c.Path) == recurso {
 			cuerpo = c.Cuerpo
 			hallada = true
 		}
@@ -29,9 +29,9 @@ func TestNulosAusenteConservaValor(t *testing.T) {
 	if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
 		t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
 	}
-	enviado, ok := peticionPATCH(crud, "proveedor")
+	enviado, ok := peticionPUT(crud, "proveedor")
 	if !ok {
-		t.Fatal("debe enviarse el PATCH del proveedor")
+		t.Fatal("debe enviarse el PUT del proveedor")
 	}
 	if _, presente := enviado["DescripcionPortafolio"]; presente {
 		t.Errorf("un campo ausente no debe enviarse; cuerpo=%+v", enviado)
@@ -49,9 +49,9 @@ func TestNulosEnEscalarNullableSeFija(t *testing.T) {
 	if rec.Code != http.StatusOK && rec.Code != http.StatusPartialContent {
 		t.Fatalf("status = %d; esperado 200 o 206. body=%s", rec.Code, rec.Body.String())
 	}
-	enviado, ok := peticionPATCH(crud, "proveedor")
+	enviado, ok := peticionPUT(crud, "proveedor")
 	if !ok {
-		t.Fatal("debe enviarse el PATCH del proveedor")
+		t.Fatal("debe enviarse el PUT del proveedor")
 	}
 	valor, presente := enviado["DescripcionPortafolio"]
 	if !presente || valor != nil {

@@ -1,0 +1,33 @@
+{
+  "Data": [
+    {
+      "Id": 1,
+      "PaisNacimientoId": 1,
+      "Cargo": "Consultora",
+      "MedicinaPrepagada": false,
+      "ValorUvtPrepagada": 0,
+      "InteresViviendaAfc": 0,
+      "DependienteHijoMejorEdad": false,
+      "DependienteHijoMenos23Estudiando": false,
+      "DependienteHijoMas23Discapacitado": false,
+      "DependienteConyuge": false,
+      "DependientePadreOHermano": false,
+      "Pensionado": false,
+      "ValorAfc": 0,
+      "ResponsableIva": false,
+      "ResideColombia": false,
+      "PensionVoluntaria": false,
+      "ValorPensionVoluntaria": 0,
+      "ExperienciaLaboral": 24,
+      "ExperienciaProfesional": 60,
+      "Activo": true,
+      "FechaCreacion": "2026-11-13T22:34:48.274409Z",
+      "FechaModificacion": "0001-01-01T00:00:00Z",
+      "UsuarioModificacionId": 0
+    }
+  ],
+  "Message": "Request successful",
+  "Status": "200",
+  "Success": true,
+  "Total": 1
+}

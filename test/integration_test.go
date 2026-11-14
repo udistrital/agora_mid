@@ -85,7 +85,8 @@ func ejecutarListaProveedor(
 // peticiones de cada método recibió el CRUD simulado, tolerando tanto
 // /v1/<recurso> (listas, creación) como /v1/<recurso>/{id} (actualización).
 // Sirve para afirmar idempotencia (no duplicar POST).
-func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, patch, get int) {
+// peticionesPorMetodo cuenta las peticiones del CRUD al recurso por verbo (POST, PUT y GET).
+func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, put, get int) {
 	for _, c := range capturas {
 		if recursoDePath(c.Path) != recurso {
 			continue
@@ -94,8 +95,8 @@ func peticionesPorMetodo(capturas []PeticionCRUD, recurso string) (post, patch, 
 		switch c.Metodo {
 		case http.MethodPost:
 			post++
-		case http.MethodPatch:
-			patch++
+		case http.MethodPut:
+			put++
 		case http.MethodGet:
 			get++
 		}
@@ -321,12 +322,12 @@ func TestIntegracionReconciliacionPatchIdempotente(t *testing.T) {
 		t.Errorf("debe reutilizar el proveedor existente 101; data=%+v", env.Data)
 	}
 
-	post, patch, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	post, put, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
 	if post != 0 {
 		t.Errorf("no debe crear un segundo proveedor; POST=%d. capturas=%+v", post, crud.Capturas())
 	}
-	if patch != 1 {
-		t.Errorf("debe actualizar el proveedor existente por PATCH; PATCH=%d. capturas=%+v", patch, crud.Capturas())
+	if put != 1 {
+		t.Errorf("debe actualizar el proveedor existente por PATCH; PATCH=%d. capturas=%+v", put, crud.Capturas())
 	}
 }
 
@@ -338,7 +339,7 @@ func TestIntegracionContinuacionTrasCreacionParcial(t *testing.T) {
 	// (por clave natural numero+tipo_documento_id) ya existen.
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
 		"GET /v1/proveedor":            {{"Id": float64(101), "TerceroId": float64(25)}},
-		"GET /v1/datos_identificacion": {{"Id": float64(301), "TerceroId": float64(101)}},
+		"GET /v1/datos_identificacion": {{"Id": float64(301), "TerceroId": float64(201)}},
 	})
 	router := routerProveedor(t, crud)
 
@@ -352,16 +353,16 @@ func TestIntegracionContinuacionTrasCreacionParcial(t *testing.T) {
 	}
 
 	// No se duplica ni el proveedor ni los datos de identificación ya existentes.
-	postProv, patchProv, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
-	if postProv != 0 || patchProv != 1 {
-		t.Errorf("proveedor: se esperaba 0 POST / 1 PATCH; POST=%d PATCH=%d", postProv, patchProv)
+	postProv, putProv, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	if postProv != 0 || putProv != 1 {
+		t.Errorf("proveedor: se esperaba 0 POST / 1 PATCH; POST=%d PATCH=%d", postProv, putProv)
 	}
-	postDI, patchDI, _ := peticionesPorMetodo(crud.Capturas(), "datos_identificacion")
+	postDI, putDI, _ := peticionesPorMetodo(crud.Capturas(), "datos_identificacion")
 	if postDI != 0 {
 		t.Errorf("datos_identificacion existente no debe duplicarse; POST=%d. capturas=%+v", postDI, crud.Capturas())
 	}
-	if patchDI != 1 {
-		t.Errorf("datos_identificacion existente debe actualizarse por PATCH; PATCH=%d", patchDI)
+	if putDI != 1 {
+		t.Errorf("datos_identificacion existente debe actualizarse por PATCH; PATCH=%d", putDI)
 	}
 	// El contacto, que no existía, sí se crea.
 	postContacto, _, _ := peticionesPorMetodo(crud.Capturas(), "contacto")
@@ -543,9 +544,9 @@ func TestIntegracionReenvioDataCoincide200(t *testing.T) {
 		t.Errorf("TerceroId coincidente debe conservarse numérico 201; data=%+v", env.Data)
 	}
 	// Idempotencia: no se crea un segundo proveedor; se reutiliza por PATCH.
-	post, patch, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
-	if post != 0 || patch != 1 {
-		t.Errorf("proveedor: se esperaba 0 POST / 1 PATCH; POST=%d PATCH=%d", post, patch)
+	post, put, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	if post != 0 || put != 1 {
+		t.Errorf("proveedor: se esperaba 0 POST / 1 PATCH; POST=%d PATCH=%d", post, put)
 	}
 }
 
@@ -557,7 +558,8 @@ func TestIntegracionReenvioDataCoincide200(t *testing.T) {
 // reasignar ni materializar la operación incompatible.
 func TestIntegracionConflictoFKAscendenteExistente400(t *testing.T) {
 	crud := NuevoCRUDSimulado(t, map[string][]map[string]any{
-		"GET /v1/proveedor": {{"Id": float64(101), "TerceroId": float64(201)}},
+		"GET /v1/proveedor":   {{"Id": float64(101), "TerceroId": float64(201)}},
+		"GET /v1/tercero/201": {{"Id": float64(201), "NombreCompleto": "Ana Pérez"}},
 	})
 	router := routerProveedor(t, crud)
 
@@ -669,15 +671,15 @@ func TestIntegracionConflictoFKAscendenteNoDejaEscriturasParciales(t *testing.T)
 	}
 
 	// Cero escrituras en tercero y en proveedor (GET permitidos).
-	postTercero, patchTercero, _ := peticionesPorMetodo(crud.Capturas(), "tercero")
-	if postTercero != 0 || patchTercero != 0 {
+	postTercero, putTercero, _ := peticionesPorMetodo(crud.Capturas(), "tercero")
+	if postTercero != 0 || putTercero != 0 {
 		t.Errorf("un 400 no debe escribir en tercero; POST=%d PATCH=%d. capturas=%+v",
-			postTercero, patchTercero, crud.Capturas())
+			postTercero, putTercero, crud.Capturas())
 	}
-	postProveedor, patchProveedor, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
-	if postProveedor != 0 || patchProveedor != 0 {
+	postProveedor, putProveedor, _ := peticionesPorMetodo(crud.Capturas(), "proveedor")
+	if postProveedor != 0 || putProveedor != 0 {
 		t.Errorf("un 400 no debe escribir en proveedor; POST=%d PATCH=%d. capturas=%+v",
-			postProveedor, patchProveedor, crud.Capturas())
+			postProveedor, putProveedor, crud.Capturas())
 	}
 }
 

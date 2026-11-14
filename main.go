@@ -21,6 +21,14 @@ func main() {
 
 	// Cargar y validar las relaciones declaradas en config/relaciones_*.yaml.
 	urls := cfg.URLs()
+
+	// Los CRUD de terceros, parámetros y ubicaciones solo admiten lectura desde el
+	// middleware. Cualquier POST, PUT, PATCH o DELETE hacia ellos se rechaza en el
+	// cliente HTTP, antes de salir a la red. Si falta una URL, el arranque aborta.
+	if err := clients.ProtegerSoloLectura(urls["terceros"], urls["parametros"], urls["ubicaciones"]); err != nil {
+		log.Fatalf("no se pudo activar la protección de solo lectura: %v", err)
+	}
+
 	relaciones := config.MustLoadRelaciones("config", urls)
 
 	// Cargar y validar la lista negra global de campos de expansión. Aborta el

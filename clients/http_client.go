@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,7 +24,19 @@ func (c HTTPClient) httpClient() *http.Client {
 		return c.Client
 	}
 
-	return &http.Client{Timeout: 30 * time.Second}
+	return &http.Client{Timeout: 30 * time.Second, CheckRedirect: revisarRedireccion}
+}
+
+// revisarRedireccion impide que una redirección lleve una escritura a un CRUD
+// protegido, y mantiene el límite de 10 redirecciones del cliente por defecto.
+func revisarRedireccion(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("demasiadas redirecciones")
+	}
+	if !escrituraPermitida(req.Method, req.URL.String()) {
+		return ErrEscrituraBloqueada
+	}
+	return nil
 }
 
 func (c HTTPClient) do(
@@ -33,6 +46,10 @@ func (c HTTPClient) do(
 	body any,
 	target any,
 ) (int, http.Header, error) {
+	if !escrituraPermitida(method, url) {
+		return 0, nil, ErrEscrituraBloqueada
+	}
+
 	var requestBody io.Reader
 
 	if body != nil {

@@ -324,6 +324,14 @@ func TestProveedorHandlerEscribir(t *testing.T) {
 			wantBody:   `"Status":"400"`,
 		},
 		{
+			name:       "proveedor inexistente en PATCH 404",
+			metodo:     http.MethodPatch,
+			cuerpo:     `{"Id":999,"TipoProveedor":1}`,
+			err:        services.ErrProveedorNoExiste,
+			wantStatus: 404,
+			wantBody:   `"Status":"404"`,
+		},
+		{
 			name:       "fallo bloqueante 502",
 			metodo:     http.MethodPost,
 			cuerpo:     `{"TerceroId":25,"TipoProveedor":1}`,

@@ -1,0 +1,14 @@
+{
+  "Data": [
+    {
+      "Id": 1
+    },
+    {
+      "Id": 2
+    }
+  ],
+  "Message": "Request successful",
+  "Status": "200",
+  "Success": true,
+  "Total": 2
+}

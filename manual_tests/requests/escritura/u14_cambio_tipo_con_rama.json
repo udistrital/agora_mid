@@ -1,0 +1,10 @@
+{
+  "Id": 1,
+  "TipoProveedor": 2,
+  "ProveedorNatural": {
+    "PaisNacimientoId": 1,
+    "Cargo": "Consultora",
+    "ExperienciaLaboral": 24,
+    "ExperienciaProfesional": 60
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "Data": {
+    "Id": 1,
+    "TipoProveedor": 1,
+    "DescripcionPortafolio": "Servicios de consultoria",
+    "Consentimiento": true,
+    "TerceroId": 101,
+    "Activo": true,
+    "FechaCreacion": "2026-11-13T22:34:48.274409Z",
+    "FechaModificacion": "0001-01-01T00:00:00Z",
+    "UsuarioModificacionId": 0
+  },
+  "Message": "Request successful",
+  "Status": "200",
+  "Success": true
+}

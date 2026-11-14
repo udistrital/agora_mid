@@ -40,6 +40,10 @@ const (
 	// KindTimeout marca un fallo tolerado de escritura causado por un tiempo de
 	// espera agotado en una dependencia remota.
 	KindTimeout = "timeout"
+
+	// KindFKNoAplanable indica que una FK llegó como objeto sin Id utilizable y no se
+	// pudo aplanar a su llave. El campo se entrega sin cambios.
+	KindFKNoAplanable = "fk_no_aplanable"
 )
 
 // KindOrigen identifica el subsistema que emite un tipo de aviso. Distinguir el
@@ -75,6 +79,7 @@ var catalogoKinds = map[string]KindOrigen{
 	KindEliminacionOmitida: KindOrigenEscritura,
 	KindDependencyFailure:  KindOrigenEscritura,
 	KindTimeout:            KindOrigenEscritura,
+	KindFKNoAplanable:      KindOrigenExpansion,
 }
 
 // KindsDeAviso devuelve las constantes de tipo de aviso declaradas, derivadas del
@@ -572,6 +577,15 @@ func (ex *expansor) resolver(
 		if err != nil {
 			return nil, generico, err
 		}
+		registros, sinAplanar := aplanarFKAnidadas(registros)
+		for _, clave := range sinAplanar {
+			ex.agregarAviso(responses.RelationError{
+				Path:    rutaStr,
+				Service: rel.RelatedService,
+				Message: "no se pudo aplanar la FK " + clave + ": el objeto no tiene Id",
+				Kind:    KindFKNoAplanable,
+			})
+		}
 		// Guardar en caché por llave según related_field.
 		for _, k := range lote {
 			ck := ex.claveCache(rel, k)
@@ -662,6 +676,36 @@ func (ex *expansor) agregarAviso(aviso responses.RelationError) {
 	ex.warnings = append(ex.warnings, aviso)
 }
 
+// aplanarFKAnidadas reemplaza, en cada registro devuelto por un CRUD, las FK que
+// llegan como objeto anidado (por ejemplo ProveedorId con el proveedor completo)
+// por el entero de su Id. Así la llave se compara y se entrega igual que una FK
+// plana. Devuelve registros nuevos y no modifica los recibidos. Además devuelve,
+// sin repetir, los nombres de los campos cuyo objeto no tiene Id o lo tiene nulo:
+// esos campos se entregan sin cambios.
+func aplanarFKAnidadas(registros []map[string]any) ([]map[string]any, []string) {
+	salida := make([]map[string]any, 0, len(registros))
+	var sinAplanar []string
+	vistos := make(map[string]struct{})
+	for _, reg := range registros {
+		copia := make(map[string]any, len(reg))
+		for clave, valor := range reg {
+			if anidado, ok := valor.(map[string]any); ok {
+				if id, tieneId := anidado["Id"]; tieneId && id != nil {
+					valor = id
+				} else {
+					if _, ya := vistos[clave]; !ya {
+						vistos[clave] = struct{}{}
+						sinAplanar = append(sinAplanar, clave)
+					}
+				}
+			}
+			copia[clave] = valor
+		}
+		salida = append(salida, copia)
+	}
+	return salida, sinAplanar
+}
+
 // filtrarPorRelatedField devuelve los registros cuyo related_field coincide con
 // la llave local indicada.
 func filtrarPorRelatedField(registros []map[string]any, rel config.RelationConfig, llave string) []map[string]any {
@@ -729,6 +773,12 @@ func aCadena(v any) string {
 	case int64:
 		return fmt.Sprintf("%d", t)
 	case bool:
+		return fmt.Sprintf("%v", t)
+	case map[string]any:
+		// Solución rápida: una FK que llega como objeto (rel fk del CRUD) se compara por su Id.
+		if id, ok := t["Id"]; ok && id != nil {
+			return aCadena(id)
+		}
 		return fmt.Sprintf("%v", t)
 	default:
 		return fmt.Sprintf("%v", t)

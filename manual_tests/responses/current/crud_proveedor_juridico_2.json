@@ -1,0 +1,25 @@
+{
+  "Data": {
+    "Id": 2,
+    "ProcedenciaEmpresaId": 1,
+    "CiudadOrigenId": 0,
+    "PaisOrigenId": 0,
+    "CodigoPostal": "110111",
+    "TipoConformacionId": 1,
+    "ExclusividadProducto": false,
+    "RegimenContributivo": 1,
+    "Pyme": true,
+    "RegistroMercantil": true,
+    "SujetoRetencion": true,
+    "AgenteRetenedor": false,
+    "ResponsableIca": true,
+    "ResponsableIva": true,
+    "Activo": true,
+    "FechaCreacion": "2026-11-13T22:34:48.274409Z",
+    "FechaModificacion": "0001-01-01T00:00:00Z",
+    "UsuarioModificacionId": 0
+  },
+  "Message": "Request successful",
+  "Status": "200",
+  "Success": true
+}

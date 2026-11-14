@@ -1,0 +1,53 @@
+{
+  "Data": [
+    {
+      "Id": 1,
+      "TipoCuentaId": 1,
+      "NumeroCuenta": "123456789",
+      "EntidadBancariaId": 7,
+      "ContactoId": {
+        "Id": 1,
+        "NombreContacto": "Ana Perez",
+        "ValorEspecifico": "ana.perez@example.com",
+        "ProveedorId": {
+          "Id": 1,
+          "TipoProveedor": 1,
+          "DescripcionPortafolio": "Servicios de consultoria",
+          "Consentimiento": true,
+          "TerceroId": 101,
+          "Activo": true,
+          "FechaCreacion": "2026-11-13T22:34:48.274409Z",
+          "FechaModificacion": "0001-01-01T00:00:00Z",
+          "UsuarioModificacionId": 0
+        },
+        "TipoCanalContactoId": 1,
+        "Proposito": "Notificaciones",
+        "Extension": "",
+        "Activo": true,
+        "FechaCreacion": "2026-11-13T22:34:48.274409Z",
+        "FechaModificacion": "0001-01-01T00:00:00Z",
+        "UsuarioModificacionId": 0
+      },
+      "MontoCapitalAutorizado": 0,
+      "ProveedorId": {
+        "Id": 1,
+        "TipoProveedor": 1,
+        "DescripcionPortafolio": "Servicios de consultoria",
+        "Consentimiento": true,
+        "TerceroId": 101,
+        "Activo": true,
+        "FechaCreacion": "2026-11-13T22:34:48.274409Z",
+        "FechaModificacion": "0001-01-01T00:00:00Z",
+        "UsuarioModificacionId": 0
+      },
+      "Activo": true,
+      "FechaCreacion": "2026-11-13T22:34:48.274409Z",
+      "FechaModificacion": "0001-01-01T00:00:00Z",
+      "UsuarioModificacionId": 0
+    }
+  ],
+  "Message": "Request successful",
+  "Status": "200",
+  "Success": true,
+  "Total": 1
+}

@@ -1,0 +1,11 @@
+{
+  "TipoProveedor": 1,
+  "Contacto": [
+    {
+      "NombreContacto": "Carlos Lopez",
+      "ValorEspecifico": "carlos.lopez@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    }
+  ]
+}

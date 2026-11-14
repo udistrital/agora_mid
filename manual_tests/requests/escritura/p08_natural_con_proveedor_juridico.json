@@ -1,0 +1,16 @@
+{
+  "TipoProveedor": 1,
+  "ProveedorJuridico": {
+    "ProcedenciaEmpresaId": 1,
+    "TipoConformacionId": 1,
+    "ExclusividadProducto": false,
+    "RegimenContributivo": 1,
+    "Pyme": true,
+    "RegistroMercantil": true,
+    "SujetoRetencion": true,
+    "AgenteRetenedor": false,
+    "ResponsableIca": true,
+    "ResponsableIva": true,
+    "CodigoPostal": "110111"
+  }
+}

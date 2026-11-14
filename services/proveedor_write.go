@@ -2,12 +2,22 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/udistrital/agora_mid/clients"
 	"github.com/udistrital/agora_mid/config"
 	"github.com/udistrital/agora_mid/helper"
 )
+
+// ErrProveedorNoExiste indica que un PATCH referencia por Id un proveedor que el CRUD
+// no tiene. El controlador lo mapea a 404 Not Found. Ningún registro se escribe.
+var ErrProveedorNoExiste = errors.New("el proveedor indicado por Id no existe")
 
 // ErrRamaDetalleIncoherente indica que el cuerpo de escritura declara una rama de
 // detalle (ProveedorNatural/ProveedorJuridico) que no corresponde al tipo de
@@ -67,9 +77,11 @@ func NewProveedorWriteService(
 // delega la cascada en el motor de escritura.
 //
 // Devuelve ErrRamaDetalleIncoherente o *helper.ErrorEscritura (ambos 400) ante un
-// cuerpo inválido, un error fatal de escritura (ver helper.EsErrorFatalEscritura)
+// cuerpo inválido, ErrProveedorNoExiste (404) si un PATCH referencia por Id un
+// proveedor inexistente, un error fatal de escritura (ver helper.EsErrorFatalEscritura)
 // cuando la política de relación es fail, o el WriteResult con los identificadores
-// materializados en el caso tolerante.
+// materializados en el caso tolerante. Ante un PATCH con Id, ningún registro se
+// escribe si la verificación de existencia falla.
 func (s ProveedorWriteService) EscribirProveedor(
 	ctx context.Context,
 	body map[string]any,
@@ -94,8 +106,27 @@ func (s ProveedorWriteService) EscribirProveedor(
 		return helper.WriteResult{}, err
 	}
 
+	// Un PATCH debe identificar el proveedor existente por Id o por su clave natural
+	// TerceroId. Se verifica antes de cualquier escritura.
+	if verb == helper.WriteVerbUpdate {
+		if err := s.verificarIdentidadPatch(ctx, body); err != nil {
+			return helper.WriteResult{}, err
+		}
+	}
+
 	// Podar del árbol la rama de detalle que no corresponde al tipo de registro,
 	// igual que en lectura; la rama ausente del cuerpo tampoco se recorre.
+	// Un alta con TerceroId suelto (sin objeto Tercero) debe referir un tercero existente en
+	// el CRUD de terceros. Con objeto Tercero, el motor crea o actualiza el tercero en la misma
+	// escritura y propaga su Id.
+	if verb == helper.WriteVerbCreate && body["Tercero"] == nil {
+		if terceroID := idEntero(body["TerceroId"]); terceroID > 0 {
+			if err := s.verificarTerceroExistente(ctx, terceroID); err != nil {
+				return helper.WriteResult{}, err
+			}
+		}
+	}
+
 	cfg := s.configParaTipo(tipoRegistro)
 
 	// La transición de estado se compone antes que la propagación de autor, para que
@@ -152,4 +183,132 @@ func (s ProveedorWriteService) configParaTipo(tipoRegistro int) config.ServiceCo
 	}
 	cfg.Relations = relaciones
 	return cfg
+}
+
+// motivoTerceroInexistente es el motivo del 400 cuando un alta referencia un TerceroId
+// que el CRUD de terceros no tiene. No expone valores del CRUD.
+const motivoTerceroInexistente = "el TerceroId no existe en el CRUD de terceros"
+
+// verificarTerceroExistente consulta por GET el tercero con el TerceroId dado en el CRUD
+// de terceros. Devuelve *helper.ErrorEscritura (400) si el CRUD responde 404 y un error
+// distinto ante cualquier otro fallo de lectura. No escribe nada.
+func (s ProveedorWriteService) verificarTerceroExistente(ctx context.Context, terceroID int) error {
+	base, ok := s.URLs["terceros"]
+	if !ok || strings.TrimSpace(base) == "" {
+		return fmt.Errorf("verificando el tercero %d: no hay URL base del CRUD de terceros", terceroID)
+	}
+	destino := fmt.Sprintf("%s/v1/tercero/%d", strings.TrimRight(strings.TrimSpace(base), "/"), terceroID)
+
+	var raw json.RawMessage
+	status, err := s.Client.Get(ctx, destino, &raw)
+	if status == http.StatusNotFound {
+		return &helper.ErrorEscritura{Path: "TerceroId", Motivo: motivoTerceroInexistente}
+	}
+	if err != nil {
+		return fmt.Errorf("verificando el tercero %d: %w", terceroID, err)
+	}
+	return nil
+}
+
+// motivoPatchSinIdentidad es el motivo del 400 cuando un PATCH no trae Id ni TerceroId
+// válido. No expone valores del cuerpo.
+const motivoPatchSinIdentidad = "un PATCH requiere Id o TerceroId para identificar el proveedor"
+
+// verificarIdentidadPatch exige que un PATCH identifique un proveedor existente. Con
+// Id, el proveedor debe existir por Id; sin Id, TerceroId (clave natural) debe
+// devolver un proveedor. Sin Id ni TerceroId mayor que cero devuelve *helper.ErrorEscritura
+// (400). Si el Id o la clave natural no devuelven ningún proveedor, devuelve
+// ErrProveedorNoExiste (404). No escribe nada.
+func (s ProveedorWriteService) verificarIdentidadPatch(ctx context.Context, body map[string]any) error {
+	if id := idEntero(body["Id"]); id > 0 {
+		registro, err := s.verificarProveedorExistente(ctx, id)
+		if err != nil {
+			return err
+		}
+		// Un TerceroId distinto del registro reasignaría el proveedor. Un TerceroId
+		// ausente, 0 o null no es conflicto, y un registro sin tercero no bloquea.
+		terceroBody := idEntero(body["TerceroId"])
+		terceroRegistro := idEntero(registro["TerceroId"])
+		if terceroBody > 0 && terceroRegistro > 0 && terceroBody != terceroRegistro {
+			return &helper.ErrorEscritura{Path: "TerceroId", Motivo: motivoTerceroEnConflicto}
+		}
+		return nil
+	}
+	terceroID := idEntero(body["TerceroId"])
+	if terceroID <= 0 {
+		return &helper.ErrorEscritura{Path: "(raíz)", Motivo: motivoPatchSinIdentidad}
+	}
+	return s.verificarProveedorPorTercero(ctx, terceroID)
+}
+
+// motivoTerceroEnConflicto es el motivo del 400 cuando un PATCH reenvía un TerceroId
+// distinto del que tiene el proveedor existente. No expone valores del CRUD.
+const motivoTerceroEnConflicto = "el TerceroId no coincide con el del proveedor existente; no se reasigna"
+
+// verificarProveedorExistente consulta por GET el proveedor con el Id dado en el CRUD
+// gestion_personas_crud y devuelve su registro. Devuelve ErrProveedorNoExiste si el CRUD
+// responde 404. Ante cualquier otro fallo de lectura devuelve un error distinto.
+func (s ProveedorWriteService) verificarProveedorExistente(ctx context.Context, id int) (map[string]any, error) {
+	base, err := s.baseProveedor()
+	if err != nil {
+		return nil, err
+	}
+	destino := fmt.Sprintf("%s/v1/proveedor/%d", base, id)
+
+	var raw json.RawMessage
+	status, err := s.Client.Get(ctx, destino, &raw)
+	if status == http.StatusNotFound {
+		return nil, ErrProveedorNoExiste
+	}
+	if err != nil {
+		return nil, fmt.Errorf("verificando el proveedor %d: %w", id, err)
+	}
+	registro, err := decodeAPIRecord(raw)
+	if err != nil {
+		return nil, fmt.Errorf("verificando el proveedor %d: respuesta inválida: %w", id, err)
+	}
+	return registro, nil
+}
+
+// verificarProveedorPorTercero busca en el CRUD gestion_personas_crud un proveedor activo
+// con el TerceroId dado, con el mismo filtro que usa el motor en su clave natural. Devuelve
+// ErrProveedorNoExiste si la lista no tiene coincidencias.
+func (s ProveedorWriteService) verificarProveedorPorTercero(ctx context.Context, terceroID int) error {
+	base, err := s.baseProveedor()
+	if err != nil {
+		return err
+	}
+	consulta, ok := queryPorTerceroId([]string{strconv.Itoa(terceroID)})
+	if !ok {
+		return fmt.Errorf("verificando el proveedor por TerceroId %d: consulta inválida", terceroID)
+	}
+	params := url.Values{}
+	params.Set("query", consulta)
+	params.Set("limit", "1")
+	params.Set("offset", "0")
+	destino := base + "/v1/proveedor?" + params.Encode()
+
+	var raw json.RawMessage
+	if _, err := s.Client.Get(ctx, destino, &raw); err != nil {
+		return fmt.Errorf("verificando el proveedor por TerceroId %d: %w", terceroID, err)
+	}
+	registros, err := decodeAPIList[map[string]any](raw)
+	if err != nil {
+		return fmt.Errorf("verificando el proveedor por TerceroId %d: respuesta inválida: %w", terceroID, err)
+	}
+	for _, reg := range registros {
+		if idEntero(reg["Id"]) > 0 {
+			return nil
+		}
+	}
+	return ErrProveedorNoExiste
+}
+
+// baseProveedor devuelve la URL base del CRUD gestion_personas_crud sin barra final.
+func (s ProveedorWriteService) baseProveedor() (string, error) {
+	base, ok := s.URLs["gestion_personas_crud"]
+	if !ok || strings.TrimSpace(base) == "" {
+		return "", fmt.Errorf("verificando el proveedor: no hay URL base del CRUD gestion_personas")
+	}
+	return strings.TrimRight(strings.TrimSpace(base), "/"), nil
 }

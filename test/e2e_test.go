@@ -79,17 +79,18 @@ func TestE2EProveedorCreacionYActualizacion(t *testing.T) {
 
 	// Conteos globales a lo largo de las dos fases: una creación y una
 	// actualización por cada entidad del núcleo con Id estable.
-	postProv, patchProv, _ := peticionesPorMetodo(capturas, "proveedor")
-	if postProv != 1 || patchProv != 1 {
-		t.Errorf("proveedor: se esperaba 1 POST (crear) y 1 PATCH (actualizar); POST=%d PATCH=%d", postProv, patchProv)
+	postProv, putProv, _ := peticionesPorMetodo(capturas, "proveedor")
+	if postProv != 1 || putProv != 1 {
+		t.Errorf("proveedor: se esperaba 1 POST (crear) y 1 PUT (actualizar); POST=%d PUT=%d", postProv, putProv)
 	}
-	postTercero, patchTercero, _ := peticionesPorMetodo(capturas, "tercero")
-	if postTercero != 1 || patchTercero != 1 {
-		t.Errorf("tercero: se esperaba 1 POST y 1 PATCH; POST=%d PATCH=%d", postTercero, patchTercero)
+	postTercero, putTercero, _ := peticionesPorMetodo(capturas, "tercero")
+	// El tercero no cambia entre creación y actualización: no se reescribe.
+	if postTercero != 1 || putTercero != 0 {
+		t.Errorf("tercero: se esperaba 1 POST y 0 PUT (sin cambios); POST=%d PUT=%d", postTercero, putTercero)
 	}
-	postDI, patchDI, _ := peticionesPorMetodo(capturas, "datos_identificacion")
-	if postDI != 1 || patchDI != 1 {
-		t.Errorf("datos_identificacion: se esperaba 1 POST y 1 PATCH; POST=%d PATCH=%d", postDI, patchDI)
+	postDI, putDI, _ := peticionesPorMetodo(capturas, "datos_identificacion")
+	if postDI != 1 || putDI != 1 {
+		t.Errorf("datos_identificacion: se esperaba 1 POST y 1 PUT; POST=%d PUT=%d", postDI, putDI)
 	}
 }
 

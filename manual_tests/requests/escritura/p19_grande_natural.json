@@ -1,0 +1,43 @@
+{
+  "TipoProveedor": 1,
+  "ProveedorNatural": {
+    "PaisNacimientoId": 1,
+    "Cargo": "Consultora",
+    "ExperienciaLaboral": 24,
+    "ExperienciaProfesional": 60
+  },
+  "Contacto": [
+    {
+      "NombreContacto": "Ana Uno",
+      "ValorEspecifico": "ana.uno@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    },
+    {
+      "NombreContacto": "Ana Dos",
+      "ValorEspecifico": "ana.dos@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    },
+    {
+      "NombreContacto": "Ana Tres",
+      "ValorEspecifico": "ana.tres@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    }
+  ],
+  "CuentaBancaria": [
+    {
+      "TipoCuentaId": 1,
+      "NumeroCuenta": "987654321",
+      "EntidadBancariaId": 7,
+      "MontoCapitalAutorizado": 0
+    },
+    {
+      "TipoCuentaId": 1,
+      "NumeroCuenta": "111222333",
+      "EntidadBancariaId": 7,
+      "MontoCapitalAutorizado": 0
+    }
+  ]
+}

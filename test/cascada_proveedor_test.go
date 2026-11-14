@@ -45,9 +45,9 @@ func TestIntegracionCreacionJuridicoMaterializaSoloRamaJuridica(t *testing.T) {
 	if post, _, _ := peticionesPorMetodo(capturas, "proveedor_natural"); post != 0 {
 		t.Errorf("no debe crear proveedor_natural para un registro jurídico; POST=%d", post)
 	}
-	post, patch, _ := peticionesPorMetodo(capturas, "proveedor_juridico")
-	if post+patch != 1 {
-		t.Errorf("se esperaba 1 escritura a proveedor_juridico; POST=%d PATCH=%d. capturas=%+v", post, patch, capturas)
+	post, put, _ := peticionesPorMetodo(capturas, "proveedor_juridico")
+	if post+put != 1 {
+		t.Errorf("se esperaba 1 escritura a proveedor_juridico; POST=%d PATCH=%d. capturas=%+v", post, put, capturas)
 	}
 }
 
@@ -86,7 +86,7 @@ func TestIntegracionCreacionCuentaBancariaReferenciaProveedorPorFK(t *testing.T)
 	if id, _ := cuenta["Id"].(float64); int(id) != 701 {
 		t.Errorf("CuentaBancaria debe materializar su propio Id=701; cuenta=%+v", cuenta)
 	}
-	if prov, _ := cuenta["ProveedorId"].(float64); int(prov) != 101 {
+	if prov, _ := fkEntero(cuenta["ProveedorId"]); prov != 101 {
 		t.Errorf("CuentaBancaria debe referenciar al proveedor por ProveedorId=101 numérico; cuenta=%+v", cuenta)
 	}
 
@@ -99,7 +99,7 @@ func TestIntegracionCreacionCuentaBancariaReferenciaProveedorPorFK(t *testing.T)
 	if enviada == nil {
 		t.Fatalf("no se recibió el POST de cuenta_bancaria; capturas=%+v", crud.Capturas())
 	}
-	if prov, _ := enviada["ProveedorId"].(float64); int(prov) != 101 {
+	if prov, _ := fkEntero(enviada["ProveedorId"]); prov != 101 {
 		t.Errorf("el POST de cuenta_bancaria debe enviar ProveedorId=101; cuerpo=%+v", enviada)
 	}
 	if numero, _ := enviada["NumeroCuenta"].(string); numero != "001-123456" {
@@ -275,7 +275,7 @@ func TestIntegracionFKPlanasNoCreanNiActualizanReferenciadas(t *testing.T) {
 				representante = true
 			}
 		case "cuenta_bancaria":
-			if v, _ := c.Cuerpo["ContactoId"].(float64); int(v) == 77 {
+			if v, _ := fkEntero(c.Cuerpo["ContactoId"]); v == 77 {
 				cuentaConContacto = true
 			}
 		case "contacto", "tercero":
@@ -494,4 +494,18 @@ func TestIntegracionAutoriaPropiaDeAnidadoPrevaleceYTercerosNoRecibe(t *testing.
 			}
 		}
 	})
+}
+
+// fkEntero lee una FK enviada como entero o como objeto {"Id": n} (forma que el CRUD
+// de gestion_personas exige en contacto y cuenta_bancaria).
+func fkEntero(v any) (int, bool) {
+	switch t := v.(type) {
+	case float64:
+		return int(t), true
+	case map[string]any:
+		if id, ok := t["Id"].(float64); ok {
+			return int(id), true
+		}
+	}
+	return 0, false
 }

@@ -1,0 +1,11 @@
+{
+  "TipoProveedor": 1,
+  "CuentaBancaria": [
+    {
+      "TipoCuentaId": 1,
+      "NumeroCuenta": "987654321",
+      "EntidadBancariaId": 7,
+      "MontoCapitalAutorizado": 0
+    }
+  ]
+}

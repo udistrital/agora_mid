@@ -1,0 +1,14 @@
+{
+  "Id": 1,
+  "TipoProveedor": 1,
+  "UsuarioModificacionId": 9,
+  "Contacto": [
+    {
+      "Id": 1,
+      "NombreContacto": "Ana Perez",
+      "ValorEspecifico": "ana.perez@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    }
+  ]
+}

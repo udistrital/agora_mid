@@ -1,0 +1,1 @@
+{"Success":true,"Status":"200","Message":"Proveedor registrado correctamente","Data":{"CuentaBancaria":[{"EntidadBancariaId":7,"Id":2,"MontoCapitalAutorizado":0,"NumeroCuenta":"987654321","ProveedorId":9,"TipoCuentaId":1}],"Id":9,"TipoProveedor":1}}

@@ -100,6 +100,8 @@ func servicioWritePrueba(urls config.ServiceURLs, client clients.HTTPClient) Pro
 		Config:              cfgProveedorWritePrueba(),
 		Registry:            registroWriteNucleo(client, urls),
 		TipoRegistroNatural: tipoRegistroNaturalPrueba,
+		Client:              client,
+		URLs:                urls,
 	}
 }
 
@@ -262,10 +264,13 @@ func TestEscribirProveedorRamaIncoherente(t *testing.T) {
 func TestEscribirProveedorReenvioFKInmutableCoincide(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
-		// El tercero existente conserva su Id 20 al actualizarse por PATCH.
-		"PATCH /v1/tercero/20":           `{"Data":{"Id":20}}`,
-		"PATCH /v1/proveedor/10":         `{"Data":{"Id":10}}`,
-		"PATCH /v1/proveedor_natural/10": `{"Data":{"Id":10}}`,
+		// El tercero existente conserva su Id 20 al actualizarse por PUT.
+		"GET /v1/tercero/20":           `{"Data":{"Id":20,"NombreCompleto":"Ana"}}`,
+		"PUT /v1/tercero/20":           `{"Data":{"Id":20}}`,
+		"GET /v1/proveedor/10":         `{"Data":{"Id":10,"TerceroId":20,"TipoProveedor":1}}`,
+		"PUT /v1/proveedor/10":         `{"Data":{"Id":10}}`,
+		"GET /v1/proveedor_natural/10": `{"Data":{"Id":10,"PerfilDeclarado":3}}`,
+		"PUT /v1/proveedor_natural/10": `{"Data":{"Id":10}}`,
 	}, &capturas)
 	defer server.Close()
 
@@ -308,7 +313,8 @@ func TestEscribirProveedorReenvioFKInmutableCoincide(t *testing.T) {
 func TestEscribirProveedorReenvioFKInmutableDifiereExistente(t *testing.T) {
 	var capturas []peticionCapturada
 	server := crudSimulado(t, map[string]string{
-		"PATCH /v1/tercero/20": `{"Data":{"Id":20}}`,
+		"GET /v1/tercero/20": `{"Data":{"Id":20,"NombreCompleto":"Ana"}}`,
+		"PUT /v1/tercero/20": `{"Data":{"Id":20}}`,
 	}, &capturas)
 	defer server.Close()
 
@@ -332,9 +338,9 @@ func TestEscribirProveedorReenvioFKInmutableDifiereExistente(t *testing.T) {
 	if !errors.As(err, &ee) {
 		t.Fatalf("se esperaba *helper.ErrorEscritura por conflicto de FK ascendente en entidad existente; err=%v", err)
 	}
-	// No debe materializarse el proveedor en conflicto (ni POST ni PATCH).
+	// No debe materializarse el proveedor en conflicto (ni POST ni PUT).
 	for _, c := range capturas {
-		if (c.metodo == http.MethodPost || c.metodo == http.MethodPatch) && c.path == "/v1/proveedor/10" {
+		if (c.metodo == http.MethodPost || c.metodo == http.MethodPut) && c.path == "/v1/proveedor/10" {
 			t.Errorf("no debe materializarse el proveedor en conflicto; capturas=%+v", capturas)
 		}
 		if c.metodo == http.MethodPost && c.path == "/v1/proveedor/" {

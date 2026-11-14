@@ -1,0 +1,12 @@
+{
+  "Id": 1,
+  "TipoProveedor": 1,
+  "Contacto": [
+    {
+      "NombreContacto": "Repetido",
+      "ValorEspecifico": "repetido@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    }
+  ]
+}

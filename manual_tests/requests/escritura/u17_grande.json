@@ -1,0 +1,32 @@
+{
+  "Id": 1,
+  "TipoProveedor": 1,
+  "ProveedorNatural": {
+    "PaisNacimientoId": 1,
+    "Cargo": "Consultora senior"
+  },
+  "Contacto": [
+    {
+      "Id": 1,
+      "NombreContacto": "Ana Perez",
+      "ValorEspecifico": "ana.perez@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    },
+    {
+      "NombreContacto": "Ana Nueva",
+      "ValorEspecifico": "ana.nueva@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    }
+  ],
+  "CuentaBancaria": [
+    {
+      "Id": 1,
+      "TipoCuentaId": 1,
+      "NumeroCuenta": "123456789",
+      "EntidadBancariaId": 7,
+      "MontoCapitalAutorizado": 100
+    }
+  ]
+}
