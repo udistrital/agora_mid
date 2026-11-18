@@ -1,6 +1,6 @@
 # F04: la lista negra global no oculta los campos de auditoría
 
-Estado: en_decision. Pendiente la aprobación del cambio de definición del modelo conocido en `openspec/specs/nested-object-expansion`.
+Estado: aceptado. Pendiente la aprobación del cambio de definición del modelo conocido en `openspec/specs/nested-object-expansion`.
 Solución: aplicada_sin_commit. Ver `## Cambio aplicado`.
 Gravedad: media. Clasificación propuesta, ver utils/README.md.
 
@@ -45,3 +45,17 @@ Riesgo pendiente: el escenario "Campo vetado se suprime pese a allowed_fields" s
 > #### Scenario: Campo no legible vetado se suprime
 > - **WHEN** un campo está declarado con `readable: false` en el catálogo de objetos de una `related_table` y figura en la lista negra para su `related_api` y `related_table`
 > - **THEN** el campo se omite de la entidad expandida
+
+## Verificación en vivo con campos desconocidos como advertencia (17/11/2026, 20:4x)
+
+Revisión del código antes de cambiar nada: `config/blacklist.go`, `ValidarBlacklist`, ya registra como advertencia (`log.Printf`, sin error) cada campo de `ANY/ANY` que el modelo no declara. Solo son fallo las claves `related_api` y `related_table` inexistentes, y la entrada `ANY/ANY/ANY`. No hay cambio de código nuevo para este punto. La solución sucia es la que ya está aplicada sin commit (ver `## Cambio aplicado`).
+
+Evidencia del MID en ejecución (PID 204469, binario de las 20:3x):
+- El log del arranque tiene 4 líneas `advertencia lista negra` (`FechaCreacion`, `FechaModificacion`, `Activo`, `UsuarioModificacionId`), y ninguna línea `Fatal`, `fatal` o `panic`. El arranque no falla.
+- `POST /v1/proveedor/consulta {"id":1}` (lectura) responde 206. En la respuesta no aparece `FechaCreacion`, `FechaModificacion` ni `UsuarioModificacionId` en ningún nivel. Solo aparece `Activo` en la raíz del `Data`, que es un campo propio de `proveedor`, no un campo anidado de `Tercero` o `ProveedorNatural`.
+- La prueba `TestIntegracionConsultaSinFieldsNoEntregaAuditoria` (`test/`) pasa.
+
+Pendiente: la decisión de fondo sigue abierta (opción A o B, ver `## Propuesta`). La advertencia es provisional. Cuando se decida la definición del modelo conocido, la advertencia debería desaparecer.
+
+## Decisión
+Aceptado por el usuario (17/11/2026, 20:4x). Los campos de auditoría no se entregan en la respuesta, y los campos desconocidos de la lista negra se registran como advertencia sin fallar el arranque. La definición del modelo conocido en `nested-object-expansion` queda pendiente como decisión aparte (opción A o B de `## Propuesta`).

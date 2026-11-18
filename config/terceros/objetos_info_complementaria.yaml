@@ -67,4 +67,16 @@ campos:
       writable: false
       immutable: false
       required: false
-referencias: []
+referencias:
+    - objeto: GrupoInfoComplementaria
+      direction: local_to_related
+      cardinality: one
+      local_field: GrupoInfoComplementariaId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: GrupoInfoComplementaria

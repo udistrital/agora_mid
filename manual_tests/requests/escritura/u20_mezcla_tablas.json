@@ -1,0 +1,27 @@
+{
+  "Id": 1,
+  "TipoProveedor": 1,
+  "DescripcionPortafolio": "Mezcla U20",
+  "ProveedorNatural": {
+    "PaisNacimientoId": 1,
+    "Cargo": "Coordinadora U20"
+  },
+  "Contacto": [
+    {
+      "Id": 1,
+      "ValorEspecifico": "ana.u20@example.com"
+    },
+    {
+      "NombreContacto": "U20 nuevo",
+      "ValorEspecifico": "u20-nuevo@example.com",
+      "Proposito": "Notificaciones",
+      "TipoCanalContactoId": 1
+    }
+  ],
+  "CuentaBancaria": [
+    {
+      "Id": 1,
+      "NumeroCuenta": "U20-987654321"
+    }
+  ]
+}

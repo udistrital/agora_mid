@@ -88,6 +88,7 @@ El contrato de `API.md` difiere de la configuración. La configuración gana por
 | U17 | `u17_grande.json`: `Id` 1 con `ProveedorNatural`, un contacto update, uno nuevo, y `CuentaBancaria` update | 200 | +1 contacto, +0 proveedor, actualizaciones aplicadas | Carga mayor en PATCH. |
 | U18 | `u18_autoria.json`: `Id` 1 con `UsuarioModificacionId` 9 | 200 | `usuario_modificacion_id` 9 en root y en contactos | Propagación en PATCH. |
 | U19 | `u19_proveedor2_juridico.json`: `Id` 2 con `ProveedorJuridico` y un campo | 200 | `proveedor_juridico` actualizado | PATCH de rama jurídica. |
+| U20 | `u20_mezcla_tablas.json`: `Id` 1 con `DescripcionPortafolio`, `ProveedorNatural.Cargo`, un contacto update (`Id` 1, solo `ValorEspecifico`), un contacto nuevo y `CuentaBancaria` update (`Id` 1, solo `NumeroCuenta`) | 200 | `proveedor.descripcion_portafolio` = "Mezcla U20"; `proveedor_natural.cargo` = "Coordinadora U20" (pais sin cambio); `contacto` 1 `valor_especifico` = "ana.u20@example.com" (nombre y proposito sin cambio); +1 `contacto` con `valor_especifico` "u20-nuevo@example.com" y `proveedor_id` 1; `cuenta_bancaria` 1 `numero_cuenta` = "U20-987654321" (demás campos sin cambio); `tercero_id` 101 sin cambio; sin filas nuevas en `proveedor`, `proveedor_natural`, `proveedor_juridico` ni `cuenta_bancaria` | Mezcla de cuatro tablas en una sola petición. Los campos no enviados conservan su valor (U10). |
 
 ## Arreglos rápidos
 

@@ -82,6 +82,7 @@ Estado:
 | `en_decision` | Requiere una decisión del dueño antes de avanzar. |
 | `resuelto` | Corregido y verificado. Requiere `## Cambio aplicado`. |
 | `aceptado` | Se decidió mantener el comportamiento. Requiere `## Decisión`. |
+| `cerrado_sin_solucion` | Se cierra sin corrección en este repositorio. La justificación va en `## Decisión`. Requiere `## Decisión`. |
 
 Solución:
 

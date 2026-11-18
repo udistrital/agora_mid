@@ -74,4 +74,16 @@ campos:
       writable: true
       immutable: false
       required: false
-referencias: []
+referencias:
+    - objeto: TipoParametro
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoParametroId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoParametro

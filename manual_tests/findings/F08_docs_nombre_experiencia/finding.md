@@ -1,6 +1,6 @@
 # F08: API.md usa nombres de campo que el CRUD no tiene
 
-Estado: abierto. Documentación.
+Estado: aceptado. Documentación.
 Solución: propuesta. Ver `## Propuesta`.
 Gravedad: baja. Clasificación propuesta, ver utils/README.md.
 
@@ -9,3 +9,6 @@ Gravedad: baja. Clasificación propuesta, ver utils/README.md.
 
 ## Propuesta
 Cambiar esos nombres en `API.md` y revisar `swagger/swagger.yml`. Se puede hacer junto con F18.
+
+## Decisión
+Aprobado por el usuario (17/11/2026, 20:20). `API.md` debe usar `ExperienciaLaboral` y `ExperienciaProfesional`, los nombres de la configuración y del CRUD. El texto de `API.md` se aplica por separado, con aprobación del texto final.

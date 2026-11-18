@@ -1,6 +1,6 @@
 # F15: fallan las relaciones a `lugar`
 
-Estado: abierto. Causa original (14/11, 15:50) obsoleta: el servicio de ubicaciones responde desde la URL actual de `.env` (ver `## Verificación en vivo (14/11/2026, 16:40)`).
+Estado: resuelto. Causa original (14/11, 15:50) obsoleta: el servicio de ubicaciones responde desde la URL actual de `.env` (ver `## Verificación en vivo (14/11/2026, 16:40)` y `## Cambio aplicado`).
 Solución: ninguna. Sin corrección desde el MID. Ver `## Propuesta`.
 Gravedad: media. Clasificación propuesta, ver utils/README.md.
 
@@ -27,3 +27,11 @@ La URL de `AGORA_MID_UBICACIONES_CRUD_URL` cambió después de la causa original
 - `Data.Tercero.DatosIdentificacion[0].CiudadExpedicion` sigue como escalar (96), y `Data.Tercero.LugarOrigen` es 0. No se revisó si el proveedor de prueba tiene esos datos cargados.
 
 Conclusión: la falla por conexión rechazada ya no ocurre. Queda abierto solo porque el hallazgo depende del servicio externo. Los avisos `depth` que aún aparecen pertenecen a F14, no a este hallazgo.
+
+## Cambio aplicado
+
+Sin cambio en el repositorio. La URL de `AGORA_MID_UBICACIONES_CRUD_URL` cambió en el ambiente después de la causa original. La corrección no tocó código del MID.
+
+**Archivos modificados:** ninguno del repositorio.
+
+**Verificación:** `POST /v1/proveedor/consulta {"id":1}` (17/11/2026, 19:21) no devuelve avisos `kind: relation`. `Data.PaisNacimiento` viene expandido. Los avisos `depth` restantes pertenecen a F14.

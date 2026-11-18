@@ -1030,3 +1030,154 @@ func TestExpandIdOmitidoSiNoEstaEnFields(t *testing.T) {
 		t.Errorf("la omisión del Id no debe emitir aviso; avisos: %+v", out.Warnings)
 	}
 }
+
+// Una reducción de profundidad que no corta ningún hijo no emite aviso depth.
+func TestExpandSinAvisoDepthSiLaReduccionNoCortaHijos(t *testing.T) {
+	// Tercero.depth=2 con MaxDepth=3: la rama llega a InfoComplementariaTercero con profundidad 1.
+	rels := relacionesPrueba()
+	rels[0].Depth = 2
+	res := &resolverFake{registros: []map[string]any{{"Id": float64(7)}}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 3, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rels[0]},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if contieneAviso(out.Warnings, KindDepth) {
+		t.Errorf("no debe haber aviso depth si ningún hijo queda cortado; avisos: %+v", out.Warnings)
+	}
+}
+
+// El límite de profundidad que corta hijos existentes emite aviso depth.
+func TestExpandAvisoDepthSiElLimiteCortaHijos(t *testing.T) {
+	// Tercero.depth=5 con MaxDepth=1: InfoComplementariaTercero tiene datos y queda fuera del límite.
+	rels := relacionesPrueba()
+	rels[0].Depth = 5
+	res := &resolverFake{registros: []map[string]any{{"Id": float64(7)}}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rels[0]},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if !contieneAviso(out.Warnings, KindDepth) {
+		t.Errorf("se esperaba aviso depth al cortar hijos por el límite; avisos: %+v", out.Warnings)
+	}
+}
+
+// Una relación sin hijos configurados no emite aviso depth aunque su profundidad sea menor.
+func TestExpandSinAvisoDepthSiLaRelacionNoTieneHijos(t *testing.T) {
+	rels := relacionesPrueba()
+	rels[0].Depth = 1
+	rels[0].NestedRelations = nil
+	res := &resolverFake{registros: []map[string]any{{"Id": float64(7)}}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 3, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rels[0]},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if contieneAviso(out.Warnings, KindDepth) {
+		t.Errorf("no debe haber aviso depth sin hijos configurados; avisos: %+v", out.Warnings)
+	}
+}
+
+// Sin registros que expandir, el corte por límite no emite aviso depth.
+func TestExpandSinAvisoDepthSinRegistros(t *testing.T) {
+	rels := relacionesPrueba()
+	rels[0].Depth = 5
+	res := &resolverFake{registros: []map[string]any{}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rels[0]},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if contieneAviso(out.Warnings, KindDepth) {
+		t.Errorf("no debe haber aviso depth sin registros que cortar; avisos: %+v", out.Warnings)
+	}
+}
+
+// Un hijo pedido por la selección y cortado por el límite emite aviso depth.
+func TestExpandAvisoDepthSiLaSeleccionPideElHijoCortado(t *testing.T) {
+	rels := relacionesPrueba()
+	rels[0].Depth = 5
+	res := &resolverFake{registros: []map[string]any{{"Id": float64(7), "Descripcion": "x"}}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rels[0]},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{
+		Fields: []string{"Tercero.InfoComplementariaTercero.Descripcion"},
+	})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	if !contieneAviso(out.Warnings, KindDepth) {
+		t.Errorf("se esperaba aviso depth para el hijo pedido y cortado; avisos: %+v", out.Warnings)
+	}
+}
+
+// El aviso depth nombra la relación hija cortada, con su ruta completa.
+func TestExpandAvisoDepthRutaDeLaHijaCortada(t *testing.T) {
+	rels := relacionesPrueba()
+	rels[0].Depth = 5
+	res := &resolverFake{registros: []map[string]any{{"Id": float64(7), "Descripcion": "x"}}}
+	registry := NewResolverRegistry(map[string]Resolver{"tercero": res}, nil)
+
+	data := map[string]any{"TerceroId": float64(7)}
+	cfg := config.ServiceConfig{
+		Service: "s", MaxDepth: 1, OnRelationError: config.OnRelationErrorNotify, MaxRelatedIDs: 100,
+		Relations: []config.RelationConfig{rels[0]},
+	}
+
+	out, err := Expand(context.Background(), data, cfg, registry, ExpandOptions{})
+	if err != nil {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	for _, a := range out.Warnings {
+		if a.Kind == KindDepth && a.Path == "Tercero" {
+			t.Errorf("el aviso depth debe nombrar la hija cortada, no la padre; avisos: %+v", out.Warnings)
+		}
+	}
+	if !contieneAvisoEn(out.Warnings, KindDepth, "Tercero.InfoComplementariaTercero") {
+		t.Errorf("se esperaba aviso depth en Tercero.InfoComplementariaTercero; avisos: %+v", out.Warnings)
+	}
+}
+
+func contieneAvisoEn(avisos []responses.RelationError, kind, ruta string) bool {
+	for _, a := range avisos {
+		if a.Kind == kind && a.Path == ruta {
+			return true
+		}
+	}
+	return false
+}

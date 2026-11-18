@@ -1,6 +1,6 @@
 # F07: el CRUD convierte cualquier error de consulta en 404
 
-Estado: abierto.
+Estado: cerrado_sin_solucion.
 Solución: propuesta. Ver `## Propuesta`.
 Gravedad: media. Clasificación propuesta, ver utils/README.md.
 
@@ -16,3 +16,6 @@ Responder 404 solo para `orm.ErrNoRows` y 500 para el resto. Mientras tanto, el 
 - `GET /v1/proveedor?query=Foo:bar` responde 500 con una página HTML de error de beego, no con JSON.
 
 La afirmación de 404 para cualquier error es parcial: el parámetro no numérico da 404 y el filtro inválido da 500.
+
+## Decisión
+Cerrado sin solución por el usuario (17/11/2026, 20:4x). El error está en los controladores del CRUD (`gestion_personas_crud`), fuera de este repositorio. El ajuste no debe hacerse en este repositorio y no se implementa.

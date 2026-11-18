@@ -380,6 +380,16 @@ func (ex *expansor) expandirNivel(
 	return nil
 }
 
+// hijaPedida indica si la selección pide la relación hija. Sin selección (nil)
+// se consideran pedidas todas las hijas configuradas.
+func hijaPedida(seleccion *NodoSeleccion, hija config.RelationConfig) bool {
+	if seleccion == nil {
+		return true
+	}
+	_, ok := seleccion.Hijo(hija.MappedName)
+	return ok
+}
+
 // expandirRelacionNivel resuelve una relación para todos los recursos del nivel
 // con una consulta agrupada (dedupe + lotes), aplica ciclos y profundidad
 // efectiva, distribuye por related_field, recorre descendientes y aplica la
@@ -407,16 +417,11 @@ func (ex *expansor) expandirRelacionNivel(
 		}
 	}
 
-	// Profundidad efectiva = min(global restante, depth de la relación).
+	// Profundidad efectiva = min(global restante, depth de la relación). Una
+	// reducción por configuración no emite aviso: solo se avisa un corte (abajo).
 	efectiva := profundidadRestante
 	if rel.Depth < efectiva {
 		efectiva = rel.Depth
-		ex.agregarAviso(responses.RelationError{
-			Path:    rutaStr,
-			Service: rel.RelatedService,
-			Message: fmt.Sprintf("profundidad reducida a %d por configuración de la relación", rel.Depth),
-			Kind:    KindDepth,
-		})
 	}
 	if efectiva <= 0 {
 		return nil
@@ -447,6 +452,22 @@ func (ex *expansor) expandirRelacionNivel(
 	seleccionEfectiva := subSeleccion
 	if subSeleccion != nil && subSeleccion.Completo {
 		seleccionEfectiva = nil
+	}
+
+	// Aviso depth por cada hija que el límite corta: debe estar pedida por la
+	// selección (o no haber selección) y tener registros padres que expandir.
+	if efectiva-1 <= 0 && len(registros) > 0 {
+		for _, hija := range rel.NestedRelations {
+			if !hijaPedida(seleccionEfectiva, hija) {
+				continue
+			}
+			ex.agregarAviso(responses.RelationError{
+				Path:    rutaStr + "." + hija.MappedName,
+				Service: hija.RelatedService,
+				Message: fmt.Sprintf("profundidad máxima %d alcanzada: no se expande la relación hija", efectiva),
+				Kind:    KindDepth,
+			})
+		}
 	}
 
 	// Recursión sobre descendientes de todos los registros resueltos del nivel.

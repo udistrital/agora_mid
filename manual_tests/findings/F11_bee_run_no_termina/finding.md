@@ -1,6 +1,6 @@
 # F11: bee run no termina cuando el middleware sale
 
-Estado: abierto. Operativo.
+Estado: cerrado_sin_solucion. Operativo.
 Solución: propuesta. Ver `## Propuesta`.
 Gravedad: baja. Clasificación propuesta, ver utils/README.md.
 
@@ -13,3 +13,6 @@ Para las pruebas, compilar y arrancar el binario directamente (ver `../../manual
 ## Propuesta
 
 Arrancar el binario directamente, no con `bee run`. Ver `## Procedimiento de trabajo`.
+
+## Decisión
+Cerrado sin solución por el usuario (17/11/2026, 20:4x). La gestión de cómo se arranca el binario corresponde al encargado del despliegue, no a este repositorio.

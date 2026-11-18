@@ -86,7 +86,7 @@ func cfgProveedorWritePrueba() config.ServiceConfig {
 				Cardinality: config.CardinalityMany, Depth: 1, MappedName: "Contacto",
 				Endpoint: "/v1/contacto", QueryTemplate: "ProveedorId:{ids}",
 				Write: &config.WriteConfig{
-					WritableFields: []string{"ValorEspecifico"},
+					WritableFields: []string{"NombreContacto", "ValorEspecifico", "Proposito", "TipoCanalContactoId"},
 					KeyPropagation: config.KeyPropagationFK,
 					Policy:         config.WriteVerbPolicy{Creatable: true, Updatable: true, Deletable: true},
 				},
@@ -140,7 +140,11 @@ func TestEscribirProveedorCreacionCompleta(t *testing.T) {
 		},
 		"ProveedorNatural": map[string]any{"PerfilDeclarado": float64(3)},
 		"Contacto": []any{
-			map[string]any{"ValorEspecifico": "a@b.co"},
+			map[string]any{
+				"ValorEspecifico":     "a@b.co",
+				"Proposito":           "Notificaciones",
+				"TipoCanalContactoId": float64(1),
+			},
 		},
 	}
 

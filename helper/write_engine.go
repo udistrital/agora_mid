@@ -494,6 +494,9 @@ func validarRelacionAnidada(
 		if rel.Write.KeyPropagation == config.KeyPropagationFKInbound && esMarcaEliminar(v) {
 			return &ErrorEscritura{Path: ruta, Motivo: motivoEliminarFKInbound}
 		}
+		if err := validarRequeridosCreacion(v, rel.MappedName, ruta); err != nil {
+			return err
+		}
 		return validarNivel(v, wc, nested, verb, ruta, inyectados)
 	case []any:
 		for i := range v {
@@ -503,6 +506,9 @@ func validarRelacionAnidada(
 					Path:   fmt.Sprintf("%s[%d]", ruta, i),
 					Motivo: "cada elemento de la colección debe ser un objeto",
 				}
+			}
+			if err := validarRequeridosCreacion(elem, rel.MappedName, fmt.Sprintf("%s[%d]", ruta, i)); err != nil {
+				return err
 			}
 			if err := validarNivel(elem, wc, nested, verb, fmt.Sprintf("%s[%d]", ruta, i), inyectados); err != nil {
 				return err

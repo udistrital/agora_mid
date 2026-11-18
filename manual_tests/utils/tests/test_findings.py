@@ -163,6 +163,19 @@ class VerificarContenido(Base):
         raiz = crear_arbol(self.tmp, {"F01_uno": texto})
         self.assertIn(("F01", "seccion_decision"), reglas(F.verificar(raiz)))
 
+    def test_cerrado_sin_solucion_es_estado_valido(self):
+        self.assertIn("cerrado_sin_solucion", F.ESTADOS)
+
+    def test_cerrado_sin_solucion_exige_decision(self):
+        texto = hallazgo("F01", "cerrado_sin_solucion", "ninguna", secciones=[PROPUESTA])
+        raiz = crear_arbol(self.tmp, {"F01_uno": texto})
+        self.assertIn(("F01", "seccion_decision"), reglas(F.verificar(raiz)))
+
+    def test_cerrado_sin_solucion_con_decision_no_falla_por_decision(self):
+        texto = hallazgo("F01", "cerrado_sin_solucion", "ninguna", secciones=[PROPUESTA, DECISION])
+        raiz = crear_arbol(self.tmp, {"F01_uno": texto})
+        self.assertNotIn(("F01", "seccion_decision"), reglas(F.verificar(raiz)))
+
     def test_encabezado_repetido_se_reporta(self):
         texto = hallazgo("F01", secciones=[PROPUESTA, PROPUESTA])
         raiz = crear_arbol(self.tmp, {"F01_uno": texto})

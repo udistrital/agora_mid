@@ -1,6 +1,6 @@
 # F03: el CRUD devuelve FK como objeto anidado y el motor de expansión no las compara
 
-Estado: en_decision. Prueba `helper/flatten_fk_crud_test.go` en verde.
+Estado: resuelto. Prueba `helper/flatten_fk_crud_test.go` en verde.
 Solución: aplicada_sin_commit. Corregido en el árbol de trabajo (sin commit). Ver `## Cambio aplicado`.
 Gravedad: alta. Clasificación propuesta, ver utils/README.md.
 
@@ -33,3 +33,7 @@ Una FK que llega como objeto sin `Id`, o con `Id` nulo, no se puede aplanar. El 
 ## Notas de especificación
 
 Nuevo tipo de aviso `fk_no_aplanable` con origen expansión. Las especificaciones `nested-object-expansion` y `api-response-contract` enumeran los tipos de aviso, así que ajustarlas al sincronizar. No se modificó el spec desde estas pruebas.
+
+## Verificación en vivo (17/11/2026, 19:21)
+
+MID arrancado el 17/11 a las 19:09 con el código de la rama. `POST /v1/proveedor/consulta {"id":1}` responde 206 por los avisos `depth` (F14). `Contacto[0].ProveedorId = 1`, `CuentaBancaria[0].ProveedorId = 1` y `CuentaBancaria[0].ContactoId = 1`. No aparece ningún aviso `fk_no_aplanable`. La afirmación original (la expansión devuelve `[]`) no se reproduce.

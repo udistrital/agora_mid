@@ -1,6 +1,6 @@
 # F20: un proveedor sin TerceroId se guarda con tercero_id = 0
 
-Estado: abierto. Confirmado en la corrida 3 (14/11): los proveedores creados sin `TerceroId` quedan con `tercero_id = 0` (P01, P02, P05 y los demás casos sin `TerceroId`).
+Estado: cerrado_sin_solucion. Confirmado en la corrida 3 (14/11): los proveedores creados sin `TerceroId` quedan con `tercero_id = 0` (P01, P02, P05 y los demás casos sin `TerceroId`).
 Solución: propuesta. Ver `## Propuesta`.
 Gravedad: alta. Clasificación propuesta, ver utils/README.md.
 
@@ -40,3 +40,6 @@ Corrección a la propuesta anterior: "no enviar `TerceroId` cuando sea 0" no fun
 **Límite.** El CRUD está en `../gestion_personas_crud`, fuera de este repositorio. No se modifica desde estas pruebas. El cambio de modelo, la migración y el índice los decide el equipo del CRUD.
 
 **Verificación en vivo (14/11, 14:55):** P05 (`TerceroId` null) responde 200 y crea el proveedor 3 con `tercero_id` 0 (`proveedor` 3 `|0`). Se restauró el respaldo después.
+
+## Decisión
+Cerrado sin solución por el usuario (17/11/2026, 20:4x). El ajuste que corrige el valor 0 de `TerceroId` está en el modelo del CRUD (`gestion_personas_crud`), fuera de este repositorio. Las opciones A y B de `## Propuesta` no se implementan aquí.

@@ -15,7 +15,7 @@ El objetivo es documentar todo para su refinamiento posterior e implementación 
 
 Para iniciar una sesión de pruebas basta con indicar al agente: "sigue `manual_tests/manual_tests.md`, sección 0". Esta sección define el arranque. El resto del documento define los pasos de prueba.
 
-El inicio no escribe en la base, no reinicia servicios y no cambia hallazgos. Solo lee, comprueba y reporta. Cualquier cambio se propone y se confirma con el usuario antes de ejecutarse.
+El inicio hace un análisis propio del estado. Comprueba servicios, ejecuta la suite de pruebas y las lecturas, compara los resultados con los registros existentes y reporta. Arrancar el MID y ejecutar la suite forman parte del procedimiento (3.2, 3.3 y 3.5). Las escrituras en la base solo se hacen desde la matriz, con respaldo (3.4). Los cambios en hallazgos y en código se proponen y se confirman con el usuario antes de ejecutarse.
 
 ### 0.1 Lectura
 
@@ -38,9 +38,9 @@ El inicio no escribe en la base, no reinicia servicios y no cambia hallazgos. So
 
 ### 0.3 Estado de las pruebas
 
-1. Comprobar servicios según 3.1 y 3.2 (solo comprobación; no arrancar ni reiniciar sin confirmación).
+1. Comprobar servicios según 3.1 y 3.2. Si el MID no responde y no hay proceso activo, arrancarlo según 3.2. Si ya hay una instancia en marcha, preguntar al usuario antes de reemplazarla (3.2).
 2. Ejecutar `go build ./...` y `go test -count=1 ./...`. Registrar qué paquetes fallan y a qué hallazgo corresponde cada fallo.
-3. Si el usuario lo pide, ejecutar las lecturas de 3.3. Son solo `GET`.
+3. Ejecutar las lecturas de 3.3 (solo `GET` y `POST /consulta`).
 4. Comparar la última corrida de la matriz (`escritura/resultados.md`) con lo que el código y el servicio muestran ahora. Señalar si la corrida ya no es representativa, por ejemplo porque el código cambió después de ella. Para comprobarlo, comparar la fecha de la corrida (`responses/escritura/current/`) con la fecha de modificación de los archivos Go (`git status` y `stat`, sin alterar Git).
 
 ### 0.4 Informe de inicio
@@ -57,11 +57,8 @@ Antes de pasar a la ejecución, acordar con el usuario el alcance: qué hallazgo
 ## 1. Alcance
 
 - Caja negra: `curl` contra la API del middleware (MID) y contra el CRUD `gestion_personas` (lectura de comprobación).
-- Servicios:
-  - MID `agora_mid`: `http://localhost:8080` (o el puerto de `AGORA_MID_HTTP_PORT`).
-  - CRUD `gestion_personas_crud`: `http://localhost:8081/v1`. Su `/swagger/swagger.json` es un stub y no se usa como contrato (F05).
-  - Base: contenedor `agora_db` (PostgreSQL 18), esquema `proveedores`, puerto `5432`.
-  - Dependencias remotas de solo lectura: terceros (`pruebasapi.intranetoas.udistrital.edu.co:8121`) y ubicaciones (`:8085`, ver F15).
+- Servicios: MID `agora_mid`, CRUD `gestion_personas_crud`, base `agora_db` (esquema `proveedores`) y dependencias remotas de solo lectura (terceros, parámetros y ubicaciones). Las URLs, los puertos y los hosts de cada uno están en `.env`. Este documento no los repite. El estado de cada servicio se registra en los hallazgos.
+- El swagger del CRUD es un stub y no se usa como contrato (F05).
 - Escrituras: solo en el esquema `proveedores`, desde la matriz de escritura.
 
 ### Responsabilidades
@@ -90,7 +87,7 @@ manual_tests/
 │   ├── current/           salida de scripts/*.sh (lecturas). Se crea al ejecutar esos scripts.
 │   └── escritura/current/ última corrida de la matriz (.json y .status)
 ├── scripts/               una petición por archivo (lecturas en scripts/, matriz en scripts/escritura/)
-├── seed/                  dummy_data.sql (carga) y cleanup_dummy_data.sql (sin probar)
+├── seed/                  dummy_data.sql (carga), cleanup_dummy_data.sql y verificar_seed.sh (prueba de ambos en una base de pruebas)
 ├── snapshots/             respaldos de esquema proveedores para restaurar
 ├── findings/              findings.md (resumen de estado e índice) y una carpeta por hallazgo
 └── utils/                 findings.py (gestión de hallazgos). Guía en utils/README.md.
@@ -215,7 +212,7 @@ Los fallos conocidos están en `findings/findings.md`. Un fallo que no tenga hal
 ### 3.6 Scripts de carga y limpieza de datos
 
 - Carga: `docker exec -i agora_db psql -U postgres -v ON_ERROR_STOP=1 -f - < seed/dummy_data.sql`. Aborta si ya hay filas en las tablas del esquema.
-- Limpieza: `seed/cleanup_dummy_data.sql` borra los ids 1 y 2 de los datos dummy. Probarlo en una base de pruebas antes de usarlo (F13).
+- Limpieza: `seed/cleanup_dummy_data.sql` borra los proveedores 1 y 2 de los datos dummy y sus filas hijas. Verificar con `bash manual_tests/seed/verificar_seed.sh` antes de usarlo (solo acepta bases `agora_pruebas*`, F13).
 
 ### 3.7 Gestión de hallazgos
 

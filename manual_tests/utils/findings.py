@@ -18,7 +18,9 @@ from collections import namedtuple
 
 RAIZ = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "findings"))
 
-ESTADOS = ("abierto", "en_decision", "resuelto", "aceptado")
+ESTADOS = ("abierto", "en_decision", "resuelto", "aceptado", "cerrado_sin_solucion")
+# Estados que exigen la sección `## Decisión`.
+ESTADOS_CON_DECISION = ("aceptado", "cerrado_sin_solucion")
 SOLUCIONES = ("ninguna", "propuesta", "aplicada_sin_commit")
 # Sección opcional (cualquier estado). Contiene notas de contrato para programar cambios.
 NOTAS_ESPECIFICACION = "Notas de especificación"
@@ -275,7 +277,7 @@ def _resumen_de(h):
         "Explicación": "Explicación" in secciones,
         "Propuesta": ("Propuesta" in secciones) if propuesta_aplica else None,
         "Cambio aplicado": ("Cambio aplicado" in secciones) if _requiere_cambio(h) else None,
-        "Decisión": ("Decisión" in secciones) if h["estado"] == "aceptado" else None,
+        "Decisión": ("Decisión" in secciones) if h["estado"] in ESTADOS_CON_DECISION else None,
         NOTAS_ESPECIFICACION: True if NOTAS_ESPECIFICACION in secciones else None,
     }
 
@@ -333,8 +335,8 @@ def _incumplimientos_hallazgo(h):
             if "**Archivos modificados:**" not in bloque or "**Verificación:**" not in bloque:
                 falla("cambio_aplicado_contenido",
                       "`## Cambio aplicado` debe tener **Archivos modificados:** y **Verificación:**.")
-    if h["estado"] == "aceptado" and "Decisión" not in h["secciones"]:
-        falla("seccion_decision", "Falta `## Decisión` (estado aceptado).")
+    if h["estado"] in ESTADOS_CON_DECISION and "Decisión" not in h["secciones"]:
+        falla("seccion_decision", f"Falta `## Decisión` (estado {h['estado']}).")
     if NOTAS_ESPECIFICACION in h["secciones"]:
         contenido = _seccion(h["texto"], NOTAS_ESPECIFICACION).splitlines()[1:]
         if not "".join(contenido).strip():

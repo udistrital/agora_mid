@@ -31,6 +31,9 @@ const (
 	ServicioTipoTercero               = "tipo_tercero"
 	ServicioInfoComplementaria        = "info_complementaria"
 	ServicioTipoDocumento             = "tipo_documento"
+	ServicioAreaTipo                  = "area_tipo"
+	ServicioTipoParametro             = "tipo_parametro"
+	ServicioGrupoInfoComplementaria   = "grupo_info_complementaria"
 )
 
 // Endpoints reales de cada entidad en su CRUD dueño.
@@ -59,6 +62,9 @@ const (
 	endpointTipoTercero               = "/v1/tipo_tercero"
 	endpointInfoComplementaria        = "/v1/info_complementaria"
 	endpointTipoDocumento             = "/v1/tipo_documento"
+	endpointAreaTipo                  = "/v1/area_tipo"
+	endpointTipoParametro             = "/v1/tipo_parametro"
+	endpointGrupoInfoComplementaria   = "/v1/grupo_info_complementaria"
 )
 
 // Campos de consulta comunes a los resolvedores de lectura del árbol.
@@ -127,5 +133,8 @@ func NewResolversNucleo(inner helper.HTTPResolver) map[string]helper.Resolver {
 		ServicioTipoTercero:               porID(apiTerceros, endpointTipoTercero),
 		ServicioInfoComplementaria:        porID(apiTerceros, endpointInfoComplementaria),
 		ServicioTipoDocumento:             porID(apiTerceros, endpointTipoDocumento),
+		ServicioAreaTipo:                  porID(apiParametros, endpointAreaTipo),
+		ServicioTipoParametro:             porID(apiParametros, endpointTipoParametro),
+		ServicioGrupoInfoComplementaria:   porID(apiTerceros, endpointGrupoInfoComplementaria),
 	}
 }

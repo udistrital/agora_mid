@@ -6,12 +6,15 @@
 -- Seguridad: el script aborta si cualquier tabla de proveedores ya contiene filas,
 -- para no duplicar datos ni mezclar con registros reales.
 --
--- Supuestos (no verificados contra catálogos reales, porque los catálogos viven en
--- otros CRUD y no hay FK en esta base):
+-- Catálogos (no hay FK en esta base; los catálogos viven en otros CRUD):
 --   proveedor.tipo_proveedor = 1  -> persona natural
 --   proveedor.tipo_proveedor = 2  -> persona jurídica
---   tipo_canal_contacto_id = 1, tipo_cuenta_id = 1, entidad_bancaria_id = 7,
---   pais_nacimiento_id = 1, procedencia_empresa_id = 1, tipo_conformacion_id = 1.
+--   tipo_cuenta_id = 7939 -> parámetro "Cuenta de Ahorros" (tipo_parametro 197, Tipos de Cuenta Bancaria).
+--   entidad_bancaria_id = 7401 -> parámetro "Banco Agrario de Colombia" (tipo_parametro 194, Entidades Bancarias).
+--   pais_nacimiento_id = 1 -> lugar 1 (ubicaciones).
+--   tipo_canal_contacto_id = 1, procedencia_empresa_id = 1, tipo_conformacion_id = 1:
+--     NO VERIFICADOS. El id 1 de parámetros es "Salario minimo mensual legal vigente", que no es
+--     un canal. No se encontró el catálogo de canal, procedencia ni conformación en el servicio de parámetros.
 -- proveedores.proveedor.tercero_id es un entero sin FK en esta base; los terceros
 -- dummy 101 y 102 no existen en el CRUD de terceros (no se consultan).
 -- cuenta_bancaria.tipo_cuenta_bancaria_id ya no existe en el esquema actual.
@@ -55,7 +58,7 @@ INSERT INTO proveedores.cuenta_bancaria
     (id, tipo_cuenta_id, numero_cuenta, entidad_bancaria_id, contacto_id,
      monto_capital_autorizado, proveedor_id, activo)
 VALUES
-    (1, 1, '123456789', 7, 1, NULL, 1, true);
+    (1, 7939, '123456789', 7401, 1, NULL, 1, true);
 
 -- Proveedor 2: persona jurídica (PK compartida con proveedor_juridico).
 INSERT INTO proveedores.proveedor

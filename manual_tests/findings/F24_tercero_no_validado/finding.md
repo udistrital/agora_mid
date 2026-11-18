@@ -1,6 +1,6 @@
 # F24: TerceroId no se verifica contra terceros
 
-Estado: abierto. Reproducido en la corrida 4: P04 (`TerceroId` 999999) responde 200.
+Estado: aceptado. Reproducido en la corrida 4: P04 (`TerceroId` 999999) responde 200.
 Solución: aplicada_sin_commit. Ver `## Cambio aplicado`. Pendiente: verificación en vivo (P04) y decisión del PATCH.
 Gravedad: alta. Clasificación propuesta, ver utils/README.md.
 
@@ -43,3 +43,6 @@ Después se restauró el respaldo y los conteos volvieron a la línea base (prov
 ## Estado (14/11, 15:25)
 
 Queda abierto. La decisión pendiente depende de la guarda de terceros de F17: la escritura a terceros requiere retirarla en un entorno local. El PATCH sin verificar sigue pendiente.
+
+## Decisión
+Aprobado por el usuario (17/11/2026, 20:20). El alta con `TerceroId` sin objeto `Tercero` consulta terceros y responde 400 si el tercero no existe. Se verificó en vivo con P04 (17/11/2026, 19:2x): 400 sin escritura. El texto de `API.md:197` se aplica por separado. La verificación en PATCH no está cubierta por esta decisión.
