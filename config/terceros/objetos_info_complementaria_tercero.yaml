@@ -1,0 +1,75 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: InfoComplementariaTercero
+related_api: terceros
+related_table: info_complementaria_tercero
+endpoint: /v1/info_complementaria_tercero
+campos:
+    - name: Id
+      type: integer
+      nullable: false
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: TerceroId
+      type: integer
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: InfoComplementariaId
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: InfoComplementariaTerceroPadreId
+      type: integer
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Dato
+      type: jsonb
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      nullable: true
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+referencias:
+    - objeto: InfoComplementaria
+      direction: local_to_related
+      cardinality: one
+      local_field: InfoComplementariaId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: InfoComplementaria

@@ -58,3 +58,37 @@ func TestLoadExpandeVariablesDeEntorno(t *testing.T) {
 		t.Fatalf("URL no expandida correctamente: %q", got.TercerosCRUDURL)
 	}
 }
+
+// Load lee ubicaciones_crud_url desde conf/app.conf hacia Config.UbicacionesCRUDURL.
+func TestLoadLeeUbicacionesCRUDURL(t *testing.T) {
+	original, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	temp := t.TempDir()
+	if err := os.Mkdir(filepath.Join(temp, "conf"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "ubicaciones_crud_url = http://ubicaciones.test\n"
+	if err := os.WriteFile(filepath.Join(temp, "conf", "app.conf"), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(temp); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(original) })
+
+	got := Load()
+	if got.UbicacionesCRUDURL != "http://ubicaciones.test" {
+		t.Fatalf("UbicacionesCRUDURL = %q, se esperaba http://ubicaciones.test", got.UbicacionesCRUDURL)
+	}
+}
+
+// URLs mapea related_api "ubicaciones" a la URL base del CRUD de ubicaciones.
+func TestURLsIncluyeUbicaciones(t *testing.T) {
+	c := Config{UbicacionesCRUDURL: "http://ubicaciones.test"}
+	urls := c.URLs()
+	if urls["ubicaciones"] != "http://ubicaciones.test" {
+		t.Fatalf("URLs()[ubicaciones] = %q, se esperaba http://ubicaciones.test", urls["ubicaciones"])
+	}
+}

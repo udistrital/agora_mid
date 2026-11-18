@@ -54,6 +54,36 @@ func NewWriteResolversNucleo(
 		ServicioCuentaBancaria: NewEntityWriteResolver(
 			client, urls, "gestion_personas_crud", endpointCuentaBancaria, nil,
 		),
+		ServicioEstadoProveedor: NewEntityWriteResolver(
+			client, urls, apiGestion, endpointEstadoProveedor, nil,
+		),
+		ServicioDocumento: NewEntityWriteResolver(
+			client, urls, apiGestion, endpointDocumento, nil,
+		),
+		ServicioPerfilProveedor: NewEntityWriteResolver(
+			client, urls, apiGestion, endpointPerfilProveedor, nil,
+		),
+		ServicioTituloProveedorNatural: NewEntityWriteResolver(
+			client, urls, apiGestion, endpointTituloProveedorNatural, nil,
+		),
+		ServicioActividadEconomica: NewEntityWriteResolver(
+			client, urls, apiGestion, endpointActividadEconomica, nil,
+		),
+		ServicioRepresentacion: NewEntityWriteResolver(
+			client, urls, apiGestion, endpointRepresentacion, nil,
+		),
+		ServicioPersonaJuridicaTipoEnt: NewEntityWriteResolver(
+			client, urls, apiGestion, endpointPersonaJuridicaTipoEnt, nil,
+		),
+		ServicioTerceroTipoTercero: NewEntityWriteResolver(
+			client, urls, apiTerceros, endpointTerceroTipoTercero, nil,
+		),
+		ServicioInfoComplementariaTercero: NewEntityWriteResolver(
+			client, urls, apiTerceros, endpointInfoComplementariaTercero, nil,
+		),
+		ServicioSeguridadSocialTercero: NewEntityWriteResolver(
+			client, urls, apiTerceros, endpointSeguridadSocialTercero, nil,
+		),
 	}
 
 	return raiz, hijos

@@ -283,12 +283,7 @@ func (h *ProveedorHandler) Escribir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-	if autor, ok := autorDePeticion(r); ok {
-		ctx = services.ConContextoAutor(ctx, autor)
-	}
-
-	resultado, err := h.escritura.EscribirProveedor(ctx, body, verb)
+	resultado, err := h.escritura.EscribirProveedor(r.Context(), body, verb)
 	if err != nil {
 		h.responderErrorEscritura(w, err)
 		return
@@ -329,9 +324,22 @@ func (h *ProveedorHandler) responderErrorEscritura(w http.ResponseWriter, err er
 		return
 	}
 
-	// No exponer mensajes internos de los CRUD ante un error no clasificado.
-	h.responder(w, http.StatusBadGateway, false,
+	// Lectura previa bloqueante (por ejemplo, el estado activo de la transición): un
+	// tiempo de espera agotado responde 504 y cualquier otro fallo de dependencia 502.
+	// No exponer mensajes internos de los CRUD.
+	status := http.StatusBadGateway
+	if esTiempoAgotado(err) {
+		status = http.StatusGatewayTimeout
+	}
+	h.responder(w, status, false,
 		"Error al registrar el proveedor o sus relaciones", nil, nil)
+}
+
+// esTiempoAgotado informa si err está causado por un tiempo de espera agotado: un
+// contexto vencido o un error de red con Timeout verdadero en su cadena.
+func esTiempoAgotado(err error) bool {
+	var netErr net.Error
+	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout())
 }
 
 // verboEscritura traduce el método HTTP al verbo de escritura del motor. Devuelve
@@ -345,21 +353,6 @@ func verboEscritura(metodo string) (string, bool) {
 	default:
 		return "", false
 	}
-}
-
-// autorDePeticion extrae el identificador del autor de la modificación desde la
-// cabecera X-Autor-Id, poblada por la capa de autenticación. Devuelve 0 y false
-// cuando la cabecera está ausente o no es un entero positivo.
-func autorDePeticion(r *http.Request) (int, bool) {
-	valor := strings.TrimSpace(r.Header.Get("X-Autor-Id"))
-	if valor == "" {
-		return 0, false
-	}
-	autor, err := strconv.Atoi(valor)
-	if err != nil || autor <= 0 {
-		return 0, false
-	}
-	return autor, true
 }
 
 func (h *ProveedorHandler) responder(

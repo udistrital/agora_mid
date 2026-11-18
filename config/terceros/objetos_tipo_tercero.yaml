@@ -1,0 +1,56 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: TipoTercero
+related_api: terceros
+related_table: tipo_tercero
+endpoint: /v1/tipo_tercero
+campos:
+    - name: Id
+      type: integer
+      nullable: false
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: Nombre
+      type: string
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Descripcion
+      type: string
+      nullable: true
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+    - name: CodigoAbreviacion
+      type: string
+      nullable: true
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      nullable: true
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+referencias: []

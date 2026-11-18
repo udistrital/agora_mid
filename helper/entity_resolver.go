@@ -75,4 +75,3 @@ func (e EntityResolver) Resolve(
 	efectiva.QueryTemplate = e.queryTemplate
 	return e.inner.Resolve(ctx, efectiva, keys)
 }
-

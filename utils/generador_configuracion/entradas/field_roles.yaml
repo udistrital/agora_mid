@@ -1,0 +1,163 @@
+# field_roles: mapa de esquema.tabla.columna a sus banderas de rol. Cada clave admite ANY
+# en el esquema o en la tabla, nunca en la columna. La entrada más específica prevalece:
+# esquema.tabla.columna > esquema.ANY.columna > ANY.tabla.columna > ANY.ANY.columna.
+# Un campo sin entrada es legible y escribible. Cada entrada declara readable, writable
+# e immutable; immutable: true exige writable: true.
+
+# Auditoría administrada por el sistema en todo objeto.
+ANY.ANY.id:
+  readable: true
+  writable: false
+  immutable: false
+ANY.ANY.activo:
+  readable: false
+  writable: false
+  immutable: false
+ANY.ANY.fecha_creacion:
+  readable: false
+  writable: false
+  immutable: false
+ANY.ANY.fecha_modificacion:
+  readable: false
+  writable: false
+  immutable: false
+ANY.ANY.usuario_modificacion_id:
+  readable: false
+  writable: true
+  immutable: false
+
+# Llave de retrorreferencia del padre: no se lee ni se escribe; el motor la conserva al
+# reenviar la escritura.
+proveedores.contacto.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.cuenta_bancaria.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.documento.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.estado_proveedor.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.perfil_proveedor.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.titulo_proveedor_natural.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.actividad_economica_proveedor.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.representacion.proveedor_id:
+  readable: false
+  writable: false
+  immutable: false
+proveedores.persona_juridica_tipo_entidad.persona_juridica_id:
+  readable: false
+  writable: false
+  immutable: false
+terceros.datos_identificacion.tercero_id:
+  readable: false
+  writable: false
+  immutable: false
+terceros.seguridad_social_tercero.tercero_id:
+  readable: false
+  writable: false
+  immutable: false
+terceros.info_complementaria_tercero.tercero_id:
+  readable: false
+  writable: false
+  immutable: false
+terceros.tercero_tipo_tercero.tercero_id:
+  readable: false
+  writable: false
+  immutable: false
+
+# Llave natural del proveedor: debe ser escribible; es inmutable porque el motor la hace
+# cumplir por conciliarCampoDerivado.
+proveedores.proveedor.tercero_id:
+  readable: true
+  writable: true
+  immutable: true
+
+# Catálogos con solo id y nombre legibles. Cada columna no legible se declara por su
+# nombre, porque ANY no aplica a la columna.
+ubicaciones.tipo_lugar.descripcion:
+  readable: false
+  writable: true
+  immutable: false
+ubicaciones.tipo_lugar.codigo_abreviacion:
+  readable: false
+  writable: true
+  immutable: false
+ubicaciones.tipo_lugar.numero_orden:
+  readable: false
+  writable: true
+  immutable: false
+terceros.info_complementaria.descripcion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.info_complementaria.codigo_abreviacion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.info_complementaria.tipo_de_dato:
+  readable: false
+  writable: true
+  immutable: false
+terceros.info_complementaria.grupo_info_complementaria_id:
+  readable: false
+  writable: true
+  immutable: false
+terceros.tipo_tercero.descripcion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.tipo_tercero.codigo_abreviacion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.tipo_contribuyente.descripcion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.tipo_contribuyente.codigo_abreviacion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.tipo_documento.descripcion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.tipo_documento.codigo_abreviacion:
+  readable: false
+  writable: true
+  immutable: false
+terceros.tipo_documento.numero_orden:
+  readable: false
+  writable: true
+  immutable: false
+
+# Parámetros: además de id y nombre, son legibles la descripción, el código, el orden y
+# las llaves planas de tipo y padre.
+parametros.parametro.descripcion:
+  readable: true
+  writable: true
+  immutable: false
+parametros.parametro.codigo_abreviacion:
+  readable: true
+  writable: true
+  immutable: false
+parametros.parametro.numero_orden:
+  readable: true
+  writable: true
+  immutable: false

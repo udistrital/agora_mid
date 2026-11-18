@@ -1,0 +1,72 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: Proveedor
+related_api: gestion_personas_crud
+related_table: proveedor
+endpoint: /v1/proveedor
+natural_key:
+    - TerceroId
+campos:
+    - name: Id
+      type: integer
+      nullable: false
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: TipoProveedor
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DescripcionPortafolio
+      type: string
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Consentimiento
+      type: boolean
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TerceroId
+      type: integer
+      nullable: true
+      readable: true
+      writable: true
+      immutable: true
+      required: false
+    - name: Activo
+      type: boolean
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      nullable: true
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      nullable: true
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+referencias: []

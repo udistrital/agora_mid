@@ -1,0 +1,94 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: TituloProveedorNatural
+related_api: gestion_personas_crud
+related_table: titulo_proveedor_natural
+endpoint: /v1/titulo_proveedor_natural
+campos:
+    - name: Id
+      type: integer
+      nullable: false
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: TituloObtenido
+      type: string
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: NucleoBasicoConocimientoSniesId
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: ProveedorId
+      type: integer
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: PerfilId
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      nullable: true
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: UsuarioModificacionId
+      type: integer
+      nullable: true
+      readable: false
+      writable: true
+      immutable: false
+      required: false
+referencias:
+    - objeto: Parametro
+      direction: local_to_related
+      cardinality: one
+      local_field: NucleoBasicoConocimientoSniesId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: NucleoBasicoConocimientoSnies
+    - objeto: InfoComplementaria
+      direction: local_to_related
+      cardinality: one
+      local_field: PerfilId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: Perfil

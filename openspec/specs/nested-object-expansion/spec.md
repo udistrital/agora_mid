@@ -5,9 +5,11 @@
 Permite que cualquier servicio del API resuelva y entregue entidades relacionadas que viven en otros CRUD como objetos anidados, mediante configuración declarativa, sin que el MID se convierta en dueño de los datos.
 
 ## Requirements
-
 ### Requirement: Expansión declarativa de relaciones
-El sistema SHALL expandir relaciones hacia otros CRUD únicamente a partir de configuración versionada por servicio, cargada al arranque, y nunca a partir de endpoints o URLs provistos por el cliente.
+El sistema SHALL expandir relaciones hacia otros CRUD únicamente a partir del árbol
+efectivo compuesto por servicio (ver `config-composition`), cargado y aplanado al
+arranque, y nunca a partir de endpoints o URLs provistos por el cliente. El expansor
+consume el árbol ya compuesto y no resuelve referencias de objetos por sí mismo.
 
 #### Scenario: Relación singular encontrada
 - **WHEN** se expande una relación con `cardinality: one` y el CRUD devuelve un registro coincidente por `related_field`
@@ -22,15 +24,19 @@ El sistema SHALL expandir relaciones hacia otros CRUD únicamente a partir de co
 - **THEN** `mapped_name` siempre es una lista; vacía `[]` si no hay resultados y con todos los elementos cuando los hay
 
 #### Scenario: Configuración inválida impide el arranque
-- **WHEN** un archivo de relaciones está ausente, es inválido o declara una relación inconsistente
+- **WHEN** un archivo de configuración está ausente, es inválido o declara una relación inconsistente
 - **THEN** el API no inicia y reporta un mensaje que identifica el archivo y la relación
 
 ### Requirement: Distinción entre API externa y servicio lógico
-El sistema SHALL distinguir, en la configuración de cada relación, entre el campo `related_api` que identifica el servicio externo (la API que resuelve la URL base contra `conf/app.conf`, con valores `terceros`, `parametros` o `gestion_personas_crud`) y el campo `related_service` que nombra el servicio o recurso lógico relacionado del dominio y no resuelve URLs.
+El sistema SHALL distinguir, en la configuración de cada relación, entre el campo `related_api` que identifica el servicio externo (la API que resuelve la URL base contra `conf/app.conf`, con valores `terceros`, `parametros`, `gestion_personas_crud` o `ubicaciones`) y el campo `related_service` que nombra el servicio o recurso lógico relacionado del dominio y no resuelve URLs.
 
 #### Scenario: related_api resuelve la URL base
 - **WHEN** una relación declara `related_api: terceros`
 - **THEN** la URL base de la consulta se resuelve a partir de la API `terceros` configurada en `conf/app.conf`, independientemente del valor de `related_service`
+
+#### Scenario: related_api de ubicaciones resuelve su URL base
+- **WHEN** una relación declara `related_api: ubicaciones`
+- **THEN** la URL base se resuelve a partir de la API `ubicaciones` configurada en `conf/app.conf` (`ubicaciones_crud_url`), y la carga no la rechaza como API desconocida
 
 #### Scenario: related_api obligatorio y válido
 - **WHEN** una relación omite `related_api`, lo deja vacío o declara una API que no existe en la configuración de URLs
@@ -45,7 +51,9 @@ El sistema SHALL aceptar un parámetro `fields` con rutas separadas por comas (p
 ejemplo `Id,Tercero.Id,Tercero.NombreCompleto`) y resolver cada ruta según su
 último segmento: una ruta que termina en una relación entrega esa relación
 completa (su subárbol expandido por configuración hasta la profundidad efectiva);
-una ruta que termina en un campo escalar entrega solo ese escalar.
+una ruta que termina en un campo escalar entrega solo ese escalar. Los campos
+seleccionables de cada objeto son los que la tabla de campos tipada unificada
+(ver `config-composition`) marca con el rol `readable`.
 
 #### Scenario: Selección de campos base y anidados
 - **WHEN** la solicitud incluye `fields=Id,Tercero.Id,Tercero.NombreCompleto`
@@ -108,11 +116,11 @@ una ruta que termina en un campo escalar entrega solo ese escalar.
 
 #### Scenario: Ausencia de fields expande por configuración
 - **WHEN** la solicitud no incluye `fields`
-- **THEN** se recuperan los `allowed_fields` configurados y las relaciones
-  permitidas hasta la profundidad efectiva
+- **THEN** se recuperan los campos marcados `readable` en la tabla de campos tipada
+  del objeto y las relaciones permitidas hasta la profundidad efectiva
 
 #### Scenario: Campo no permitido rechaza la expansión
-- **WHEN** `fields` incluye una ruta fuera de cualquier `allowed_fields` o una
+- **WHEN** `fields` incluye una ruta fuera de cualquier campo marcado `readable` o una
   ruta vacía o duplicada
 - **THEN** el sistema responde `400 Bad Request`, no inicia la expansión e
   identifica la ruta inválida
@@ -153,16 +161,17 @@ que esa precedencia afecte el tratamiento de sus relaciones hermanas.
 
 ### Requirement: Id implícito en las entidades expandidas
 El sistema SHALL conservar el `Id` de toda entidad expandida de forma implícita,
-sin exigir que la configuración lo declare en `allowed_fields`, de modo que toda
-entidad anidada sea identificable y seleccionable por defecto.
+sin exigir que la tabla de campos tipada del objeto marque `Id` como `readable`, de
+modo que toda entidad anidada sea identificable y seleccionable por defecto.
 
 #### Scenario: Id presente sin declararlo en allowed_fields
-- **WHEN** una relación se expande y su `allowed_fields` no incluye `Id`
+- **WHEN** una relación se expande y la tabla de campos de su objeto no marca `Id`
+  como `readable`
 - **THEN** la entidad anidada se entrega con su `Id` de todas formas
 
 #### Scenario: Id seleccionable aunque no esté en allowed_fields
 - **WHEN** `fields` incluye la ruta del `Id` de una relación (por ejemplo
-  `Tercero.Id`) y `allowed_fields` de esa relación no lista `Id`
+  `Tercero.Id`) y la tabla de campos de ese objeto no marca `Id` como `readable`
 - **THEN** la ruta se acepta como válida y el `Id` se incluye, sin rechazarla como
   campo no permitido
 
@@ -187,12 +196,12 @@ El sistema SHALL cargar al arranque una lista negra global de campos desde el
 archivo único `config/global_blacklist.yaml`, cuyas entradas se expresan de forma
 jerárquica `related_api -> related_table -> [field]` con la palabra reservada
 `ANY` como comodín en cualquier nivel. La lista negra suprime cada campo listado
-de la respuesta de expansión y gana sobre `allowed_fields` y sobre el `Id`
-implícito.
+de la respuesta de expansión y gana sobre el rol `readable` de la tabla de campos
+tipada y sobre el `Id` implícito.
 
 #### Scenario: Campo vetado se suprime pese a allowed_fields
-- **WHEN** un campo está declarado en `allowed_fields` de una relación y también
-  figura en la lista negra para su `related_api` y `related_table`
+- **WHEN** un campo está marcado `readable` en la tabla de campos de un objeto y
+  también figura en la lista negra para su `related_api` y `related_table`
 - **THEN** el campo se omite de la entidad expandida
 
 #### Scenario: Id implícito vetado se suprime
@@ -327,3 +336,39 @@ El sistema SHALL implementar los resolvers específicos como envoltorios finos s
 #### Scenario: Reutilización del transporte existente
 - **WHEN** un resolver específico ejecuta su consulta
 - **THEN** reutiliza el cliente HTTP, los timeouts y la decodificación del envoltorio OAS o lista directa ya existentes, sin reimplementarlos
+
+### Requirement: Proyección aplanada por PK compartida
+El sistema SHALL proyectar los campos de una entidad de especialización unida por
+PK compartida (por ejemplo `proveedor_natural` o `proveedor_juridico`, cuyo `Id`
+es el del proveedor) **dentro** del objeto padre, en lugar de anidarlos bajo un
+`mapped_name`, cuando la arista declara la proyección aplanada. La proyección es de
+un solo salto y en la dirección padre->especialización.
+
+#### Scenario: Los campos de la especialización se aplanan en el padre
+- **WHEN** se expande un proveedor cuya especialización (según `tipo_proveedor`) se
+  une por PK compartida y su arista declara proyección aplanada
+- **THEN** los campos de esa especialización aparecen al nivel del objeto proveedor,
+  no bajo un `mapped_name` anidado
+
+#### Scenario: Solo se aplana la especialización indicada por el discriminador
+- **WHEN** un proveedor tiene `tipo_proveedor` de persona jurídica
+- **THEN** se aplanan los campos de `proveedor_juridico` y no los de
+  `proveedor_natural`, y a la inversa para persona natural
+
+#### Scenario: La proyección aplanada no recurre
+- **WHEN** se aplana la especialización de un proveedor
+- **THEN** la proyección ocurre una sola vez (un salto) y la especialización no
+  vuelve a expandir el proveedor, de modo que no se forma un ciclo de expansión
+
+### Requirement: Entidades del modelo extendido del proveedor
+El sistema SHALL expandir, como parte del árbol efectivo del proveedor, las
+entidades del modelo extendido: `estado_proveedor`, `documento`, `perfil_proveedor`,
+`titulo_proveedor_natural`, `actividad_economica_proveedor`, `representacion` y
+`persona_juridica_tipo_entidad`, cada una con su cardinalidad declarada y los campos
+`readable` de su tabla de campos tipada.
+
+#### Scenario: Colecciones del modelo extendido se expanden por su cardinalidad
+- **WHEN** `fields` selecciona una colección del modelo extendido (por ejemplo
+  `PerfilProveedor` o `EstadoProveedor`)
+- **THEN** la relación se entrega como lista bajo su `mapped_name`, respetando su
+  cardinalidad y los campos `readable` del objeto

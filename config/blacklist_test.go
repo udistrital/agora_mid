@@ -100,10 +100,10 @@ func TestLoadBlacklistArchivoAusente(t *testing.T) {
 // sin error (task 4.1).
 func TestLoadBlacklistArchivoVacio(t *testing.T) {
 	casos := map[string]string{
-		"archivo vacío":            "",
-		"solo espacios":           "   \n  \n",
-		"sin clave raíz":          "# solo un comentario\n",
-		"clave raíz vacía":        "global_blacklist:\n",
+		"archivo vacío":    "",
+		"solo espacios":    "   \n  \n",
+		"sin clave raíz":   "# solo un comentario\n",
+		"clave raíz vacía": "global_blacklist:\n",
 	}
 	for nombre, contenido := range casos {
 		t.Run(nombre, func(t *testing.T) {

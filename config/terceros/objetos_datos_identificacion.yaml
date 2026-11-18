@@ -1,0 +1,108 @@
+# Generado por utils/generador_configuracion. No editar a mano; regenerar desde el DBML y los sidecars.
+name: DatosIdentificacion
+related_api: terceros
+related_table: datos_identificacion
+endpoint: /v1/datos_identificacion
+campos:
+    - name: Id
+      type: integer
+      nullable: false
+      readable: true
+      writable: false
+      immutable: false
+      required: false
+    - name: TipoDocumentoId
+      type: integer
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: TerceroId
+      type: integer
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: Numero
+      type: string
+      nullable: false
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DigitoVerficacion
+      type: numeric
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: CiudadExpedicion
+      type: integer
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: FechaExpedicion
+      type: timestamp
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: DocumentoSoporte
+      type: integer
+      nullable: true
+      readable: true
+      writable: true
+      immutable: false
+      required: false
+    - name: Activo
+      type: boolean
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaCreacion
+      type: timestamp
+      nullable: false
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+    - name: FechaModificacion
+      type: timestamp
+      nullable: true
+      readable: false
+      writable: false
+      immutable: false
+      required: false
+referencias:
+    - objeto: Lugar
+      direction: local_to_related
+      cardinality: one
+      local_field: CiudadExpedicion
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 2
+      mapped_name: CiudadExpedicionDetalle
+    - objeto: TipoDocumento
+      direction: local_to_related
+      cardinality: one
+      local_field: TipoDocumentoId
+      related_field: Id
+      key_propagation: ""
+      policy:
+        creatable: false
+        updatable: false
+        deletable: false
+      depth: 1
+      mapped_name: TipoDocumento

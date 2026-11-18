@@ -1,3 +1,6 @@
+# Árbol inline de referencia del proveedor, anterior a la composición por objetos.
+# Solo lo usa la prueba de equivalencia de proveedor_composicion_test.go, que compara
+# el árbol compuesto contra este archivo. No es configuración de producción.
 # Configuración declarativa de relaciones del proveedor.
 #
 # Declara el árbol de entidades del núcleo que se expanden como objetos anidados

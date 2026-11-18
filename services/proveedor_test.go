@@ -123,12 +123,12 @@ func TestListarProveedoresValidaFiltrosAntesDeConsultarCRUD(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		consultas = append(consultas, r.URL.Query().Get("query"))
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}],"Total":9}`)
+		fmt.Fprint(w, `{"Data":[{"Id":5,"TerceroId":25,"TipoProveedor":1,"Activo":true}],"Total":9}`)
 	}))
 	defer server.Close()
 
 	svc := servicioPrueba(server)
-	svc.Config.FilterableFields = []string{"Id", "TerceroId", "TipoRegistroId"}
+	svc.Config.FilterableFields = []string{"Id", "TerceroId", "TipoProveedor"}
 
 	resultado, err := svc.ListarProveedores(context.Background(),
 		[]string{"TerceroId:25", "Id__in:5|6"},
@@ -198,7 +198,7 @@ func TestLeerProveedorNoEncontrado(t *testing.T) {
 // del proveedor base.
 func TestLeerProveedorExpandeTerceroYDetalle(t *testing.T) {
 	server := servidorCRUD(t, map[string]string{
-		"/v1/proveedor/":        `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}]}`,
+		"/v1/proveedor/":        `{"Data":[{"Id":5,"TerceroId":25,"TipoProveedor":1,"Activo":true}]}`,
 		"/v1/tercero":           `{"Data":[{"Id":25,"NombreCompleto":"Ana"}]}`,
 		"/v1/proveedor_natural": `{"Data":[{"Id":5,"PerfilDeclarado":2}]}`,
 	}, nil)
@@ -214,7 +214,7 @@ func TestLeerProveedorExpandeTerceroYDetalle(t *testing.T) {
 
 	m := res.Data.(map[string]any)
 	// Llaves locales conservadas.
-	if m["Id"] != 5 || m["TerceroId"] != 25 || m["TipoRegistroId"] != 1 {
+	if m["Id"] != 5 || m["TerceroId"] != 25 || m["TipoProveedor"] != 1 {
 		t.Errorf("las llaves locales del proveedor base deben conservarse: %+v", m)
 	}
 	// Tercero anidado.
@@ -247,7 +247,7 @@ func TestLeerProveedorRamaNaturalJuridico(t *testing.T) {
 		t.Run(c.nombre, func(t *testing.T) {
 			var vistos []string
 			server := servidorCRUD(t, map[string]string{
-				"/v1/proveedor/":         fmt.Sprintf(`{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":%d,"Activo":true}]}`, c.tipoRegistro),
+				"/v1/proveedor/":         fmt.Sprintf(`{"Data":[{"Id":5,"TerceroId":25,"TipoProveedor":%d,"Activo":true}]}`, c.tipoRegistro),
 				"/v1/proveedor_natural":  `{"Data":[{"Id":5,"PerfilDeclarado":2}]}`,
 				"/v1/proveedor_juridico": `{"Data":[{"Id":5,"NombreComercial":"ACME"}]}`,
 			}, &vistos)
@@ -275,40 +275,6 @@ func TestLeerProveedorRamaNaturalJuridico(t *testing.T) {
 	}
 }
 
-// Las ciudades (ciudad de apertura de la cuenta bancaria, ciudad de expedición
-// de los datos de identificación) se entregan como ID plano: no existe relación
-// declarada para expandirlas, por lo que permanecen como valor escalar.
-func TestLeerProveedorCiudadesSinExpandir(t *testing.T) {
-	server := servidorCRUD(t, map[string]string{
-		"/v1/proveedor/":      `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}]}`,
-		"/v1/cuenta_bancaria": `{"Data":[{"Id":1,"ProveedorId":5,"NumeroCuenta":"000","CiudadAperturaId":80}]}`,
-	}, nil)
-	defer server.Close()
-
-	svc := servicioPrueba(server)
-	res, err := svc.LeerProveedor(context.Background(), 5, []string{
-		"Id", "CuentaBancaria.Id", "CuentaBancaria.NumeroCuenta", "CuentaBancaria.CiudadAperturaId",
-	})
-	if err != nil {
-		t.Fatalf("error inesperado: %v", err)
-	}
-
-	m := res.Data.(map[string]any)
-	cuentas, ok := m["CuentaBancaria"].([]any)
-	if !ok || len(cuentas) != 1 {
-		t.Fatalf("se esperaba 1 cuenta bancaria; recibido: %+v", m["CuentaBancaria"])
-	}
-	cuenta := cuentas[0].(map[string]any)
-	// La ciudad permanece como ID escalar, no como objeto expandido.
-	ciudad := cuenta["CiudadAperturaId"]
-	if _, esObjeto := ciudad.(map[string]any); esObjeto {
-		t.Errorf("la ciudad no debe expandirse como objeto; recibido: %+v", ciudad)
-	}
-	if ciudad == nil {
-		t.Errorf("la ciudad debe conservarse como ID plano; recibido: %+v", cuenta)
-	}
-}
-
 // Un fields inválido devuelve *helper.ErrorFields sin consultar el CRUD dueño:
 // la validación ocurre antes de traer el proveedor base (fallar temprano). Cubre
 // rutas vacías, segmentos vacíos, duplicados y rutas no declaradas.
@@ -330,7 +296,7 @@ func TestLeerProveedorFieldsInvalido(t *testing.T) {
 		t.Run(c.nombre, func(t *testing.T) {
 			var vistos []string
 			server := servidorCRUD(t, map[string]string{
-				"/v1/proveedor/": `{"Data":[{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true}]}`,
+				"/v1/proveedor/": `{"Data":[{"Id":5,"TerceroId":25,"TipoProveedor":1,"Activo":true}]}`,
 			}, &vistos)
 			defer server.Close()
 
@@ -360,12 +326,12 @@ func contienePath(paths []string, objetivo string) bool {
 }
 
 // Un listado con proveedores naturales y jurídicos en la misma página expande
-// la rama de cada proveedor según su propio TipoRegistroId.
+// la rama de cada proveedor según su propio TipoProveedor.
 func TestListarProveedoresRamaPorElementoEnPaginaMixta(t *testing.T) {
 	server := servidorCRUD(t, map[string]string{
 		"/v1/proveedor/": `{"Data":[` +
-			`{"Id":5,"TerceroId":25,"TipoRegistroId":1,"Activo":true},` +
-			`{"Id":6,"TerceroId":26,"TipoRegistroId":2,"Activo":true}],"Total":2}`,
+			`{"Id":5,"TerceroId":25,"TipoProveedor":1,"Activo":true},` +
+			`{"Id":6,"TerceroId":26,"TipoProveedor":2,"Activo":true}],"Total":2}`,
 		"/v1/proveedor_natural":  `{"Data":[{"Id":5,"PerfilDeclarado":2}]}`,
 		"/v1/proveedor_juridico": `{"Data":[{"Id":6,"NombreComercial":"ACME"}]}`,
 	}, nil)

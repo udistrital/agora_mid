@@ -1,0 +1,39 @@
+# lookup: FK de solo lectura en formato esquema.tabla.columna. Emite una arista
+# local_to_related de cardinalidad one en el objeto que porta la columna, sin propagación
+# y sin verbos, aunque write declare política para el referenciado. Cada entrada es una
+# cadena (profundidad 1) o un mapa con entrada, depth y mapped_name. Falla si la FK está
+# también en expand, fk_inbound, flatten o blacklist, o si no es una FK del DBML.
+- entrada: proveedores.proveedor.tipo_proveedor
+  mapped_name: TipoProveedorDetalle
+- proveedores.estado_proveedor.estado_id
+- proveedores.cuenta_bancaria.tipo_cuenta_id
+- proveedores.cuenta_bancaria.entidad_bancaria_id
+- proveedores.documento.tipo_documento_id
+- proveedores.contacto.tipo_canal_contacto_id
+- proveedores.titulo_proveedor_natural.nucleo_basico_conocimiento_snies_id
+- proveedores.proveedor_juridico.procedencia_empresa_id
+- proveedores.proveedor_juridico.tipo_conformacion_id
+- entrada: proveedores.proveedor_juridico.regimen_contributivo
+  mapped_name: RegimenContributivoDetalle
+- proveedores.actividad_economica_proveedor.actividad_economica_id
+- entrada: proveedores.proveedor_natural.pais_nacimiento_id
+  depth: 2
+- entrada: proveedores.proveedor_juridico.ciudad_origen_id
+  depth: 2
+- entrada: proveedores.proveedor_juridico.pais_origen_id
+  depth: 2
+- entrada: terceros.tercero.lugar_origen
+  depth: 2
+  mapped_name: LugarOrigenDetalle
+- entrada: terceros.datos_identificacion.ciudad_expedicion
+  depth: 2
+  mapped_name: CiudadExpedicionDetalle
+- entrada: ubicaciones.lugar.tipo_lugar
+  mapped_name: TipoLugarDetalle
+- proveedores.perfil_proveedor.perfil_id
+- proveedores.titulo_proveedor_natural.perfil_id
+- proveedores.persona_juridica_tipo_entidad.tipo_entidad_id
+- terceros.tercero.tipo_contribuyente_id
+- terceros.datos_identificacion.tipo_documento_id
+- terceros.info_complementaria_tercero.info_complementaria_id
+- terceros.tercero_tipo_tercero.tipo_tercero_id

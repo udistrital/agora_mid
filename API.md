@@ -182,18 +182,15 @@ Ambos verbos comparten la ruta del recurso raíz `GET /v1/proveedor`; el enrutad
 por método delega `POST`/`PATCH` en el servicio de escritura y el resto en la
 lectura.
 
-### Cabeceras
-
-| Cabecera | Obligatoria | Descripción |
-|---|---|---|
-| `X-Autor-Id` | No | Identificador entero positivo del autor de la modificación, poblado por la capa de autenticación. Se inyecta en los registros materializados. |
-
 ### Cuerpo anidado
 
 El cuerpo es un objeto JSON con el proveedor raíz y sus entidades anidadas. Solo
-se admiten los **campos escribibles declarados por relación** en
-`config/relaciones_proveedor.yaml` (bloque `write`); cualquier otro campo
-responde `400` sin materializar nada.
+se admiten los **campos escribibles declarados por objeto** en la tabla de campos de
+`config/objetos_*.yaml` (rol `writable`; el proveedor raíz está en
+`config/objetos_proveedor.yaml`); cualquier otro campo responde `400` sin materializar
+nada.
+
+El cliente envía `UsuarioModificacionId` en la raíz para registrar el autor de la modificación. El servicio lo propaga a cada entidad anidada que lo declara (por ejemplo `Contacto`) cuando esa entidad no trae un valor propio; un valor propio prevalece. Las entidades de `Tercero` no lo reciben, porque `terceros` no declara el campo. Si la raíz no lo envía, las escrituras se materializan sin autor. No existe un encabezado de autoría.
 
 | Nodo | Cardinalidad | Campos escribibles | Reglas |
 |---|---|---|---|
