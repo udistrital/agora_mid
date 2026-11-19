@@ -1,0 +1,24 @@
+schema: spec-driven
+
+context: |
+  El proyecto es un middleware Go con Beego v2.
+  Los registros pertenecen a servicios CRUD externos accesibles por HTTP.
+  Los contratos disponibles se encuentran en docs/contratos/.
+  Usa las convenciones existentes del repositorio para configuración,
+  nombres de paquetes, manejo de errores y formato público de respuesta.
+  Los controladores Beego reciben la petición y pasan su context.Context
+  a la capa de servicios. Los clientes HTTP conservan ese contexto.
+  Escribe la documentación en español y conserva los encabezados
+  estructurales que exigen las plantillas de OpenSpec.
+
+rules:
+  specs:
+    - Describe el comportamiento observable con escenarios WHEN/THEN.
+    - Distingue el resultado del CRUD del resultado que recibe el consumidor.
+    - Identifica la fuente de cada contrato externo y las decisiones pendientes.
+  design:
+    - Documenta configuración, timeout, cancelación y tratamiento de errores.
+    - Para escrituras, explica qué ocurre si se desconoce el resultado remoto.
+  tasks:
+    - Vincula cada tarea de implementación con escenarios verificables.
+    - Incluye pruebas del servicio y del intercambio HTTP con el CRUD.

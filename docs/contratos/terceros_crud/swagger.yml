@@ -1,0 +1,1983 @@
+swagger: "2.0"
+info:
+  title: beego Test API
+  description: beego has a very cool tools to autogenerate documents for your API
+  version: 1.0.0
+  termsOfService: http://beego.me/
+  contact:
+    email: astaxie@gmail.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+basePath: /v1
+paths:
+  /datos_identificacion/:
+    get:
+      tags:
+      - datos_identificacion
+      description: get DatosIdentificacion
+      operationId: DatosIdentificacionController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.DatosIdentificacion'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - datos_identificacion
+      description: create DatosIdentificacion
+      operationId: DatosIdentificacionController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for DatosIdentificacion content
+        required: true
+        schema:
+          $ref: '#/definitions/models.DatosIdentificacion'
+      responses:
+        "201":
+          description: '{int} models.DatosIdentificacion'
+        "400":
+          description: the request contains incorrect syntax
+  /datos_identificacion/{id}:
+    get:
+      tags:
+      - datos_identificacion
+      description: get DatosIdentificacion by id
+      operationId: DatosIdentificacionController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.DatosIdentificacion'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - datos_identificacion
+      description: update the DatosIdentificacion
+      operationId: DatosIdentificacionController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for DatosIdentificacion content
+        required: true
+        schema:
+          $ref: '#/definitions/models.DatosIdentificacion'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.DatosIdentificacion'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - datos_identificacion
+      description: delete the DatosIdentificacion
+      operationId: DatosIdentificacionController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /grupo_info_complementaria/:
+    get:
+      tags:
+      - grupo_info_complementaria
+      description: get GrupoInfoComplementaria
+      operationId: GrupoInfoComplementariaController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.GrupoInfoComplementaria'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - grupo_info_complementaria
+      description: create GrupoInfoComplementaria
+      operationId: GrupoInfoComplementariaController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for GrupoInfoComplementaria content
+        required: true
+        schema:
+          $ref: '#/definitions/models.GrupoInfoComplementaria'
+      responses:
+        "201":
+          description: '{int} models.GrupoInfoComplementaria'
+        "400":
+          description: the request contains incorrect syntax
+  /grupo_info_complementaria/{id}:
+    get:
+      tags:
+      - grupo_info_complementaria
+      description: get GrupoInfoComplementaria by id
+      operationId: GrupoInfoComplementariaController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.GrupoInfoComplementaria'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - grupo_info_complementaria
+      description: update the GrupoInfoComplementaria
+      operationId: GrupoInfoComplementariaController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for GrupoInfoComplementaria content
+        required: true
+        schema:
+          $ref: '#/definitions/models.GrupoInfoComplementaria'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.GrupoInfoComplementaria'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - grupo_info_complementaria
+      description: delete the GrupoInfoComplementaria
+      operationId: GrupoInfoComplementariaController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /info_complementaria/:
+    get:
+      tags:
+      - info_complementaria
+      description: get InfoComplementaria
+      operationId: InfoComplementariaController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.InfoComplementaria'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - info_complementaria
+      description: create InfoComplementaria
+      operationId: InfoComplementariaController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for InfoComplementaria content
+        required: true
+        schema:
+          $ref: '#/definitions/models.InfoComplementaria'
+      responses:
+        "201":
+          description: '{int} models.InfoComplementaria'
+        "400":
+          description: the request contains incorrect syntax
+  /info_complementaria/{id}:
+    get:
+      tags:
+      - info_complementaria
+      description: get InfoComplementaria by id
+      operationId: InfoComplementariaController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.InfoComplementaria'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - info_complementaria
+      description: update the InfoComplementaria
+      operationId: InfoComplementariaController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for InfoComplementaria content
+        required: true
+        schema:
+          $ref: '#/definitions/models.InfoComplementaria'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.InfoComplementaria'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - info_complementaria
+      description: delete the InfoComplementaria
+      operationId: InfoComplementariaController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /info_complementaria_tercero/:
+    get:
+      tags:
+      - info_complementaria_tercero
+      description: get InfoComplementariaTercero
+      operationId: InfoComplementariaTerceroController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.InfoComplementariaTercero'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - info_complementaria_tercero
+      description: create InfoComplementariaTercero
+      operationId: InfoComplementariaTerceroController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for InfoComplementariaTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.InfoComplementariaTercero'
+      responses:
+        "201":
+          description: '{int} models.InfoComplementariaTercero'
+        "400":
+          description: the request contains incorrect syntax
+  /info_complementaria_tercero/{id}:
+    get:
+      tags:
+      - info_complementaria_tercero
+      description: get InfoComplementariaTercero by id
+      operationId: InfoComplementariaTerceroController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.InfoComplementariaTercero'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - info_complementaria_tercero
+      description: update the InfoComplementariaTercero
+      operationId: InfoComplementariaTerceroController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for InfoComplementariaTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.InfoComplementariaTercero'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.InfoComplementariaTercero'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - info_complementaria_tercero
+      description: delete the InfoComplementariaTercero
+      operationId: InfoComplementariaTerceroController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /info_complementaria_tercero/padre:
+    post:
+      tags:
+      - info_complementaria_tercero
+      description: create InfoComplementariaTercero Padre
+      operationId: InfoComplementariaTerceroController.PostPadre
+      parameters:
+      - in: body
+        name: body
+        description: body for InfoComplementariaTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.InfoComplementariaTercero'
+      responses:
+        "201":
+          description: '{int} models.InfoComplementariaTercero'
+        "400":
+          description: the request contains incorrect syntax
+  /seguridad_social_tercero/:
+    get:
+      tags:
+      - seguridad_social_tercero
+      description: get SeguridadSocialTercero
+      operationId: SeguridadSocialTerceroController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.SeguridadSocialTercero'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - seguridad_social_tercero
+      description: create SeguridadSocialTercero
+      operationId: SeguridadSocialTerceroController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for SeguridadSocialTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.SeguridadSocialTercero'
+      responses:
+        "201":
+          description: '{int} models.SeguridadSocialTercero'
+        "400":
+          description: the request contains incorrect syntax
+  /seguridad_social_tercero/{id}:
+    get:
+      tags:
+      - seguridad_social_tercero
+      description: get SeguridadSocialTercero by id
+      operationId: SeguridadSocialTerceroController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.SeguridadSocialTercero'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - seguridad_social_tercero
+      description: update the SeguridadSocialTercero
+      operationId: SeguridadSocialTerceroController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for SeguridadSocialTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.SeguridadSocialTercero'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.SeguridadSocialTercero'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - seguridad_social_tercero
+      description: delete the SeguridadSocialTercero
+      operationId: SeguridadSocialTerceroController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /tercero/:
+    get:
+      tags:
+      - tercero
+      description: get Tercero
+      operationId: TerceroController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.Tercero'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - tercero
+      description: create Tercero
+      operationId: TerceroController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for Tercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.Tercero'
+      responses:
+        "201":
+          description: '{int} models.Tercero'
+        "400":
+          description: the request contains incorrect syntax
+  /tercero/{id}:
+    get:
+      tags:
+      - tercero
+      description: get Tercero by id
+      operationId: TerceroController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.Tercero'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - tercero
+      description: update the Tercero
+      operationId: TerceroController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for Tercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.Tercero'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.Tercero'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - tercero
+      description: delete the Tercero
+      operationId: TerceroController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /tercero/identificacion:
+    get:
+      tags:
+      - tercero
+      description: Consulta en las tablas tercero y datos_identificacion el string
+        suministrado
+      operationId: TerceroController.GetAllTrTerceroIdentificacion
+      parameters:
+      - in: query
+        name: query
+        description: tipo documento + numero documento + nombre completo
+        required: true
+        type: string
+      - in: query
+        name: documento
+        description: numero documento
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/models.DatosIdentificacionTercero'
+        "404":
+          description: not found resource
+  /tercero/identificacion/{id}:
+    get:
+      tags:
+      - tercero
+      description: Consulta en las tablas tercero y datos_identificacion el tercero
+        indicado
+      operationId: TerceroController.GetAllTrTerceroIdentificacion
+      parameters:
+      - in: path
+        name: id
+        description: tercero_id que se consulta
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.DatosIdentificacionTercero'
+        "404":
+          description: not found resource
+  /tercero_familiar/:
+    get:
+      tags:
+      - tercero_familiar
+      description: get TerceroFamiliar
+      operationId: TerceroFamiliarController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TerceroFamiliar'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - tercero_familiar
+      description: create TerceroFamiliar
+      operationId: TerceroFamiliarController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for TerceroFamiliar content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TerceroFamiliar'
+      responses:
+        "201":
+          description: '{int} models.TerceroFamiliar'
+        "400":
+          description: the request contains incorrect syntax
+  /tercero_familiar/{id}:
+    get:
+      tags:
+      - tercero_familiar
+      description: get TerceroFamiliar by id
+      operationId: TerceroFamiliarController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TerceroFamiliar'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - tercero_familiar
+      description: update the TerceroFamiliar
+      operationId: TerceroFamiliarController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for TerceroFamiliar content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TerceroFamiliar'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TerceroFamiliar'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - tercero_familiar
+      description: delete the TerceroFamiliar
+      operationId: TerceroFamiliarController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /tercero_familiar/informacion_familiar:
+    post:
+      tags:
+      - tercero_familiar
+      description: create PostInformacionFamiliar
+      operationId: TerceroFamiliarController.PostInformacionFamiliar
+      parameters:
+      - in: body
+        name: body
+        description: body for PostInformacionFamiliar content
+        required: true
+        schema:
+          $ref: '#/definitions/models.PostInformacionFamiliar'
+      responses:
+        "201":
+          description: '{int} models.TrPostInformacionFamiliar'
+        "400":
+          description: the request contains incorrect syntax
+  /tercero_tipo_tercero/:
+    get:
+      tags:
+      - tercero_tipo_tercero
+      description: get TerceroTipoTercero
+      operationId: TerceroTipoTerceroController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TerceroTipoTercero'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - tercero_tipo_tercero
+      description: create TerceroTipoTercero
+      operationId: TerceroTipoTerceroController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for TerceroTipoTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TerceroTipoTercero'
+      responses:
+        "201":
+          description: '{int} models.TerceroTipoTercero'
+        "400":
+          description: the request contains incorrect syntax
+  /tercero_tipo_tercero/{id}:
+    get:
+      tags:
+      - tercero_tipo_tercero
+      description: get TerceroTipoTercero by id
+      operationId: TerceroTipoTerceroController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TerceroTipoTercero'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - tercero_tipo_tercero
+      description: update the TerceroTipoTercero
+      operationId: TerceroTipoTerceroController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for TerceroTipoTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TerceroTipoTercero'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TerceroTipoTercero'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - tercero_tipo_tercero
+      description: delete the TerceroTipoTercero
+      operationId: TerceroTipoTerceroController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /tipo_contribuyente/:
+    get:
+      tags:
+      - tipo_contribuyente
+      description: get TipoContribuyente
+      operationId: TipoContribuyenteController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoContribuyente'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - tipo_contribuyente
+      description: create TipoContribuyente
+      operationId: TipoContribuyenteController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for TipoContribuyente content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoContribuyente'
+      responses:
+        "201":
+          description: '{int} models.TipoContribuyente'
+        "400":
+          description: the request contains incorrect syntax
+  /tipo_contribuyente/{id}:
+    get:
+      tags:
+      - tipo_contribuyente
+      description: get TipoContribuyente by id
+      operationId: TipoContribuyenteController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoContribuyente'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - tipo_contribuyente
+      description: update the TipoContribuyente
+      operationId: TipoContribuyenteController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for TipoContribuyente content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoContribuyente'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoContribuyente'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - tipo_contribuyente
+      description: delete the TipoContribuyente
+      operationId: TipoContribuyenteController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /tipo_documento/:
+    get:
+      tags:
+      - tipo_documento
+      description: get TipoDocumento
+      operationId: TipoDocumentoController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoDocumento'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - tipo_documento
+      description: create TipoDocumento
+      operationId: TipoDocumentoController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for TipoDocumento content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoDocumento'
+      responses:
+        "201":
+          description: '{int} models.TipoDocumento'
+        "400":
+          description: the request contains incorrect syntax
+  /tipo_documento/{id}:
+    get:
+      tags:
+      - tipo_documento
+      description: get TipoDocumento by id
+      operationId: TipoDocumentoController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoDocumento'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - tipo_documento
+      description: update the TipoDocumento
+      operationId: TipoDocumentoController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for TipoDocumento content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoDocumento'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoDocumento'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - tipo_documento
+      description: delete the TipoDocumento
+      operationId: TipoDocumentoController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /tipo_parentesco/:
+    get:
+      tags:
+      - tipo_parentesco
+      description: get TipoParentesco
+      operationId: TipoParentescoController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoParentesco'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - tipo_parentesco
+      description: create TipoParentesco
+      operationId: TipoParentescoController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for TipoParentesco content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoParentesco'
+      responses:
+        "201":
+          description: '{int} models.TipoParentesco'
+        "400":
+          description: the request contains incorrect syntax
+  /tipo_parentesco/{id}:
+    get:
+      tags:
+      - tipo_parentesco
+      description: get TipoParentesco by id
+      operationId: TipoParentescoController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoParentesco'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - tipo_parentesco
+      description: update the TipoParentesco
+      operationId: TipoParentescoController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for TipoParentesco content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoParentesco'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoParentesco'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - tipo_parentesco
+      description: delete the TipoParentesco
+      operationId: TipoParentescoController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /tipo_tercero/:
+    get:
+      tags:
+      - tipo_tercero
+      description: get TipoTercero
+      operationId: TipoTerceroController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoTercero'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - tipo_tercero
+      description: create TipoTercero
+      operationId: TipoTerceroController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for TipoTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoTercero'
+      responses:
+        "201":
+          description: '{int} models.TipoTercero'
+        "400":
+          description: the request contains incorrect syntax
+  /tipo_tercero/{id}:
+    get:
+      tags:
+      - tipo_tercero
+      description: get TipoTercero by id
+      operationId: TipoTerceroController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoTercero'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - tipo_tercero
+      description: update the TipoTercero
+      operationId: TipoTerceroController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for TipoTercero content
+        required: true
+        schema:
+          $ref: '#/definitions/models.TipoTercero'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.TipoTercero'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - tipo_tercero
+      description: delete the TipoTercero
+      operationId: TipoTerceroController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /vinculacion/:
+    get:
+      tags:
+      - vinculacion
+      description: get Vinculacion
+      operationId: VinculacionController.Get All
+      parameters:
+      - in: query
+        name: query
+        description: Filter. e.g. col1:v1,col2:v2 ...
+        type: string
+      - in: query
+        name: fields
+        description: Fields returned. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: sortby
+        description: Sorted-by fields. e.g. col1,col2 ...
+        type: string
+      - in: query
+        name: order
+        description: Order corresponding to each sortby field, if single value, apply
+          to all sortby fields. e.g. desc,asc ...
+        type: string
+      - in: query
+        name: limit
+        description: Limit the size of result set. Must be an integer
+        type: string
+      - in: query
+        name: offset
+        description: Start position of result set. Must be an integer
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.Vinculacion'
+        "404":
+          description: not found resource
+    post:
+      tags:
+      - vinculacion
+      description: create Vinculacion
+      operationId: VinculacionController.Post
+      parameters:
+      - in: body
+        name: body
+        description: body for Vinculacion content
+        required: true
+        schema:
+          $ref: '#/definitions/models.Vinculacion'
+      responses:
+        "201":
+          description: '{int} models.Vinculacion'
+        "400":
+          description: the request contains incorrect syntax
+  /vinculacion/{id}:
+    get:
+      tags:
+      - vinculacion
+      description: get Vinculacion by id
+      operationId: VinculacionController.Get One
+      parameters:
+      - in: path
+        name: id
+        description: The key for staticblock
+        required: true
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.Vinculacion'
+        "404":
+          description: not found resource
+    put:
+      tags:
+      - vinculacion
+      description: update the Vinculacion
+      operationId: VinculacionController.Put
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to update
+        required: true
+        type: string
+      - in: body
+        name: body
+        description: body for Vinculacion content
+        required: true
+        schema:
+          $ref: '#/definitions/models.Vinculacion'
+      responses:
+        "200":
+          description: ""
+          schema:
+            $ref: '#/definitions/models.Vinculacion'
+        "400":
+          description: the request contains incorrect syntax
+    delete:
+      tags:
+      - vinculacion
+      description: delete the Vinculacion
+      operationId: VinculacionController.Delete
+      parameters:
+      - in: path
+        name: id
+        description: The id you want to delete
+        required: true
+        type: string
+      responses:
+        "200":
+          description: '{string} delete success!'
+        "404":
+          description: not found resource
+  /vinculacion/identificacion:
+    get:
+      tags:
+      - vinculacion
+      description: Consulta en las tablas vinculcación, tercero y datos_identificacion
+        el string suministrado
+      operationId: VinculacionController.GetAllTrVinculacionIdentificacion
+      parameters:
+      - in: query
+        name: query
+        description: tipo documento + numero documento + nombre completo
+        required: true
+        type: string
+      - in: query
+        name: vinculaciones
+        description: tipo_vinculacion_id separados por comas
+        type: string
+      - in: query
+        name: cargos
+        description: cargo_id separados por comas
+        type: string
+      - in: query
+        name: dependencias
+        description: dependencia_id separados por comas
+        type: string
+      responses:
+        "200":
+          description: ""
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/models.DatosIdentificacion'
+        "404":
+          description: not found resource
+definitions:
+  models.DatosIdentificacion:
+    title: DatosIdentificacion
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CiudadExpedicion:
+        type: integer
+        format: int64
+      DigitoVerificacion:
+        type: number
+        format: double
+      DocumentoSoporte:
+        type: integer
+        format: int64
+      FechaCreacion:
+        type: string
+      FechaExpedicion:
+        type: string
+        format: datetime
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      Numero:
+        type: string
+      TerceroId:
+        $ref: '#/definitions/models.Tercero'
+      TipoDocumentoId:
+        $ref: '#/definitions/models.TipoDocumento'
+  models.DatosIdentificacionTercero:
+    title: DatosIdentificacionTercero
+    type: object
+    properties:
+      compuesto:
+        type: string
+      tercero_id:
+        type: integer
+        format: int64
+  models.GrupoInfoComplementaria:
+    title: GrupoInfoComplementaria
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CodigoAbreviacion:
+        type: string
+      Descripcion:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+  models.InfoComplementaria:
+    title: InfoComplementaria
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CodigoAbreviacion:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      GrupoInfoComplementariaId:
+        $ref: '#/definitions/models.GrupoInfoComplementaria'
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+      TipoDeDato:
+        type: string
+  models.InfoComplementariaTercero:
+    title: InfoComplementariaTercero
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      Dato:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      InfoCompleTerceroPadreId:
+        $ref: '#/definitions/models.InfoComplementariaTercero'
+      InfoComplementariaId:
+        $ref: '#/definitions/models.InfoComplementaria'
+      TerceroId:
+        $ref: '#/definitions/models.Tercero'
+  models.PostInformacionFamiliar:
+    title: PostInformacionFamiliar
+    type: object
+  models.SeguridadSocialTercero:
+    title: SeguridadSocialTercero
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      FechaCreacion:
+        type: string
+      FechaFinVinculacion:
+        type: string
+        format: datetime
+      FechaInicioVinculacion:
+        type: string
+        format: datetime
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      TerceroEntidadId:
+        $ref: '#/definitions/models.Tercero'
+      TerceroId:
+        $ref: '#/definitions/models.Tercero'
+  models.Tercero:
+    title: Tercero
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      FechaNacimiento:
+        type: string
+        format: datetime
+      Id:
+        type: integer
+        format: int64
+      LugarOrigen:
+        type: integer
+        format: int64
+      NombreCompleto:
+        type: string
+      PrimerApellido:
+        type: string
+      PrimerNombre:
+        type: string
+      SegundoApellido:
+        type: string
+      SegundoNombre:
+        type: string
+      TipoContribuyenteId:
+        $ref: '#/definitions/models.TipoContribuyente'
+      UsuarioWSO2:
+        type: string
+  models.TerceroFamiliar:
+    title: TerceroFamiliar
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CodigoAbreviacion:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      TerceroFamiliarId:
+        $ref: '#/definitions/models.Tercero'
+      TerceroId:
+        $ref: '#/definitions/models.Tercero'
+      TipoParentescoId:
+        $ref: '#/definitions/models.TipoParentesco'
+  models.TerceroTipoTercero:
+    title: TerceroTipoTercero
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      TerceroId:
+        $ref: '#/definitions/models.Tercero'
+      TipoTerceroId:
+        $ref: '#/definitions/models.TipoTercero'
+  models.TipoContribuyente:
+    title: TipoContribuyente
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CodigoAbreviacion:
+        type: string
+      Descripcion:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+  models.TipoDocumento:
+    title: TipoDocumento
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CodigoAbreviacion:
+        type: string
+      Descripcion:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+      NumeroOrden:
+        type: number
+        format: double
+  models.TipoParentesco:
+    title: TipoParentesco
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CodigoAbreviacion:
+        type: string
+      Descripcion:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+  models.TipoTercero:
+    title: TipoTercero
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      CodigoAbreviacion:
+        type: string
+      Descripcion:
+        type: string
+      FechaCreacion:
+        type: string
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      Nombre:
+        type: string
+  models.Vinculacion:
+    title: Vinculacion
+    type: object
+    properties:
+      Activo:
+        type: boolean
+      Alternancia:
+        type: boolean
+      CargoId:
+        type: integer
+        format: int64
+      DependenciaId:
+        type: integer
+        format: int64
+      FechaCreacion:
+        type: string
+      FechaFinVinculacion:
+        type: string
+        format: datetime
+      FechaInicioVinculacion:
+        type: string
+        format: datetime
+      FechaModificacion:
+        type: string
+      Id:
+        type: integer
+        format: int64
+      PeriodoId:
+        type: integer
+        format: int64
+      Soporte:
+        type: integer
+        format: int64
+      TerceroPrincipalId:
+        $ref: '#/definitions/models.Tercero'
+      TerceroRelacionadoId:
+        $ref: '#/definitions/models.Tercero'
+      TipoVinculacionId:
+        type: integer
+        format: int64
+tags:
+- name: tipo_parentesco
+  description: |
+    TipoParentescoController operations for TipoParentesco
+- name: tipo_tercero
+  description: |
+    TipoTerceroController operations for TipoTercero
+- name: datos_identificacion
+  description: |
+    DatosIdentificacionController operations for DatosIdentificacion
+- name: tercero
+  description: |
+    TerceroController operations for Tercero
+- name: info_complementaria_tercero
+  description: |
+    InfoComplementariaTerceroController operations for InfoComplementariaTercero
+- name: seguridad_social_tercero
+  description: |
+    SeguridadSocialTerceroController operations for SeguridadSocialTercero
+- name: tercero_familiar
+  description: |
+    TerceroFamiliarController operations for TerceroFamiliar
+- name: tercero_tipo_tercero
+  description: |
+    TerceroTipoTerceroController operations for TerceroTipoTercero
+- name: tipo_contribuyente
+  description: |
+    TipoContribuyenteController operations for TipoContribuyente
+- name: tipo_documento
+  description: |
+    TipoDocumentoController operations for TipoDocumento
+- name: grupo_info_complementaria
+  description: |
+    GrupoInfoComplementariaController operations for GrupoInfoComplementaria
+- name: info_complementaria
+  description: |
+    InfoComplementariaController operations for InfoComplementaria
+- name: vinculacion
+  description: |
+    VinculacionController operations for Vinculacion
