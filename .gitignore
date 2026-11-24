@@ -1,0 +1,56 @@
+# Binarios y salidas de compilación de Go / Beego
+/agora_mid
+/agora_mid.exe
+/bin/
+/build/
+/dist/
+*.test
+*.test.exe
+/__debug_bin*
+
+# Cobertura y perfiles de ejecución
+/coverage/
+coverage.out
+coverage.txt
+coverage.html
+*.prof
+*.pprof
+
+# Logs y archivos temporales
+*.log
+/logs/
+/tmp/
+/temp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Variables de entorno y configuración local (conservar plantillas)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+/conf/app.local.conf
+/conf/app.*.local.conf
+/.aws/
+
+# Configuración personal de editores y sistema operativo
+/.idea/
+/.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Espacio de trabajo Go local; go.mod y go.sum se conservan
+/go.work
+/go.work.sum
+
+# Swagger
+/swagger/*.map
+/swagger/*.png
+/swagger/*.html
+/swagger/*.js
+/swagger/*.css
