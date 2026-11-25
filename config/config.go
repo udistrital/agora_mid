@@ -1,0 +1,58 @@
+package config
+
+import (
+	"bufio"
+	"log"
+	"os"
+	"strings"
+)
+
+// Config contiene la configuración de los servicios consumidos por Agora MID.
+type Config struct {
+	TercerosCRUDURL        string
+	ParametrosCRUDURL      string
+	GestionPersonasCRUDURL string
+	UbicacionesCRUDURL     string
+}
+
+// Load lee la configuración desde conf/app.conf y expande variables de entorno.
+func Load() Config {
+	values := make(map[string]string)
+	file, err := os.Open("conf/app.conf")
+	if err == nil {
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+				continue
+			}
+			key, value, found := strings.Cut(line, "=")
+			if !found {
+				continue
+			}
+			values[strings.ToLower(strings.TrimSpace(key))] = os.ExpandEnv(strings.Trim(strings.TrimSpace(value), "\"'"))
+		}
+		if err := scanner.Err(); err != nil {
+			// La lectura es tolerante: se conserva lo ya interpretado y solo se
+			// registra el error de E/S para diagnóstico.
+			log.Printf("config: error leyendo conf/app.conf: %v", err)
+		}
+	}
+
+	return Config{
+		TercerosCRUDURL:        firstNonEmpty(values["terceros_crud_url"], values["terceroscrudhost"]),
+		ParametrosCRUDURL:      firstNonEmpty(values["parametros_crud_url"], values["paramtroscrudhost"]),
+		GestionPersonasCRUDURL: firstNonEmpty(values["gestion_personas_crud_url"], values["gestionproveedorescrudhost"]),
+		UbicacionesCRUDURL:     firstNonEmpty(values["ubicaciones_crud_url"], values["ubicacionescrudhost"]),
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}

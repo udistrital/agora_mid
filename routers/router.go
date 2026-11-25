@@ -17,6 +17,7 @@ func init() {
 	ns := beego.NewNamespace("/v1",
 		beego.NSNamespace("/proveedores",
 			beego.NSRouter("/natural", &controllers.ProveedorNaturalController{}, "post:Post"),
+			beego.NSRouter("/natural/:terceroId", &controllers.ProveedorNaturalController{}, "put:Put"),
 		),
 	)
 	beego.AddNamespace(ns)

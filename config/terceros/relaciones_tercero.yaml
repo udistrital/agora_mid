@@ -1,0 +1,27 @@
+# Servicio de escritura del dominio 1: tercero y su identificación.
+# La raíz es el objeto Tercero; solo se declara la arista escribible de
+# DatosIdentificacion. El resto de relaciones de tercero quedan fuera de este
+# dominio.
+service: tercero
+raiz: Tercero
+max_depth: 4
+on_relation_error: notify
+max_related_ids: 100
+write:
+    policy:
+        creatable: true
+        updatable: true
+        deletable: false
+referencias:
+    - objeto: DatosIdentificacion
+      direction: related_to_local
+      cardinality: many
+      local_field: Id
+      related_field: TerceroId
+      key_propagation: fk
+      policy:
+        creatable: true
+        updatable: true
+        deletable: false
+      depth: 3
+      mapped_name: DatosIdentificacion
