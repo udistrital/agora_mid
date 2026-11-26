@@ -61,6 +61,7 @@ func main() {
 	)
 	controllers.ConfigurarTerceroWriteService(terceroWriteService)
 	controllers.ConfigurarTerceroJuridicoWriteService(terceroWriteService)
+	controllers.ConfigurarCuentaBancariaWriter(services.CuentaBancariaService{})
 
 	if beego.BConfig.RunMode == "dev" {
 		beego.BConfig.WebConfig.DirectoryIndex = true
