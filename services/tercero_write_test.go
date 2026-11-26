@@ -528,3 +528,49 @@ func TestEscribirTerceroRechazaTipoDocumentoInexistente(t *testing.T) {
 	}
 	sinEscrituras(t, fake)
 }
+
+func TestEscribirTerceroConNITNoConsultaCatalogo(t *testing.T) {
+	fake := nuevoCrudFake()
+	entrada := entradaPrueba()
+	entrada.DatosIdentificacion.Numero = "900123456"
+	entrada.DatosIdentificacion.TipoDocumentoId = 7
+	digito := float64(7)
+	entrada.DatosIdentificacion.DigitoVerificacion = &digito
+
+	if _, err := servicioTerceroPrueba(t, fake).EscribirTercero(
+		context.Background(), entrada, 0, helper.WriteVerbCreate,
+	); err != nil {
+		t.Fatalf("EscribirTercero no debe fallar con NIT configurado: %v", err)
+	}
+
+	for _, captura := range fake.capturas {
+		if captura.metodo == http.MethodGet &&
+			strings.HasPrefix(captura.path, "/v1/tipo_documento/") {
+			t.Fatalf("no debe consultar tipo_documento para NIT: %+v", captura)
+		}
+	}
+}
+
+func TestEscribirTerceroConOtroTipoConsultaCatalogo(t *testing.T) {
+	fake := nuevoCrudFake()
+	entrada := entradaPrueba()
+	entrada.DatosIdentificacion.TipoDocumentoId = 3
+
+	if _, err := servicioTerceroPrueba(t, fake).EscribirTercero(
+		context.Background(), entrada, 0, helper.WriteVerbCreate,
+	); err != nil {
+		t.Fatalf("EscribirTercero no debe fallar: %v", err)
+	}
+
+	consulto := false
+	for _, captura := range fake.capturas {
+		if captura.metodo == http.MethodGet &&
+			strings.HasPrefix(captura.path, "/v1/tipo_documento/") {
+			consulto = true
+			break
+		}
+	}
+	if !consulto {
+		t.Fatal("los tipos de documento distintos de NIT deben validarse contra el catálogo")
+	}
+}

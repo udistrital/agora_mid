@@ -369,7 +369,9 @@ func (s TerceroWriteService) validarIdentificacion(
 		if !esNIT {
 			return invalid("para persona jurídica el TipoDocumentoId debe ser NIT")
 		}
-	} else if s.Catalogos != nil {
+	} else if s.Catalogos != nil && !esNIT {
+		// Si el NIT viene configurado por entorno, se confía en ese Id y no se
+		// consulta tipo_documento. El resto de tipos de documento sí se valida.
 		existe, err := s.Catalogos.TipoDocumentoExiste(ctx, id.TipoDocumentoId)
 		if err != nil {
 			return err

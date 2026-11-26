@@ -4,8 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"strconv"
-	"strings"
 
 	beego "github.com/beego/beego/v2/server/web"
 	apistatus "github.com/udistrital/utils_oas/v2/apiStatusLib"
@@ -20,6 +18,19 @@ import (
 )
 
 func main() {
+	if definidas, err := config.CargarDotEnv(".env"); err != nil {
+		log.Printf("config: no se pudo cargar .env: %v", err)
+	} else if definidas > 0 {
+		log.Printf("config: .env cargado (%d variables)", definidas)
+	}
+
+	// Beego lee conf/app.conf durante la inicialización del paquete, antes de
+	// main. Se recarga aquí para que las variables cargadas desde .env también
+	// apliquen a httpport, runmode y a los hosts de los CRUD.
+	if err := beego.LoadAppConfig("ini", "conf/app.conf"); err != nil {
+		log.Printf("config: no se pudo recargar conf/app.conf: %v", err)
+	}
+
 	cfg := config.Load()
 	urls := cfg.URLs()
 
@@ -34,14 +45,15 @@ func main() {
 		Client:  clients.HTTPClient{},
 	}
 
-	tipoNatural := resolverTipoContribuyente(
-		tercerosService, "MID_TIPO_CONTRIBUYENTE_NATURAL", "P_NATURAL",
-	)
-	tipoJuridica := resolverTipoContribuyente(
-		tercerosService, "MID_TIPO_CONTRIBUYENTE_JURIDICA", "P_JURIDICA",
-	)
-	tipoDocumentoNIT := resolverTipoDocumento(
-		tercerosService, "MID_TIPO_DOCUMENTO_NIT", "NIT",
+	ids, err := config.CargarIDsCatalogo(context.Background(), os.Getenv, tercerosService)
+	if err != nil {
+		log.Fatalf("resolviendo los catálogos del dominio 1: %v", err)
+	}
+	log.Printf(
+		"catálogos: P_NATURAL=%s, P_JURIDICA=%s, NIT=%s",
+		ids.TipoContribuyenteNatural,
+		ids.TipoContribuyenteJuridica,
+		ids.TipoDocumentoNIT,
 	)
 
 	catalogos := services.NewCatalogosService(
@@ -54,9 +66,9 @@ func main() {
 		clients.HTTPClient{},
 		urls,
 		terceroConfig,
-		tipoNatural,
-		tipoJuridica,
-		tipoDocumentoNIT,
+		ids.TipoContribuyenteNatural.Valor,
+		ids.TipoContribuyenteJuridica.Valor,
+		ids.TipoDocumentoNIT.Valor,
 		catalogos,
 	)
 	controllers.ConfigurarTerceroWriteService(terceroWriteService)
@@ -72,49 +84,4 @@ func main() {
 	security.SetSecurityHeaders()
 	beego.ErrorController(&customerror.CustomErrorController{})
 	beego.Run()
-}
-
-// resolverTipoContribuyente obtiene el Id del tipo de contribuyente desde la
-// variable de entorno indicada o, si no está configurada, desde el catálogo de
-// terceros_crud.
-func resolverTipoContribuyente(
-	servicio services.TercerosService,
-	variable string,
-	codigo string,
-) int {
-	if valor := strings.TrimSpace(os.Getenv(variable)); valor != "" {
-		id, err := strconv.Atoi(valor)
-		if err != nil || id <= 0 {
-			log.Fatalf("%s debe ser un entero positivo: %q", variable, valor)
-		}
-		return id
-	}
-
-	id, err := servicio.ResolverTipoContribuyente(context.Background(), codigo)
-	if err != nil {
-		log.Fatalf("resolviendo el tipo de contribuyente %s: %v", codigo, err)
-	}
-	return id
-}
-
-// resolverTipoDocumento obtiene el Id de un tipo de documento desde la variable
-// de entorno indicada o, si no está configurada, desde el catálogo.
-func resolverTipoDocumento(
-	servicio services.TercerosService,
-	variable string,
-	codigo string,
-) int {
-	if valor := strings.TrimSpace(os.Getenv(variable)); valor != "" {
-		id, err := strconv.Atoi(valor)
-		if err != nil || id <= 0 {
-			log.Fatalf("%s debe ser un entero positivo: %q", variable, valor)
-		}
-		return id
-	}
-
-	id, err := servicio.ResolverTipoDocumento(context.Background(), codigo)
-	if err != nil {
-		log.Fatalf("resolviendo el tipo de documento %s: %v", codigo, err)
-	}
-	return id
 }
