@@ -4,13 +4,25 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// HTTPStatusError representa una respuesta HTTP no exitosa de un servicio
+// externo. No incluye la URL ni el cuerpo remoto para no filtrar datos internos.
+type HTTPStatusError struct {
+	StatusCode int
+}
+
+func (e *HTTPStatusError) Error() string {
+	return fmt.Sprintf("el servicio externo respondió HTTP %d", e.StatusCode)
+}
 
 // HTTPClient centraliza el consumo HTTP de servicios externos.
 type HTTPClient struct {
@@ -60,13 +72,18 @@ func (c HTTPClient) do(
 
 	resp, err := c.httpClient().Do(req)
 	if err != nil {
+		// *url.Error incluye la URL completa, con posibles datos sensibles en la
+		// query (por ejemplo el número de documento). Se conserva solo la causa.
+		var urlErr *neturl.Error
+		if errors.As(err, &urlErr) && urlErr.Err != nil {
+			err = urlErr.Err
+		}
 		return 0, nil, fmt.Errorf("falló la petición al servicio externo: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return resp.StatusCode, resp.Header,
-			fmt.Errorf("el servicio externo respondió HTTP %d", resp.StatusCode)
+		return resp.StatusCode, resp.Header, &HTTPStatusError{StatusCode: resp.StatusCode}
 	}
 
 	if target != nil && resp.StatusCode != http.StatusNoContent {

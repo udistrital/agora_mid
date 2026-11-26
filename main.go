@@ -33,32 +33,34 @@ func main() {
 		BaseURL: urls["terceros"],
 		Client:  clients.HTTPClient{},
 	}
-	tipoNatural := 0
-	if valor := strings.TrimSpace(os.Getenv("MID_TIPO_CONTRIBUYENTE_NATURAL")); valor != "" {
-		id, err := strconv.Atoi(valor)
-		if err != nil || id <= 0 {
-			log.Fatalf("MID_TIPO_CONTRIBUYENTE_NATURAL debe ser un entero positivo: %q", valor)
-		}
-		tipoNatural = id
-	}
-	if tipoNatural == 0 {
-		var err error
-		tipoNatural, err = tercerosService.ResolverTipoContribuyente(
-			context.Background(),
-			"P_NATURAL",
-		)
-		if err != nil {
-			log.Fatalf("resolviendo el tipo de contribuyente P_NATURAL: %v", err)
-		}
-	}
+
+	tipoNatural := resolverTipoContribuyente(
+		tercerosService, "MID_TIPO_CONTRIBUYENTE_NATURAL", "P_NATURAL",
+	)
+	tipoJuridica := resolverTipoContribuyente(
+		tercerosService, "MID_TIPO_CONTRIBUYENTE_JURIDICA", "P_JURIDICA",
+	)
+	tipoDocumentoNIT := resolverTipoDocumento(
+		tercerosService, "MID_TIPO_DOCUMENTO_NIT", "NIT",
+	)
+
+	catalogos := services.NewCatalogosService(
+		clients.HTTPClient{},
+		urls["terceros"],
+		urls["ubicaciones"],
+	)
 
 	terceroWriteService := services.NewTerceroWriteService(
 		clients.HTTPClient{},
 		urls,
 		terceroConfig,
 		tipoNatural,
+		tipoJuridica,
+		tipoDocumentoNIT,
+		catalogos,
 	)
 	controllers.ConfigurarTerceroWriteService(terceroWriteService)
+	controllers.ConfigurarTerceroJuridicoWriteService(terceroWriteService)
 
 	if beego.BConfig.RunMode == "dev" {
 		beego.BConfig.WebConfig.DirectoryIndex = true
@@ -69,4 +71,49 @@ func main() {
 	security.SetSecurityHeaders()
 	beego.ErrorController(&customerror.CustomErrorController{})
 	beego.Run()
+}
+
+// resolverTipoContribuyente obtiene el Id del tipo de contribuyente desde la
+// variable de entorno indicada o, si no está configurada, desde el catálogo de
+// terceros_crud.
+func resolverTipoContribuyente(
+	servicio services.TercerosService,
+	variable string,
+	codigo string,
+) int {
+	if valor := strings.TrimSpace(os.Getenv(variable)); valor != "" {
+		id, err := strconv.Atoi(valor)
+		if err != nil || id <= 0 {
+			log.Fatalf("%s debe ser un entero positivo: %q", variable, valor)
+		}
+		return id
+	}
+
+	id, err := servicio.ResolverTipoContribuyente(context.Background(), codigo)
+	if err != nil {
+		log.Fatalf("resolviendo el tipo de contribuyente %s: %v", codigo, err)
+	}
+	return id
+}
+
+// resolverTipoDocumento obtiene el Id de un tipo de documento desde la variable
+// de entorno indicada o, si no está configurada, desde el catálogo.
+func resolverTipoDocumento(
+	servicio services.TercerosService,
+	variable string,
+	codigo string,
+) int {
+	if valor := strings.TrimSpace(os.Getenv(variable)); valor != "" {
+		id, err := strconv.Atoi(valor)
+		if err != nil || id <= 0 {
+			log.Fatalf("%s debe ser un entero positivo: %q", variable, valor)
+		}
+		return id
+	}
+
+	id, err := servicio.ResolverTipoDocumento(context.Background(), codigo)
+	if err != nil {
+		log.Fatalf("resolviendo el tipo de documento %s: %v", codigo, err)
+	}
+	return id
 }

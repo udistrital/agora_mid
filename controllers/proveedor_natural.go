@@ -2,14 +2,8 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
-	"io"
-	"net"
 	"net/http"
-	"strconv"
 	"strings"
 
 	beego "github.com/beego/beego/v2/server/web"
@@ -84,7 +78,7 @@ func (c *ProveedorNaturalController) Post() {
 // @Failure 502 dependencia no disponible
 // @router /natural/{terceroId} [put]
 func (c *ProveedorNaturalController) Put() {
-	terceroID, ok := c.leerTerceroID()
+	terceroID, ok := leerTerceroID(&c.Controller)
 	if !ok {
 		return
 	}
@@ -99,15 +93,7 @@ func (c *ProveedorNaturalController) Put() {
 // los obligatorios del dominio 1.
 func (c *ProveedorNaturalController) decodificarYValidar() (models.RegistroTerceroNatural, bool) {
 	var in models.RegistroTerceroNatural
-	cuerpo := c.Ctx.Input.RequestBody
-	if len(cuerpo) == 0 && c.Ctx.Request.Body != nil {
-		cuerpo, _ = io.ReadAll(c.Ctx.Request.Body)
-	}
-	dec := json.NewDecoder(bytes.NewReader(cuerpo))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&in); err != nil {
-		utils.AbortWithError(&c.Controller, http.StatusBadRequest,
-			"La petición no es un JSON válido o contiene campos no permitidos", err)
+	if !decodificarCuerpo(&c.Controller, &in) {
 		return in, false
 	}
 	if msg, valido := validarTerceroNatural(in); !valido {
@@ -115,21 +101,6 @@ func (c *ProveedorNaturalController) decodificarYValidar() (models.RegistroTerce
 		return in, false
 	}
 	return in, true
-}
-
-// leerTerceroID toma el parámetro de ruta y exige un entero positivo.
-func (c *ProveedorNaturalController) leerTerceroID() (int64, bool) {
-	valor := c.Ctx.Input.Param(":terceroId")
-	if strings.TrimSpace(valor) == "" {
-		valor = c.Ctx.Input.Param(":id")
-	}
-	id, err := strconv.ParseInt(strings.TrimSpace(valor), 10, 64)
-	if err != nil || id <= 0 {
-		utils.AbortWithError(&c.Controller, http.StatusBadRequest,
-			"terceroId debe ser un entero positivo", err)
-		return 0, false
-	}
-	return id, true
 }
 
 // ejecutar invoca el servicio y traduce el resultado o el error al envelope.
@@ -152,76 +123,19 @@ func (c *ProveedorNaturalController) ejecutar(
 		return
 	}
 
-	data := dataDeResultado(resultado)
-	switch {
-	case resultado.Parcial:
-		utils.WritePartial(&c.Controller, "Registro parcial", data, resultado.Avisos)
-	case len(resultado.Creados) > 0:
-		utils.WriteSuccessWithWarnings(&c.Controller, http.StatusCreated,
-			"Tercero e identificación creados", data, resultado.Avisos)
-	default:
-		utils.WriteSuccessWithWarnings(&c.Controller, http.StatusOK,
-			"Tercero e identificación actualizados", data, resultado.Avisos)
-	}
+	escribirRespuestaTercero(
+		&c.Controller,
+		resultado,
+		dataDeResultado(resultado),
+		"Tercero e identificación creados",
+		"Tercero e identificación actualizados",
+	)
 }
 
 // responderError mapea los errores del servicio a códigos HTTP sin exponer
 // detalles internos de los CRUD.
 func (c *ProveedorNaturalController) responderError(err error) {
-	switch {
-	case errors.Is(err, services.ErrTipoContribuyenteInvalido):
-		utils.AbortWithError(&c.Controller, http.StatusBadRequest, err.Error(), nil)
-
-	case errors.Is(err, services.ErrTipoContribuyenteConflicto):
-		utils.AbortWithError(&c.Controller, http.StatusConflict, err.Error(), nil)
-
-	case errors.Is(err, services.ErrTerceroNoEncontrado):
-		utils.AbortWithError(&c.Controller, http.StatusNotFound, err.Error(), nil)
-
-	case errors.Is(err, services.ErrIdentificacionDeOtroTercero):
-		utils.AbortWithError(&c.Controller, http.StatusConflict, err.Error(), nil)
-
-	case errors.Is(err, services.ErrCatalogoNoEncontrado),
-		errors.Is(err, services.ErrCatalogoAmbiguo),
-		errors.Is(err, services.ErrTipoContribuyenteNoConfigurado):
-		utils.AbortWithError(&c.Controller, http.StatusInternalServerError,
-			"No fue posible resolver el tipo de contribuyente P_NATURAL", err)
-
-	default:
-		var errorEscritura *helper.ErrorEscritura
-		if errors.As(err, &errorEscritura) {
-			utils.AbortWithError(&c.Controller, http.StatusBadRequest,
-				errorEscritura.Error(), nil)
-			return
-		}
-
-		if helper.EsErrorFatalEscritura(err) {
-			if esTimeout(err) {
-				utils.WriteError(&c.Controller, http.StatusGatewayTimeout,
-					"Tiempo de espera agotado al escribir en terceros_crud", nil)
-				return
-			}
-			utils.AbortWithError(&c.Controller, http.StatusBadGateway,
-				"No fue posible escribir en terceros_crud", err)
-			return
-		}
-
-		if esTimeout(err) {
-			utils.WriteError(&c.Controller, http.StatusGatewayTimeout,
-				"Tiempo de espera agotado al consultar terceros_crud", nil)
-			return
-		}
-		utils.AbortWithError(&c.Controller, http.StatusBadGateway,
-			"No fue posible procesar el registro del tercero", err)
-	}
-}
-
-func esTimeout(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-	var netErr net.Error
-	return errors.As(err, &netErr) && netErr.Timeout()
+	responderErrorTercero(&c.Controller, err, "P_NATURAL")
 }
 
 // validarTerceroNatural comprueba los campos obligatorios del payload.
@@ -240,58 +154,4 @@ func validarTerceroNatural(in models.RegistroTerceroNatural) (string, bool) {
 		return "DatosIdentificacion.TipoDocumentoId es obligatorio", false
 	}
 	return "", true
-}
-
-// dataDeResultado adapta el subárbol del motor al contrato del dominio 1.
-func dataDeResultado(resultado services.TerceroWriteResult) models.RegistroTerceroData {
-	basicos := copiarMapa(resultado.Data.Data)
-	identificacion := map[string]any{}
-	if valor, ok := basicos["DatosIdentificacion"]; ok {
-		identificacion = primerMapa(valor)
-		delete(basicos, "DatosIdentificacion")
-	}
-	return models.RegistroTerceroData{
-		TerceroId:             resultado.TerceroId,
-		DatosBasicos:          basicos,
-		DatosIdentificacion:   identificacion,
-		DatosIdentificacionId: resultado.DatosIdentificacionId,
-		Resultado: models.Resultado{
-			Creados:      listaEntidades(resultado.Creados),
-			Reutilizados: listaEntidades(resultado.Reutilizados),
-			Actualizados: listaEntidades(resultado.Actualizados),
-		},
-	}
-}
-
-func listaEntidades(valores []models.EntidadId) []models.EntidadId {
-	if valores == nil {
-		return []models.EntidadId{}
-	}
-	return valores
-}
-
-func copiarMapa(original map[string]any) map[string]any {
-	copia := make(map[string]any, len(original))
-	for k, v := range original {
-		copia[k] = v
-	}
-	return copia
-}
-
-func primerMapa(valor any) map[string]any {
-	switch v := valor.(type) {
-	case map[string]any:
-		return v
-	case []any:
-		for _, elem := range v {
-			if m, ok := elem.(map[string]any); ok {
-				return m
-			}
-		}
-	case []map[string]any:
-		if len(v) > 0 {
-			return v[0]
-		}
-	}
-	return map[string]any{}
 }

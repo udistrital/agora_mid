@@ -14,7 +14,7 @@ Este spec cubre únicamente el **dominio 1**: `tercero` y `datos_identificacion`
 | `PUT /v1/proveedores/natural/{terceroId}` | Actualización del tercero y su identificación. |
 | `TipoContribuyenteId` | Recibido en `DatosBasicos`, validado contra `P_NATURAL`. |
 | `NombreCompleto` | Derivado por el MID. |
-| `DigitoVerificacion` | Enviado y actualizado cuando llega. |
+| `DigitoVerificacion` | Obligatorio para NIT (entero 0–9); opcional para otros tipos. |
 | Envelope y errores | `Success`, `Status` string, `Message`, `Data`, `MetaData.Errors`; `customerror` y `utils_oas` v2. |
 | Logs | Etapa fallida, causa técnica y número de documento enmascarado. |
 
@@ -148,6 +148,76 @@ El cuerpo NO SHALL aceptar:
 
 - **WHEN** `DatosIdentificacion.Numero` es `"0023456789"`
 - **THEN** el valor viaja como string sin perder los ceros iniciales en consultas, escrituras y respuesta
+
+### Requirement: Validaciones de formato, longitud y catálogos
+
+Antes de leer o escribir, el MID SHALL validar:
+
+- `PrimerNombre` y `PrimerApellido` obligatorios.
+- Cada nombre o apellido con máximo 100 caracteres.
+- `NombreCompleto` derivado con máximo 255 caracteres.
+- `FechaNacimiento` RFC3339 y no futura.
+- `Numero` recortado, de 1 a 50 caracteres, sin `,`, `:`, espacios internos ni caracteres de control.
+- Si el tipo es NIT, `Numero` solo dígitos y `DigitoVerificacion` obligatorio.
+- `DigitoVerificacion` entero entre 0 y 9 cuando venga.
+- `TipoDocumentoId` existente y activo en `tipo_documento`.
+- `LugarOrigen` y `CiudadExpedicion` no negativos; si son mayores que cero, existentes y activos en `ubicaciones_crud`.
+- `FechaExpedicion` RFC3339 y no futura.
+- Rechazo de datos de cola, `Content-Type` distinto de `application/json` y cuerpos mayores a 64 KB.
+
+#### Scenario: Nombre demasiado largo
+
+- **WHEN** un nombre o apellido supera 100 caracteres o el `NombreCompleto` derivado supera 255
+- **THEN** el MID responde `400` y no escribe
+
+#### Scenario: Número con coma o dos puntos
+
+- **WHEN** `Numero` contiene `,` o `:`
+- **THEN** el MID responde `400` y no consulta ni escribe
+
+#### Scenario: NIT sin dígito de verificación
+
+- **WHEN** el tipo es NIT y `DigitoVerificacion` está ausente
+- **THEN** el MID responde `400`
+
+#### Scenario: Tipo de documento inexistente
+
+- **WHEN** `TipoDocumentoId` no existe o está inactivo
+- **THEN** el MID responde `400`
+
+#### Scenario: Ubicación inexistente
+
+- **WHEN** `LugarOrigen` o `CiudadExpedicion` es mayor que cero y no existe o está inactivo
+- **THEN** el MID responde `400` y no escribe
+
+#### Scenario: Fecha futura
+
+- **WHEN** `FechaNacimiento` o `FechaExpedicion` es posterior al momento actual
+- **THEN** el MID responde `400`
+
+### Requirement: Registros inactivos
+
+El MID SHALL consultar las identificaciones incluyendo las inactivas para detectarlas antes de escribir.
+
+- Si el tercero existente está inactivo, `POST` y `PUT` SHALL responder `409`.
+- Si la identificación está inactiva, `POST` y `PUT` SHALL responder `409`.
+- El MID NO SHALL reactivar automáticamente un tercero ni una identificación.
+- Si el tercero no tiene ninguna identificación (ni activa ni inactiva), el `PUT` SHALL crear una.
+
+#### Scenario: Tercero inactivo
+
+- **WHEN** el documento resuelve a un tercero con `Activo: false`
+- **THEN** el MID responde `409`
+
+#### Scenario: Identificación inactiva
+
+- **WHEN** la identificación del tercero tiene `Activo: false`
+- **THEN** el MID responde `409`
+
+#### Scenario: Tercero sin identificaciones
+
+- **WHEN** el tercero existe y no tiene identificaciones
+- **THEN** el `PUT` crea la identificación y responde `201`
 
 ### Requirement: Validación de `TipoContribuyenteId`
 
@@ -291,7 +361,8 @@ En `POST` con identificación activa y en `PUT` con `TerceroId` existente, el MI
 `datos_identificacion`:
 
 - Conservar `Id`, `TerceroId`, `Activo` y `DocumentoSoporte`.
-- Reemplazar `Numero`, `TipoDocumentoId`, `CiudadExpedicion`, `FechaExpedicion` y `DigitoVerificacion` solo cuando vienen.
+- Conservar `Numero` y `TipoDocumentoId`; si difieren de la identificación activa, responder `409`.
+- Reemplazar `CiudadExpedicion`, `FechaExpedicion` y `DigitoVerificacion` solo cuando vienen.
 - Ejecutar un único `PUT` por el `Id` de la identificación seleccionada.
 
 En `PUT`:
@@ -300,6 +371,7 @@ En `PUT`:
 - Buscar la identificación por `TerceroId + Activo:true`, con `sortby=Id&order=asc`.
 - Si no hay identificación activa, crearla.
 - Si hay varias, usar la primera y emitir aviso.
+- Si el `Numero` o el `TipoDocumentoId` del payload difieren de la identificación activa, responder `409` y no escribir.
 - Si el `TerceroId` del cuerpo no coincide con el de la ruta, responder `400`.
 
 #### Scenario: POST con identificación existente
@@ -332,9 +404,13 @@ En `PUT`:
 - **THEN** se usa la primera con `sortby=Id&order=asc`
 - **AND** se emite `MetaData.Errors` con `kind: "ambiguous_match"`
 
-### Requirement: No reasignación de identificación entre terceros
+### Requirement: Identidad inmutable y no reasignación entre terceros
 
-Antes de actualizar `Numero` o `TipoDocumentoId` de una identificación, el MID SHALL consultar `datos_identificacion` por el nuevo `Numero + TipoDocumentoId + Activo:true`.
+La identificación activa de un tercero existente SHALL ser inmutable en `PUT`. El MID NO SHALL cambiar `Numero` ni `TipoDocumentoId` de una identificación ya asociada al tercero.
+
+Antes de escribir, el MID SHALL comparar el `Numero` y el `TipoDocumentoId` del payload con la identificación activa del tercero. Si alguno difiere, SHALL responder `409` y no SHALL escribir.
+
+Además, antes de crear o actualizar una identificación, el MID SHALL consultar `datos_identificacion` por el nuevo `Numero + TipoDocumentoId + Activo:true`.
 
 Si la consulta devuelve una identificación cuyo `TerceroId.Id` es distinto del tercero que se está actualizando, el MID SHALL responder `409` y no SHALL mover ni modificar la identificación de otro tercero.
 
@@ -344,10 +420,23 @@ Si la consulta devuelve una identificación cuyo `TerceroId.Id` es distinto del 
 - **THEN** el MID responde `409`
 - **AND** no modifica la identificación original ni la del otro tercero
 
-#### Scenario: Número libre
+#### Scenario: Número distinto y libre
 
-- **WHEN** el nuevo `Numero + TipoDocumentoId` no pertenece a otro tercero
-- **THEN** el MID actualiza la identificación del tercero de la ruta
+- **WHEN** el `PUT` envía un `Numero` distinto al de la identificación activa
+- **THEN** el MID responde `409` con `"el número y el tipo de documento no se pueden cambiar en la actualización"`
+- **AND** no modifica la identificación del tercero
+
+#### Scenario: Tipo de documento distinto
+
+- **WHEN** el `PUT` envía el mismo `Numero` pero otro `TipoDocumentoId`
+- **THEN** el MID responde `409`
+- **AND** no modifica la identificación del tercero
+
+#### Scenario: Misma identidad
+
+- **WHEN** el `PUT` envía el mismo `Numero` y el mismo `TipoDocumentoId`
+- **THEN** el MID actualiza los demás campos permitidos de la identificación
+- **AND** conserva `Numero` y `TipoDocumentoId`
 
 ### Requirement: Composición de la respuesta y estado HTTP
 
@@ -411,6 +500,8 @@ El estado HTTP SHALL ser:
 
 - **WHEN** se crea el tercero y falla la identificación
 - **THEN** la respuesta es `206`, `Success` es `false` y `MetaData.Errors` describe el fallo
+- **AND** `Resultado.Creados` solo incluye entidades con `Id` real
+- **AND** `DatosIdentificacionId` es `0` si la identificación no se materializó
 
 ### Requirement: Formato de respuesta con `utils_oas` v2
 
@@ -543,3 +634,9 @@ Ajustes obligatorios del proyecto base para este dominio:
 - La implementación reutiliza el `base_engine` mediante un `TerceroWriteService` con raíz `Tercero`.
 - `ProveedorWriteService` queda reservado para el dominio 2 (caracterización).
 - El spec reemplaza el alcance anterior de `registro-proveedor-natural`, que incluía la creación del proveedor.
+- `DigitoVerificacion` es obligatorio para NIT y debe ser un entero entre 0 y 9.
+- `TipoDocumentoId` se valida contra `tipo_documento`; no se hardcodean IDs.
+- `LugarOrigen` y `CiudadExpedicion` se validan contra `ubicaciones_crud` por existencia y `Activo`; no se exige un tipo de lugar específico porque los datos existentes usan IDs de país en `CiudadExpedicion`.
+- Los terceros y las identificaciones inactivas responden `409`; no se reactivan automáticamente.
+- El MID serializa las operaciones por `Numero + TipoDocumentoId` dentro de la instancia y emite un aviso `duplicate_match` si detecta duplicados.
+- Las FK de respuesta se normalizan a `{ "Id": n }`.

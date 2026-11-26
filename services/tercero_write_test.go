@@ -27,12 +27,13 @@ type capturaPeticion struct {
 }
 
 type crudTercerosFake struct {
-	terceros         map[int]map[string]any
-	identificaciones map[int]map[string]any
-	siguienteTercero int
-	siguienteIdent   int
-	capturas         []capturaPeticion
-	vacioComoObjeto  bool
+	terceros             map[int]map[string]any
+	identificaciones     map[int]map[string]any
+	siguienteTercero     int
+	siguienteIdent       int
+	capturas             []capturaPeticion
+	vacioComoObjeto      bool
+	fallarIdentificacion bool
 }
 
 func nuevoCrudFake() *crudTercerosFake {
@@ -62,6 +63,32 @@ func (f *crudTercerosFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	switch {
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/tipo_documento/"):
+		id, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/v1/tipo_documento/"))
+		if id == 9999 {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"Message":"no encontrado"}`)
+			return
+		}
+		codigo := "DOC"
+		if id == 7 {
+			codigo = "NIT"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"Id": id, "Activo": true, "CodigoAbreviacion": codigo,
+		})
+
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/lugar/"):
+		id, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/v1/lugar/"))
+		if id == 9999 {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"Message":"no encontrado"}`)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"Id": id, "Activo": true, "Nombre": "Lugar",
+		})
+
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/tercero/"):
 		id, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/v1/tercero/"))
 		registro, ok := f.terceros[id]
@@ -93,6 +120,11 @@ func (f *crudTercerosFake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(cuerpo)
 
 	case r.Method == http.MethodPost && (r.URL.Path == "/v1/datos_identificacion" || r.URL.Path == "/v1/datos_identificacion/"):
+		if f.fallarIdentificacion {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"Message":"fallo simulado"}`)
+			return
+		}
 		id := f.siguienteIdent
 		f.siguienteIdent++
 		cuerpo["Id"] = id
@@ -180,11 +212,19 @@ func servicioTerceroPrueba(t *testing.T, fake *crudTercerosFake) TerceroWriteSer
 	if !ok {
 		t.Fatal("no se cargó la configuración del servicio tercero")
 	}
+	catalogos := NewCatalogosService(
+		clients.HTTPClient{Client: server.Client()},
+		server.URL,
+		server.URL,
+	)
 	return NewTerceroWriteService(
 		clients.HTTPClient{Client: server.Client()},
 		urls,
 		cfg,
 		1,
+		2,
+		7,
+		catalogos,
 	)
 }
 
@@ -317,6 +357,38 @@ func TestEscribirTerceroActualizaConservandoCampos(t *testing.T) {
 	}
 }
 
+func TestEscribirTerceroRechazaCambioDeIdentificacion(t *testing.T) {
+	fake := nuevoCrudFake()
+	fake.terceros[101] = map[string]any{
+		"Id":                  101,
+		"NombreCompleto":      "Ana Pérez",
+		"Activo":              true,
+		"TipoContribuyenteId": map[string]any{"Id": 1},
+	}
+	fake.identificaciones[140] = map[string]any{
+		"Id":              140,
+		"TerceroId":       map[string]any{"Id": 101},
+		"TipoDocumentoId": map[string]any{"Id": 3},
+		"Numero":          "1012345678",
+		"Activo":          true,
+	}
+
+	entrada := entradaPrueba()
+	entrada.DatosIdentificacion.Numero = "1099999999"
+
+	_, err := servicioTerceroPrueba(t, fake).EscribirTercero(
+		context.Background(), entrada, 101, helper.WriteVerbUpdate,
+	)
+	if !errors.Is(err, ErrIdentificacionInmutable) {
+		t.Fatalf("se esperaba ErrIdentificacionInmutable; obtuvo %v", err)
+	}
+	for _, captura := range fake.capturas {
+		if captura.metodo == http.MethodPut || captura.metodo == http.MethodPost {
+			t.Fatalf("no debe escribir si cambia la identidad; capturas=%+v", fake.capturas)
+		}
+	}
+}
+
 func TestEscribirTerceroRechazaDocumentoDeOtroTercero(t *testing.T) {
 	fake := nuevoCrudFake()
 	fake.terceros[101] = map[string]any{"Id": 101, "Activo": true}
@@ -394,4 +466,65 @@ func buscarCaptura(capturas []capturaPeticion, metodo, path string) *capturaPeti
 		}
 	}
 	return nil
+}
+
+func TestEscribirTerceroRechazaNumeroConComa(t *testing.T) {
+	fake := nuevoCrudFake()
+	entrada := entradaPrueba()
+	entrada.DatosIdentificacion.Numero = "1012,345"
+
+	_, err := servicioTerceroPrueba(t, fake).EscribirTercero(
+		context.Background(), entrada, 0, helper.WriteVerbCreate,
+	)
+	var validacion *ValidationError
+	if !errors.As(err, &validacion) {
+		t.Fatalf("se esperaba ValidationError; obtuvo %v", err)
+	}
+	sinEscrituras(t, fake)
+}
+
+func TestEscribirTerceroRechazaNombreLargo(t *testing.T) {
+	fake := nuevoCrudFake()
+	entrada := entradaPrueba()
+	entrada.DatosBasicos.PrimerNombre = strings.Repeat("A", 101)
+
+	_, err := servicioTerceroPrueba(t, fake).EscribirTercero(
+		context.Background(), entrada, 0, helper.WriteVerbCreate,
+	)
+	var validacion *ValidationError
+	if !errors.As(err, &validacion) {
+		t.Fatalf("se esperaba ValidationError; obtuvo %v", err)
+	}
+	sinEscrituras(t, fake)
+}
+
+func TestEscribirTerceroRechazaFechaNacimientoFutura(t *testing.T) {
+	fake := nuevoCrudFake()
+	entrada := entradaPrueba()
+	futuro := time.Now().Add(24 * time.Hour)
+	entrada.DatosBasicos.FechaNacimiento = &futuro
+
+	_, err := servicioTerceroPrueba(t, fake).EscribirTercero(
+		context.Background(), entrada, 0, helper.WriteVerbCreate,
+	)
+	var validacion *ValidationError
+	if !errors.As(err, &validacion) {
+		t.Fatalf("se esperaba ValidationError; obtuvo %v", err)
+	}
+	sinEscrituras(t, fake)
+}
+
+func TestEscribirTerceroRechazaTipoDocumentoInexistente(t *testing.T) {
+	fake := nuevoCrudFake()
+	entrada := entradaPrueba()
+	entrada.DatosIdentificacion.TipoDocumentoId = 9999
+
+	_, err := servicioTerceroPrueba(t, fake).EscribirTercero(
+		context.Background(), entrada, 0, helper.WriteVerbCreate,
+	)
+	var validacion *ValidationError
+	if !errors.As(err, &validacion) {
+		t.Fatalf("se esperaba ValidationError; obtuvo %v", err)
+	}
+	sinEscrituras(t, fake)
 }
