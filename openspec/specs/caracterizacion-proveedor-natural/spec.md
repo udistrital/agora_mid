@@ -625,6 +625,37 @@ tiempo de ejecución contra el catálogo del entorno. No SHALL hardcodearse.
 - **WHEN** el MF envía un Id de EPS, AFP, CCF o CIIU
 - **THEN** el MID lo valida contra el `parametros_crud` del entorno
 
+### Requirement: Auditoría de modificación
+
+Toda escritura del MID contra `gestion_proveedores_crud` SHALL enviar
+`UsuarioModificacionId` con el `TerceroId` del proveedor, tanto en `POST` como
+en `PUT`. Aplica a `proveedor`, `proveedor_natural`, `contacto`,
+`actividad_economica_proveedor` y `perfil_proveedor`.
+
+El cliente SHALL NOT enviar `UsuarioModificacionId`; el MID lo administra.
+
+El CRUD no completa el campo por sí solo y, en los `PUT`, lo sobrescribe con el
+valor recibido. Si un registro histórico tiene `0`, el MID lo actualiza en la
+primera escritura.
+
+#### Scenario: Alta con auditoría
+
+- **WHEN** el MID crea un proveedor natural y sus secciones
+- **THEN** todas las filas de `gestion_proveedores_crud` quedan con
+  `UsuarioModificacionId = TerceroId`
+
+#### Scenario: Actualización con auditoría
+
+- **WHEN** el MID actualiza un registro existente con `UsuarioModificacionId = 0`
+- **THEN** la fila queda con `UsuarioModificacionId = TerceroId`
+- **AND** la operación conserva la idempotencia si el mismo tercero repite la
+  petición
+
+#### Scenario: Campo enviado por el cliente
+
+- **WHEN** el cliente intenta enviar `UsuarioModificacionId`
+- **THEN** el MID lo rechaza porque es un campo administrado
+
 ## Non-Goals
 
 - No se implementa el dominio 1 (`tercero`, `datos_identificacion`).

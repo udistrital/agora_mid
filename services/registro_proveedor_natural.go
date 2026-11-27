@@ -225,7 +225,12 @@ func resolverProveedor(ctx context.Context, terceroID, tipoProveedor int64) (int
 		return 0, false, etapaError("resolucion-proveedor", "El proveedor recuperado no trae un Id válido", nil)
 	}
 
-	payload := map[string]any{"TerceroId": terceroID, "TipoProveedor": tipoProveedor, "Activo": true}
+	payload := map[string]any{
+		"TerceroId":             terceroID,
+		"TipoProveedor":         tipoProveedor,
+		"Activo":                true,
+		"UsuarioModificacionId": terceroID,
+	}
 	var resp map[string]any
 	if ok, _, err := PostProveedores(ctx, "proveedor", payload, &resp); !ok {
 		return 0, false, etapaError("alta-proveedor", "No fue posible crear el proveedor", err)

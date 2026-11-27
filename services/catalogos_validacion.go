@@ -102,6 +102,247 @@ func (s CatalogosService) LugarExiste(ctx context.Context, id int64) (bool, erro
 	return s.existe(ctx, "lugar", s.UbicacionesBaseURL, id)
 }
 
+// TipoDocumentoPorCodigo resuelve un tipo de documento activo por su código.
+// Devuelve el Id de menor valor si hay más de una coincidencia y marca ambiguo.
+func (s CatalogosService) TipoDocumentoPorCodigo(
+	ctx context.Context,
+	codigo string,
+) (id int64, existe bool, ambiguo bool, err error) {
+	codigo = strings.ToUpper(strings.TrimSpace(codigo))
+	if codigo == "" {
+		return 0, false, false, nil
+	}
+	clave := "tipo_documento_codigo:" + codigo
+	if id, ambiguo, ok := s.leerCacheCodigo(clave); ok {
+		return id, id > 0, ambiguo, nil
+	}
+
+	base := strings.TrimRight(strings.TrimSpace(s.TercerosBaseURL), "/")
+	if base == "" {
+		return 0, false, false,
+			fmt.Errorf("no hay URL base configurada para %q", "tipo_documento")
+	}
+	endpoint, err := construirURL(base, "/v1/tipo_documento", url.Values{
+		"query":  {fmt.Sprintf("CodigoAbreviacion:%s,Activo:true", codigo)},
+		"sortby": {"Id"},
+		"order":  {"asc"},
+		"limit":  {"10"},
+	})
+	if err != nil {
+		return 0, false, false, err
+	}
+	registros, err := getAPIList[catalogoRespuesta](ctx, s.Client, endpoint)
+	if err != nil {
+		return 0, false, false, err
+	}
+
+	var elegido *catalogoRespuesta
+	coincidencias := 0
+	for i := range registros {
+		registro := &registros[i]
+		if registro.Id <= 0 || !registro.Activo ||
+			!strings.EqualFold(strings.TrimSpace(registro.CodigoAbreviacion), codigo) {
+			continue
+		}
+		coincidencias++
+		if elegido == nil || registro.Id < elegido.Id {
+			elegido = registro
+		}
+	}
+	if elegido == nil {
+		s.guardarCodigo(clave, 0, false, false, s.ttlNegativo)
+		return 0, false, false, nil
+	}
+	s.guardarCodigo(clave, int64(elegido.Id), true, coincidencias > 1, s.ttlPositivo)
+	return int64(elegido.Id), true, coincidencias > 1, nil
+}
+
+// TipoDocumentoPorID devuelve el código de un tipo de documento activo.
+func (s CatalogosService) TipoDocumentoPorID(
+	ctx context.Context,
+	id int64,
+) (codigo string, existe bool, err error) {
+	if id <= 0 {
+		return "", false, nil
+	}
+	clave := fmt.Sprintf("tipo_documento_id:%d", id)
+	if guardado, ok := s.leerCacheDetalle(clave); ok {
+		return guardado.Codigo, guardado.Id > 0, nil
+	}
+	base := strings.TrimRight(strings.TrimSpace(s.TercerosBaseURL), "/")
+	if base == "" {
+		return "", false,
+			fmt.Errorf("no hay URL base configurada para %q", "tipo_documento")
+	}
+	var raw json.RawMessage
+	status, err := s.Client.Get(ctx,
+		fmt.Sprintf("%s/v1/tipo_documento/%d", base, id), &raw)
+	if err != nil {
+		if status == 404 {
+			s.guardarDetalle(clave, InfoComplementariaResuelta{}, s.ttlNegativo)
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	registro, err := decodeAPIRecord(raw)
+	if err != nil {
+		return "", false, err
+	}
+	activo, _ := registro["Activo"].(bool)
+	if !activo {
+		return "", false, nil
+	}
+	codigo, _ = registro["CodigoAbreviacion"].(string)
+	codigo = strings.TrimSpace(codigo)
+	s.guardarDetalle(clave, InfoComplementariaResuelta{
+		Id:     id,
+		Codigo: codigo,
+		Activo: true,
+	}, s.ttlPositivo)
+	return codigo, true, nil
+}
+
+// TerceroPorDocumento busca el tercero dueño de una identificación activa por
+// número y tipo de documento. Si hay más de una identificación activa devuelve
+// ErrCatalogoAmbiguo para que el llamador no elija arbitrariamente.
+func (s CatalogosService) TerceroPorDocumento(
+	ctx context.Context,
+	tipoDocumentoID int64,
+	numero string,
+) (map[string]any, bool, error) {
+	numero = strings.TrimSpace(numero)
+	if tipoDocumentoID <= 0 || numero == "" {
+		return nil, false, nil
+	}
+	base := strings.TrimRight(strings.TrimSpace(s.TercerosBaseURL), "/")
+	if base == "" {
+		return nil, false,
+			fmt.Errorf("no hay URL base configurada para %q", "datos_identificacion")
+	}
+	endpoint, err := construirURL(base, "/v1/datos_identificacion", url.Values{
+		"query": {
+			fmt.Sprintf(
+				"Numero:%s,TipoDocumentoId:%d,Activo:true",
+				numero, tipoDocumentoID,
+			),
+		},
+		"sortby": {"Id"},
+		"order":  {"asc"},
+		"limit":  {"10"},
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	var raw json.RawMessage
+	status, err := s.Client.Get(ctx, endpoint, &raw)
+	if err != nil {
+		if status == 404 {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	registros, err := decodeAPIList[map[string]any](raw)
+	if err != nil {
+		return nil, false, err
+	}
+
+	var elegido map[string]any
+	coincidencias := 0
+	for _, registro := range registros {
+		activo, _ := registro["Activo"].(bool)
+		if !activo {
+			continue
+		}
+		numeroRegistro, _ := registro["Numero"].(string)
+		if strings.TrimSpace(numeroRegistro) != numero {
+			continue
+		}
+		if idDeRelacion(registro["TipoDocumentoId"]) != tipoDocumentoID {
+			continue
+		}
+		coincidencias++
+		if elegido == nil {
+			elegido = registro
+		}
+	}
+	if coincidencias == 0 {
+		return nil, false, nil
+	}
+	if coincidencias > 1 {
+		return nil, false, ErrCatalogoAmbiguo
+	}
+	terceroID := idDeRelacion(elegido["TerceroId"])
+	if terceroID <= 0 {
+		return nil, false,
+			fmt.Errorf("la identificación no contiene un TerceroId válido")
+	}
+
+	var rawTercero json.RawMessage
+	status, err = s.Client.Get(ctx,
+		fmt.Sprintf("%s/v1/tercero/%d", base, terceroID), &rawTercero)
+	if err != nil {
+		if status == 404 {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	tercero, err := decodeAPIRecord(rawTercero)
+	if err != nil {
+		return nil, false, err
+	}
+	tercero = desenvolverData(tercero)
+	if idDeMapa(tercero) != terceroID {
+		return nil, false,
+			fmt.Errorf("la respuesta del tercero no contiene el Id esperado")
+	}
+	return tercero, true, nil
+}
+
+// IdentificacionActiva devuelve la identificación activa de un tercero. Se usa
+// para enriquecer la respuesta del representante cuando llega solo su Id.
+func (s CatalogosService) IdentificacionActiva(
+	ctx context.Context,
+	terceroID int64,
+) (map[string]any, bool, error) {
+	if terceroID <= 0 {
+		return nil, false, nil
+	}
+	base := strings.TrimRight(strings.TrimSpace(s.TercerosBaseURL), "/")
+	if base == "" {
+		return nil, false,
+			fmt.Errorf("no hay URL base configurada para %q", "datos_identificacion")
+	}
+	endpoint, err := construirURL(base, "/v1/datos_identificacion", url.Values{
+		"query":  {fmt.Sprintf("TerceroId:%d,Activo:true", terceroID)},
+		"sortby": {"Id"},
+		"order":  {"asc"},
+		"limit":  {"10"},
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	var raw json.RawMessage
+	status, err := s.Client.Get(ctx, endpoint, &raw)
+	if err != nil {
+		if status == 404 {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	registros, err := decodeAPIList[map[string]any](raw)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, registro := range registros {
+		activo, _ := registro["Activo"].(bool)
+		if !activo || idDeMapa(registro) <= 0 {
+			continue
+		}
+		return registro, true, nil
+	}
+	return nil, false, nil
+}
+
 // PrecargarInfoComplementaria carga el catálogo completo en la caché para
 // evitar una consulta HTTP por cada campo de caracterización. Si falla, el
 // llamador puede continuar: las consultas puntuales seguirán funcionando.

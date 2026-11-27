@@ -104,6 +104,24 @@ func main() {
 	)
 	controllers.ConfigurarCaracterizacionNaturalWriteService(caracterizacionNatural)
 
+	caracterizacionJuridica := services.NewCaracterizacionJuridicaService(
+		catalogos,
+		catalogos,
+		parametros,
+		ids.TipoContribuyenteJuridica.Valor,
+		ids.TipoContribuyenteNatural.Valor,
+		enteroEnvODefecto("MID_TIPO_PROVEEDOR_JURIDICO", 2),
+		enteroEnvODefecto("MID_TIPO_PROVEEDOR_NATURAL", 1),
+		os.Getenv("MID_TIPO_PARAMETRO_CIIU"),
+		os.Getenv("MID_TIPO_PARAMETRO_CANAL_CONTACTO"),
+		os.Getenv("MID_TIPO_PARAMETRO_REGIMEN_CONTRIBUTIVO"),
+		os.Getenv("MID_TIPO_PARAMETRO_TIPO_CONFORMACION"),
+		os.Getenv("MID_GRUPO_PROCEDENCIA"),
+		os.Getenv("MID_GRUPO_CARGO"),
+		os.Getenv("MID_GRUPO_PROVEEDOR_JURIDICO"),
+	)
+	controllers.ConfigurarCaracterizacionJuridicaWriteService(caracterizacionJuridica)
+
 	if beego.BConfig.RunMode == "dev" {
 		beego.BConfig.WebConfig.DirectoryIndex = true
 		beego.BConfig.WebConfig.StaticDir["/swagger"] = "swagger"

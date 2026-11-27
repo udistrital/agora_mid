@@ -347,3 +347,32 @@ Mapeo recomendado del formulario natural:
   pueden ignorar o limpiar con un script de migración por tercero.
 - El MF debe enviar `CodigoGrupoInfoComplementaria` en todos los ítems que usan
   `CodigoInfoComplementaria`.
+
+## 15. Auditoría de modificación
+
+Todas las escrituras del MID contra `gestion_proveedores_crud` envían
+`UsuarioModificacionId` con el `TerceroId` del proveedor:
+
+| Tabla | Valor |
+|---|---|
+| `proveedor` | `TerceroId` del proveedor |
+| `proveedor_natural` | `TerceroId` del proveedor |
+| `contacto` | `TerceroId` del proveedor |
+| `actividad_economica_proveedor` | `TerceroId` del proveedor |
+| `perfil_proveedor` | `TerceroId` del proveedor |
+
+El mismo criterio se aplica en la cuenta bancaria (dominio 3) y en la
+representación (dominio 2 jurídico).
+
+Reglas:
+
+- El valor se envía tanto en `POST` como en `PUT`. El CRUD no lo llena solo y,
+  en los `PUT`, lo sobrescribe con el valor recibido.
+- El cliente no envía `UsuarioModificacionId`; el MID lo administra.
+- En autoregistro, el actor es el mismo proveedor. En una fase con autenticación,
+  el valor deberá salir del usuario autenticado y el `TerceroId` del proveedor
+  quedará como respaldo.
+- Los registros históricos que quedaron en `0` se actualizan en la primera
+  escritura del MID.
+- `info_complementaria_tercero` vive en `terceros_crud` y no usa este campo de
+  `gestion_proveedores_crud`.

@@ -61,6 +61,17 @@ func GetOneProveedores(ctx context.Context, endpoint string, target any) (ok boo
 	return traducir(ctx, servicioProveedores, "GetOne", http.MethodGet, u, status, rerr, msgConexionProveedores, msgProcesarProveedores)
 }
 
+// aplicarUsuarioModificacion registra en el payload el tercero que ejecuta la
+// escritura. El CRUD no lo llena por sí solo y, en los PUT, lo sobrescribe con
+// el valor recibido; por eso debe enviarse tanto en altas como en
+// actualizaciones.
+func aplicarUsuarioModificacion(payload map[string]any, terceroID int64) map[string]any {
+	if payload != nil && terceroID > 0 {
+		payload["UsuarioModificacionId"] = terceroID
+	}
+	return payload
+}
+
 // PostProveedores crea un recurso en el CRUD de proveedores enviando `payload`
 // como JSON y decodifica la respuesta en `target`.
 func PostProveedores(ctx context.Context, endpoint string, payload any, target any) (ok bool, statusCode int, err error) {

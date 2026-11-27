@@ -411,7 +411,7 @@ func (s CaracterizacionNaturalService) escribirSecciones(
 	// Sección ProveedorNatural.
 	if plan.natural != nil {
 		natural, accionNatural, err := s.escribirProveedorNatural(
-			ctx, proveedorID, plan.natural,
+			ctx, terceroID, proveedorID, plan.natural,
 		)
 		if err != nil {
 			resultado.Avisos = append(resultado.Avisos,
@@ -426,7 +426,7 @@ func (s CaracterizacionNaturalService) escribirSecciones(
 
 	// Sección PerfilProveedor.
 	for _, perfil := range plan.perfiles {
-		id, accionPerfil, aviso, err := s.escribirPerfil(ctx, proveedorID, perfil)
+		id, accionPerfil, aviso, err := s.escribirPerfil(ctx, terceroID, proveedorID, perfil)
 		if aviso != nil {
 			resultado.Avisos = append(resultado.Avisos, *aviso)
 		}
@@ -444,7 +444,7 @@ func (s CaracterizacionNaturalService) escribirSecciones(
 
 	// Sección Contacto.
 	for _, contacto := range plan.contactos {
-		id, accionContacto, aviso, err := s.escribirContacto(ctx, proveedorID, contacto)
+		id, accionContacto, aviso, err := s.escribirContacto(ctx, terceroID, proveedorID, contacto)
 		if aviso != nil {
 			resultado.Avisos = append(resultado.Avisos, *aviso)
 		}
@@ -462,7 +462,7 @@ func (s CaracterizacionNaturalService) escribirSecciones(
 
 	// Sección ActividadEconomicaProveedor.
 	for _, actividad := range plan.actividades {
-		id, accionActividad, aviso, err := s.escribirActividad(ctx, proveedorID, actividad)
+		id, accionActividad, aviso, err := s.escribirActividad(ctx, terceroID, proveedorID, actividad)
 		if aviso != nil {
 			resultado.Avisos = append(resultado.Avisos, *aviso)
 		}
@@ -849,6 +849,18 @@ func (s CaracterizacionNaturalService) validarDatoPorCodigo(
 		}
 	case "DIRECCIÓN", "DIRECCION":
 		return s.validarDireccionDian(ctx, dato, indice)
+	case "TIPO_CONF_CUENTA":
+		texto, ok := dato.(string)
+		if !ok || !esTipoConformacionCuentaValido(texto) {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser INDIVIDUAL_PRINCIPAL, CONJUNTA_MANCOMUNADA o CONSORCIO_UT", indice, codigo), nil)
+		}
+	case "CALIDAD_GRAN_CONTRIB":
+		texto, ok := dato.(string)
+		if !ok || !esCalidadGranContribuyenteValida(texto) {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser NO, SI_CALIFICADO o AUTORRETENEDOR", indice, codigo), nil)
+		}
 	case "SITIO_WEB":
 		texto, ok := dato.(string)
 		if !ok || strings.TrimSpace(texto) == "" {
@@ -862,6 +874,24 @@ func (s CaracterizacionNaturalService) validarDatoPorCodigo(
 		}
 	}
 	return nil
+}
+
+func esTipoConformacionCuentaValido(valor string) bool {
+	switch strings.ToUpper(strings.TrimSpace(valor)) {
+	case "INDIVIDUAL_PRINCIPAL", "CONJUNTA_MANCOMUNADA", "CONSORCIO_UT":
+		return true
+	default:
+		return false
+	}
+}
+
+func esCalidadGranContribuyenteValida(valor string) bool {
+	switch strings.ToUpper(strings.TrimSpace(valor)) {
+	case "NO", "SI_CALIFICADO", "AUTORRETENEDOR":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s CaracterizacionNaturalService) validarParametroDeTipo(
@@ -1265,10 +1295,11 @@ func (s CaracterizacionNaturalService) resolverProveedor(
 		consentimiento = *plan.consentimiento
 	}
 	payload := map[string]any{
-		"TipoProveedor":  s.TipoProveedorNatural,
-		"TerceroId":      terceroID,
-		"Consentimiento": consentimiento,
-		"Activo":         true,
+		"TipoProveedor":         s.TipoProveedorNatural,
+		"TerceroId":             terceroID,
+		"Consentimiento":        consentimiento,
+		"Activo":                true,
+		"UsuarioModificacionId": terceroID,
 	}
 	if plan.descripcion != nil {
 		payload["DescripcionPortafolio"] = *plan.descripcion
@@ -1317,6 +1348,13 @@ func (s CaracterizacionNaturalService) actualizarProveedorConocido(
 		if existente != *plan.consentimiento {
 			cambios["Consentimiento"] = *plan.consentimiento
 		}
+	}
+	// El actor se toma del propio proveedor: en autoregistro el tercero que
+	// escribe es el mismo proveedor. Si el registro histórico quedó en cero, se
+	// actualiza en la primera escritura.
+	if actor := idDeRelacion(proveedor["TerceroId"]); actor > 0 &&
+		idDeRelacion(proveedor["UsuarioModificacionId"]) != actor {
+		cambios["UsuarioModificacionId"] = actor
 	}
 	if len(cambios) == 0 {
 		return proveedor, "reutilizado", nil, nil
@@ -1551,7 +1589,7 @@ func (s CaracterizacionNaturalService) escribirInfoComplementaria(
 	datoExistente := decodificarDato(registro["Dato"])
 	datoFinal := fusionarDato(datoExistente, item.dato)
 	datoJSON := item.datoJSON
-	if !reflect.DeepEqual(datoFinal, item.dato) {
+	if !datoIgual(datoFinal, item.dato) {
 		bytes, err := json.Marshal(datoFinal)
 		if err != nil {
 			return registrada, "", aviso, errorCaracterizacion(400,
@@ -1560,7 +1598,7 @@ func (s CaracterizacionNaturalService) escribirInfoComplementaria(
 		datoJSON = string(bytes)
 	}
 	padreIgual := idDeRelacion(registro["InfoComplementariaTerceroPadreId"]) == idDeRelacionOpcional(item.padreID)
-	if reflect.DeepEqual(datoExistente, datoFinal) && padreIgual {
+	if datoIgual(datoExistente, datoFinal) && padreIgual {
 		registrada.Id = id
 		registrada.Dato = datoExistente
 		registrada.InfoComplementariaTerceroPadreId = item.padreID
@@ -1898,7 +1936,7 @@ func (s CaracterizacionNaturalService) escribirInfoComplementariaPorID(
 	}
 	datoFinal := fusionarDato(decodificarDato(registro["Dato"]), item.dato)
 	datoJSON := item.datoJSON
-	if !reflect.DeepEqual(datoFinal, item.dato) {
+	if !datoIgual(datoFinal, item.dato) {
 		bytes, err := json.Marshal(datoFinal)
 		if err != nil {
 			return registrada, "", nil, errorCaracterizacion(400,
@@ -1948,6 +1986,46 @@ func separarRegistrosInfo(
 	return activos, inactivos
 }
 
+// datoIgual compara valores decodificados de JSON. Los números pueden llegar
+// como float64 desde el CRUD y como int64 desde el payload; se comparan por
+// valor para que la idempotencia no dependa del tipo Go.
+func datoIgual(a any, b any) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if af, ok := numeroFloat(a); ok {
+		if bf, ok := numeroFloat(b); ok {
+			return floatIgual(af, bf)
+		}
+	}
+	if mapaA, ok := a.(map[string]any); ok {
+		mapaB, ok := b.(map[string]any)
+		if !ok || len(mapaA) != len(mapaB) {
+			return false
+		}
+		for clave, valorA := range mapaA {
+			valorB, existe := mapaB[clave]
+			if !existe || !datoIgual(valorA, valorB) {
+				return false
+			}
+		}
+		return true
+	}
+	if listaA, ok := a.([]any); ok {
+		listaB, ok := b.([]any)
+		if !ok || len(listaA) != len(listaB) {
+			return false
+		}
+		for i := range listaA {
+			if !datoIgual(listaA[i], listaB[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return reflect.DeepEqual(a, b)
+}
+
 // fusionarDato conserva las claves existentes de un objeto y superpone las
 // nuevas, de forma recursiva para los objetos anidados. Para valores escalares
 // reemplaza el valor completo.
@@ -1993,6 +2071,7 @@ func idDeRelacionOpcional(valor *int64) int64 {
 
 func (s CaracterizacionNaturalService) escribirProveedorNatural(
 	ctx context.Context,
+	terceroID int64,
 	proveedorID int64,
 	in *models.ProveedorNaturalInput,
 ) (map[string]any, string, error) {
@@ -2018,11 +2097,13 @@ func (s CaracterizacionNaturalService) escribirProveedorNatural(
 			return nil, "", errorCaracterizacion(409,
 				"El detalle de proveedor natural está inactivo", nil)
 		}
-		if proveedorNaturalIgual(registro, in) {
+		if proveedorNaturalIgual(registro, in) &&
+			idDeRelacion(registro["UsuarioModificacionId"]) == terceroID {
 			return registro, "reutilizado", nil
 		}
 		payload := clonarPayload(registro)
 		aplicarCamposProveedorNatural(payload, in)
+		aplicarUsuarioModificacion(payload, terceroID)
 		ok, status, err = PutProveedores(ctx,
 			fmt.Sprintf("%s/%d", endpointProveedorNatural, proveedorID), payload, &map[string]any{})
 		if err != nil {
@@ -2044,6 +2125,7 @@ func (s CaracterizacionNaturalService) escribirProveedorNatural(
 		"Activo": true,
 	}
 	aplicarCamposProveedorNatural(payload, in)
+	aplicarUsuarioModificacion(payload, terceroID)
 	ok, status, err = PostProveedores(ctx, endpointProveedorNatural, payload, &map[string]any{})
 	if err != nil {
 		return nil, "", errorEscrituraCaracterizacion(ctx, status, err, "crear proveedor_natural")
@@ -2214,11 +2296,12 @@ func aplicarCamposProveedorNatural(
 
 func (s CaracterizacionNaturalService) escribirPerfil(
 	ctx context.Context,
+	terceroID int64,
 	proveedorID int64,
 	in models.PerfilProveedorInput,
 ) (int64, string, *responses.RelationError, error) {
 	if in.Id != nil {
-		return s.escribirPerfilPorID(ctx, proveedorID, in)
+		return s.escribirPerfilPorID(ctx, terceroID, proveedorID, in)
 	}
 	filtros := url.Values{
 		"query": {
@@ -2246,17 +2329,33 @@ func (s CaracterizacionNaturalService) escribirPerfil(
 		}
 	}
 	if len(activos) > 0 {
-		return idDeMapa(activos[0]), "reutilizado", aviso, nil
+		existente := activos[0]
+		id := idDeMapa(existente)
+		if idDeRelacion(existente["UsuarioModificacionId"]) == terceroID {
+			return id, "reutilizado", aviso, nil
+		}
+		payload := clonarPayload(existente)
+		aplicarUsuarioModificacion(payload, terceroID)
+		ok, status, err = PutProveedores(ctx,
+			fmt.Sprintf("%s/%d", endpointPerfilProveedor, id), payload, &map[string]any{})
+		if err != nil {
+			return id, "", aviso, errorEscrituraCaracterizacion(ctx, status, err, "actualizar perfil_proveedor")
+		}
+		if !ok {
+			return id, "", aviso, errorEscrituraCaracterizacion(ctx, status,
+				fmt.Errorf("el CRUD respondió con estado %d", status), "actualizar perfil_proveedor")
+		}
+		return id, "actualizado", aviso, nil
 	}
 	if len(inactivos) > 0 {
 		return 0, "", aviso, errorCaracterizacion(409,
 			"El perfil del proveedor está inactivo y no se puede reutilizar", nil)
 	}
-	payload := map[string]any{
+	payload := aplicarUsuarioModificacion(map[string]any{
 		"ProveedorId": map[string]any{"Id": proveedorID},
 		"PerfilId":    in.PerfilId,
 		"Activo":      true,
-	}
+	}, terceroID)
 	var respuesta map[string]any
 	ok, status, err = PostProveedores(ctx, endpointPerfilProveedor, payload, &respuesta)
 	if err != nil {
@@ -2276,11 +2375,12 @@ func (s CaracterizacionNaturalService) escribirPerfil(
 
 func (s CaracterizacionNaturalService) escribirContacto(
 	ctx context.Context,
+	terceroID int64,
 	proveedorID int64,
 	in models.ContactoProveedorInput,
 ) (int64, string, *responses.RelationError, error) {
 	if in.Id != nil {
-		return s.actualizarContactoPorID(ctx, proveedorID, in)
+		return s.actualizarContactoPorID(ctx, terceroID, proveedorID, in)
 	}
 	filtros := url.Values{
 		"query": {
@@ -2309,13 +2409,13 @@ func (s CaracterizacionNaturalService) escribirContacto(
 		}
 	}
 	if len(activos) > 0 {
-		return s.actualizarContacto(ctx, activos[0], proveedorID, in, aviso)
+		return s.actualizarContacto(ctx, terceroID, activos[0], proveedorID, in, aviso)
 	}
 	if len(inactivos) > 0 {
 		return 0, "", aviso, errorCaracterizacion(409,
 			"El contacto del proveedor está inactivo y no se puede reutilizar", nil)
 	}
-	payload := payloadContacto(proveedorID, in)
+	payload := payloadContacto(terceroID, proveedorID, in)
 	payload["Activo"] = true
 	var respuesta map[string]any
 	ok, status, err = PostProveedores(ctx, endpointContacto, payload, &respuesta)
@@ -2336,6 +2436,7 @@ func (s CaracterizacionNaturalService) escribirContacto(
 
 func (s CaracterizacionNaturalService) actualizarContactoPorID(
 	ctx context.Context,
+	terceroID int64,
 	proveedorID int64,
 	in models.ContactoProveedorInput,
 ) (int64, string, *responses.RelationError, error) {
@@ -2358,11 +2459,12 @@ func (s CaracterizacionNaturalService) actualizarContactoPorID(
 		return 0, "", nil, errorCaracterizacion(409,
 			"El contacto no pertenece al proveedor del tercero", nil)
 	}
-	return s.actualizarContacto(ctx, registro, proveedorID, in, nil)
+	return s.actualizarContacto(ctx, terceroID, registro, proveedorID, in, nil)
 }
 
 func (s CaracterizacionNaturalService) actualizarContacto(
 	ctx context.Context,
+	terceroID int64,
 	existente map[string]any,
 	proveedorID int64,
 	in models.ContactoProveedorInput,
@@ -2382,13 +2484,15 @@ func (s CaracterizacionNaturalService) actualizarContacto(
 		return 0, "", aviso, errorCaracterizacion(409,
 			"El contacto del proveedor está inactivo", nil)
 	}
-	if contactoIgual(existente, proveedorID, in) {
+	if contactoIgual(existente, proveedorID, in) &&
+		idDeRelacion(existente["UsuarioModificacionId"]) == terceroID {
 		return id, "reutilizado", aviso, nil
 	}
 	payload := clonarPayload(existente)
-	for clave, valor := range payloadContacto(proveedorID, in) {
+	for clave, valor := range payloadContacto(terceroID, proveedorID, in) {
 		payload[clave] = valor
 	}
+	aplicarUsuarioModificacion(payload, terceroID)
 	ok, status, err := PutProveedores(ctx, fmt.Sprintf("%s/%d", endpointContacto, id), payload, &map[string]any{})
 	if err != nil {
 		return id, "", aviso, errorEscrituraCaracterizacion(ctx, status, err, "actualizar contacto")
@@ -2400,7 +2504,11 @@ func (s CaracterizacionNaturalService) actualizarContacto(
 	return id, "actualizado", aviso, nil
 }
 
-func payloadContacto(proveedorID int64, in models.ContactoProveedorInput) map[string]any {
+func payloadContacto(
+	terceroID int64,
+	proveedorID int64,
+	in models.ContactoProveedorInput,
+) map[string]any {
 	payload := map[string]any{
 		"ProveedorId":         map[string]any{"Id": proveedorID},
 		"TipoCanalContactoId": in.TipoCanalContactoId,
@@ -2413,7 +2521,7 @@ func payloadContacto(proveedorID int64, in models.ContactoProveedorInput) map[st
 	if in.Extension != nil {
 		payload["Extension"] = *in.Extension
 	}
-	return payload
+	return aplicarUsuarioModificacion(payload, terceroID)
 }
 
 func contactoIgual(
@@ -2438,11 +2546,12 @@ func contactoIgual(
 
 func (s CaracterizacionNaturalService) escribirActividad(
 	ctx context.Context,
+	terceroID int64,
 	proveedorID int64,
 	in models.ActividadEconomicaProveedorInput,
 ) (int64, string, *responses.RelationError, error) {
 	if in.Id != nil {
-		return s.escribirActividadPorID(ctx, proveedorID, in)
+		return s.escribirActividadPorID(ctx, terceroID, proveedorID, in)
 	}
 	filtros := url.Values{
 		"query": {
@@ -2471,17 +2580,33 @@ func (s CaracterizacionNaturalService) escribirActividad(
 		}
 	}
 	if len(activos) > 0 {
-		return idDeMapa(activos[0]), "reutilizado", aviso, nil
+		existente := activos[0]
+		id := idDeMapa(existente)
+		if idDeRelacion(existente["UsuarioModificacionId"]) == terceroID {
+			return id, "reutilizado", aviso, nil
+		}
+		payload := clonarPayload(existente)
+		aplicarUsuarioModificacion(payload, terceroID)
+		ok, status, err = PutProveedores(ctx,
+			fmt.Sprintf("%s/%d", endpointActividadEconomica, id), payload, &map[string]any{})
+		if err != nil {
+			return id, "", aviso, errorEscrituraCaracterizacion(ctx, status, err, "actualizar actividad_economica_proveedor")
+		}
+		if !ok {
+			return id, "", aviso, errorEscrituraCaracterizacion(ctx, status,
+				fmt.Errorf("el CRUD respondió con estado %d", status), "actualizar actividad_economica_proveedor")
+		}
+		return id, "actualizado", aviso, nil
 	}
 	if len(inactivos) > 0 {
 		return 0, "", aviso, errorCaracterizacion(409,
 			"La actividad económica del proveedor está inactiva y no se puede reutilizar", nil)
 	}
-	payload := map[string]any{
+	payload := aplicarUsuarioModificacion(map[string]any{
 		"ProveedorId":          map[string]any{"Id": proveedorID},
 		"ActividadEconomicaId": in.ActividadEconomicaId,
 		"Activo":               true,
-	}
+	}, terceroID)
 	var respuesta map[string]any
 	ok, status, err = PostProveedores(ctx, endpointActividadEconomica, payload, &respuesta)
 	if err != nil {
@@ -2501,6 +2626,7 @@ func (s CaracterizacionNaturalService) escribirActividad(
 
 func (s CaracterizacionNaturalService) escribirPerfilPorID(
 	ctx context.Context,
+	terceroID int64,
 	proveedorID int64,
 	in models.PerfilProveedorInput,
 ) (int64, string, *responses.RelationError, error) {
@@ -2533,15 +2659,19 @@ func (s CaracterizacionNaturalService) escribirPerfilPorID(
 		return 0, "", nil, errorCaracterizacion(409,
 			"El perfil del proveedor está inactivo", nil)
 	}
-	if idDeRelacion(registro["PerfilId"]) == in.PerfilId {
+	mismoPerfil := idDeRelacion(registro["PerfilId"]) == in.PerfilId
+	if mismoPerfil && idDeRelacion(registro["UsuarioModificacionId"]) == terceroID {
 		return *in.Id, "reutilizado", nil, nil
 	}
-	if err := s.validarPerfilLibre(ctx, proveedorID, in.PerfilId, *in.Id); err != nil {
-		return *in.Id, "", nil, err
+	if !mismoPerfil {
+		if err := s.validarPerfilLibre(ctx, proveedorID, in.PerfilId, *in.Id); err != nil {
+			return *in.Id, "", nil, err
+		}
 	}
 	payload := clonarPayload(registro)
 	payload["ProveedorId"] = map[string]any{"Id": proveedorID}
 	payload["PerfilId"] = in.PerfilId
+	aplicarUsuarioModificacion(payload, terceroID)
 	ok, status, err = PutProveedores(ctx,
 		fmt.Sprintf("%s/%d", endpointPerfilProveedor, *in.Id), payload, &map[string]any{})
 	if err != nil {
@@ -2583,6 +2713,7 @@ func (s CaracterizacionNaturalService) validarPerfilLibre(
 
 func (s CaracterizacionNaturalService) escribirActividadPorID(
 	ctx context.Context,
+	terceroID int64,
 	proveedorID int64,
 	in models.ActividadEconomicaProveedorInput,
 ) (int64, string, *responses.RelationError, error) {
@@ -2615,15 +2746,19 @@ func (s CaracterizacionNaturalService) escribirActividadPorID(
 		return 0, "", nil, errorCaracterizacion(409,
 			"La actividad económica del proveedor está inactiva", nil)
 	}
-	if idDeRelacion(registro["ActividadEconomicaId"]) == in.ActividadEconomicaId {
+	mismaActividad := idDeRelacion(registro["ActividadEconomicaId"]) == in.ActividadEconomicaId
+	if mismaActividad && idDeRelacion(registro["UsuarioModificacionId"]) == terceroID {
 		return *in.Id, "reutilizado", nil, nil
 	}
-	if err := s.validarActividadLibre(ctx, proveedorID, in.ActividadEconomicaId, *in.Id); err != nil {
-		return *in.Id, "", nil, err
+	if !mismaActividad {
+		if err := s.validarActividadLibre(ctx, proveedorID, in.ActividadEconomicaId, *in.Id); err != nil {
+			return *in.Id, "", nil, err
+		}
 	}
 	payload := clonarPayload(registro)
 	payload["ProveedorId"] = map[string]any{"Id": proveedorID}
 	payload["ActividadEconomicaId"] = in.ActividadEconomicaId
+	aplicarUsuarioModificacion(payload, terceroID)
 	ok, status, err = PutProveedores(ctx,
 		fmt.Sprintf("%s/%d", endpointActividadEconomica, *in.Id), payload, &map[string]any{})
 	if err != nil {

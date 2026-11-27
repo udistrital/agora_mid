@@ -830,3 +830,5 @@ Reglas de implementación:
 - La configuración `config/terceros/*.yaml` se comparte con persona natural y no
   requiere cambios.
 - `ProveedorWriteService` queda reservado para el dominio 2 (caracterización).
+- El dominio 2 se especifica en
+  `openspec/specs/caracterizacion-proveedor-juridica/spec.md`.

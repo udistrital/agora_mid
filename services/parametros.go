@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,26 @@ type tipoParametroCache struct {
 	expira time.Time
 }
 
+// parametroCodigoCache guarda el Id resuelto por (código, tipo).
+type parametroCodigoCache struct {
+	id      int64
+	existe  bool
+	ambiguo bool
+	expira  time.Time
+}
+
+// parametroCodigoRespuesta es la proyección mínima para resolver un parámetro
+// por código y tipo.
+type parametroCodigoRespuesta struct {
+	Id                int    `json:"Id"`
+	CodigoAbreviacion string `json:"CodigoAbreviacion"`
+	Activo            bool   `json:"Activo"`
+	TipoParametroId   struct {
+		Id                int    `json:"Id"`
+		CodigoAbreviacion string `json:"CodigoAbreviacion"`
+	} `json:"TipoParametroId"`
+}
+
 // ParametrosService valida parámetros del CRUD de parámetros con caché por Id.
 // Se usa para TipoCanalContactoId y ActividadEconomicaId (CIIU).
 type ParametrosService struct {
@@ -31,6 +52,7 @@ type ParametrosService struct {
 	BaseURL     string
 	cache       *sync.Map
 	tipos       *sync.Map
+	codigos     *sync.Map
 	ttlPositivo time.Duration
 	ttlNegativo time.Duration
 	ahora       func() time.Time
@@ -43,6 +65,7 @@ func NewParametrosService(client clients.HTTPClient, baseURL string) ParametrosS
 		BaseURL:     baseURL,
 		cache:       &sync.Map{},
 		tipos:       &sync.Map{},
+		codigos:     &sync.Map{},
 		ttlPositivo: ttlCatalogoPositivo,
 		ttlNegativo: ttlCatalogoNegativo,
 		ahora:       time.Now,
@@ -177,6 +200,125 @@ func (s ParametrosService) codigoTipo(ctx context.Context, id int64) (string, er
 		expira: s.reloj().Add(s.ttlPositivo),
 	})
 	return codigo, nil
+}
+
+// ResolverParametroPorCodigo resuelve un parámetro activo por su código y el
+// código de su tipo. Devuelve el Id de menor valor si hay más de una
+// coincidencia activa y marca ambiguo. El par (código, tipo) es estable entre
+// ambientes, a diferencia del Id.
+func (s ParametrosService) ResolverParametroPorCodigo(
+	ctx context.Context,
+	codigo string,
+	tipo string,
+) (id int64, existe bool, ambiguo bool, err error) {
+	codigo = strings.TrimSpace(codigo)
+	tipo = strings.TrimSpace(tipo)
+	if codigo == "" || tipo == "" {
+		return 0, false, false, nil
+	}
+	if strings.ContainsAny(codigo, ",:") || strings.ContainsAny(tipo, ",:") {
+		return 0, false, false,
+			fmt.Errorf("el código de parámetro o su tipo no es válido")
+	}
+
+	clave := "parametro_codigo:" + tipo + "|" + codigo
+	if cacheado, ok := s.leerCacheParametroCodigo(clave); ok {
+		return cacheado.id, cacheado.existe, cacheado.ambiguo, nil
+	}
+
+	base := strings.TrimRight(strings.TrimSpace(s.BaseURL), "/")
+	if base == "" {
+		return 0, false, false,
+			fmt.Errorf("no hay URL base configurada para %q", "parametro")
+	}
+	endpoint, err := construirURL(base, "/v1/parametro", url.Values{
+		"query": {
+			fmt.Sprintf(
+				"CodigoAbreviacion:%s,TipoParametroId.CodigoAbreviacion:%s,Activo:true",
+				codigo, tipo,
+			),
+		},
+		"sortby": {"Id"},
+		"order":  {"asc"},
+		"limit":  {"10"},
+	})
+	if err != nil {
+		return 0, false, false, err
+	}
+
+	registros, err := getAPIList[parametroCodigoRespuesta](ctx, s.Client, endpoint)
+	if err != nil {
+		return 0, false, false, err
+	}
+
+	var elegido *parametroCodigoRespuesta
+	coincidencias := 0
+	for i := range registros {
+		registro := &registros[i]
+		if registro.Id <= 0 || !registro.Activo {
+			continue
+		}
+		if registro.CodigoAbreviacion != codigo {
+			continue
+		}
+		if !strings.EqualFold(
+			strings.TrimSpace(registro.TipoParametroId.CodigoAbreviacion), tipo,
+		) {
+			continue
+		}
+		coincidencias++
+		if elegido == nil || registro.Id < elegido.Id {
+			elegido = registro
+		}
+	}
+	if elegido == nil {
+		s.guardarCacheParametroCodigo(clave, parametroCodigoCache{
+			existe: false,
+			expira: s.reloj().Add(s.ttlNegativo),
+		})
+		return 0, false, false, nil
+	}
+
+	entrada := parametroCodigoCache{
+		id:      int64(elegido.Id),
+		existe:  true,
+		ambiguo: coincidencias > 1,
+		expira:  s.reloj().Add(s.ttlPositivo),
+	}
+	s.guardarCacheParametroCodigo(clave, entrada)
+	return entrada.id, true, entrada.ambiguo, nil
+}
+
+func (s ParametrosService) leerCacheParametroCodigo(
+	clave string,
+) (parametroCodigoCache, bool) {
+	if s.codigos == nil {
+		return parametroCodigoCache{}, false
+	}
+	valor, ok := s.codigos.Load(clave)
+	if !ok {
+		return parametroCodigoCache{}, false
+	}
+	entrada, ok := valor.(parametroCodigoCache)
+	if !ok {
+		s.codigos.Delete(clave)
+		return parametroCodigoCache{}, false
+	}
+	if s.reloj().Before(entrada.expira) {
+		return entrada, true
+	}
+	s.codigos.Delete(clave)
+	return parametroCodigoCache{}, false
+}
+
+func (s ParametrosService) guardarCacheParametroCodigo(
+	clave string,
+	entrada parametroCodigoCache,
+) {
+	if s.codigos == nil || entrada.expira.IsZero() {
+		return
+	}
+	s.codigos.Store(clave, entrada)
 }
 
 func (s ParametrosService) reloj() time.Time {

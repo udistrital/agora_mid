@@ -14,32 +14,38 @@ import (
 )
 
 type fakeCaracterizacion struct {
-	mu          sync.Mutex
-	terceros    map[int64]map[string]any
-	info        map[int64]map[string]any
-	proveedores map[int64]map[string]any
-	naturales   map[int64]map[string]any
-	perfiles    map[int64]map[string]any
-	contactos   map[int64]map[string]any
-	actividades map[int64]map[string]any
-	siguiente   map[string]int64
+	mu               sync.Mutex
+	terceros         map[int64]map[string]any
+	info             map[int64]map[string]any
+	proveedores      map[int64]map[string]any
+	naturales        map[int64]map[string]any
+	perfiles         map[int64]map[string]any
+	contactos        map[int64]map[string]any
+	actividades      map[int64]map[string]any
+	juridicos        map[int64]map[string]any
+	representaciones map[int64]map[string]any
+	fallar           map[string]int
+	siguiente        map[string]int64
 }
 
 func nuevoFakeCaracterizacion() *fakeCaracterizacion {
 	return &fakeCaracterizacion{
-		terceros:    map[int64]map[string]any{},
-		info:        map[int64]map[string]any{},
-		proveedores: map[int64]map[string]any{},
-		naturales:   map[int64]map[string]any{},
-		perfiles:    map[int64]map[string]any{},
-		contactos:   map[int64]map[string]any{},
-		actividades: map[int64]map[string]any{},
+		terceros:         map[int64]map[string]any{},
+		info:             map[int64]map[string]any{},
+		proveedores:      map[int64]map[string]any{},
+		naturales:        map[int64]map[string]any{},
+		perfiles:         map[int64]map[string]any{},
+		contactos:        map[int64]map[string]any{},
+		actividades:      map[int64]map[string]any{},
+		juridicos:        map[int64]map[string]any{},
+		representaciones: map[int64]map[string]any{},
 		siguiente: map[string]int64{
-			"proveedor": 77,
-			"info":      200,
-			"perfil":    300,
-			"contacto":  400,
-			"actividad": 500,
+			"proveedor":      77,
+			"info":           200,
+			"perfil":         300,
+			"contacto":       400,
+			"actividad":      500,
+			"representacion": 600,
 		},
 	}
 }
@@ -68,6 +74,11 @@ func (f *fakeCaracterizacion) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	path := strings.TrimSuffix(r.URL.Path, "/")
+	if status, ok := f.fallar[r.Method+" "+path]; ok {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"Message":"fallo simulado"}`))
+		return
+	}
 	switch {
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/tercero/"):
 		id := idDeRuta(path)
@@ -202,6 +213,77 @@ func (f *fakeCaracterizacion) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		f.actividades[id] = cuerpo
 		_ = json.NewEncoder(w).Encode(cuerpo)
 
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/actividad_economica_proveedor/"):
+		id := idDeRuta(path)
+		registro, ok := f.actividades[id]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"Message":"no encontrado"}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(registro)
+
+	case r.Method == http.MethodPut && strings.HasPrefix(path, "/v1/actividad_economica_proveedor/"):
+		id := idDeRuta(path)
+		cuerpo["Id"] = id
+		f.actividades[id] = cuerpo
+		_ = json.NewEncoder(w).Encode(cuerpo)
+
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/perfil_proveedor/"):
+		id := idDeRuta(path)
+		registro, ok := f.perfiles[id]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"Message":"no encontrado"}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(registro)
+
+	case r.Method == http.MethodPut && strings.HasPrefix(path, "/v1/perfil_proveedor/"):
+		id := idDeRuta(path)
+		cuerpo["Id"] = id
+		f.perfiles[id] = cuerpo
+		_ = json.NewEncoder(w).Encode(cuerpo)
+
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/v1/proveedor_juridico/"):
+		id := idDeRuta(path)
+		registro, ok := f.juridicos[id]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"Message":"no encontrado"}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(registro)
+
+	case r.Method == http.MethodPost && path == "/v1/proveedor_juridico":
+		id := idDeMapa(cuerpo)
+		cuerpo["Activo"] = true
+		f.juridicos[id] = cuerpo
+		_ = json.NewEncoder(w).Encode(cuerpo)
+
+	case r.Method == http.MethodPut && strings.HasPrefix(path, "/v1/proveedor_juridico/"):
+		id := idDeRuta(path)
+		cuerpo["Id"] = id
+		f.juridicos[id] = cuerpo
+		_ = json.NewEncoder(w).Encode(cuerpo)
+
+	case r.Method == http.MethodGet && path == "/v1/representacion":
+		_ = json.NewEncoder(w).Encode(f.filtrar(f.representaciones, r.URL.Query().Get("query")))
+
+	case r.Method == http.MethodPost && path == "/v1/representacion":
+		id := f.siguiente["representacion"]
+		f.siguiente["representacion"]++
+		cuerpo["Id"] = id
+		cuerpo["Activo"] = true
+		f.representaciones[id] = cuerpo
+		_ = json.NewEncoder(w).Encode(cuerpo)
+
+	case r.Method == http.MethodPut && strings.HasPrefix(path, "/v1/representacion/"):
+		id := idDeRuta(path)
+		cuerpo["Id"] = id
+		f.representaciones[id] = cuerpo
+		_ = json.NewEncoder(w).Encode(cuerpo)
+
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"Message":"ruta no simulada"}`))
@@ -237,8 +319,8 @@ func (f *fakeCaracterizacion) filtrar(
 func coincideFiltros(registro map[string]any, filtros map[string]string) bool {
 	for clave, esperado := range filtros {
 		switch clave {
-		case "TerceroId", "ProveedorId", "InfoComplementariaId", "PerfilId",
-			"TipoCanalContactoId", "ActividadEconomicaId":
+		case "TerceroId", "ProveedorId", "RepresentanteId", "InfoComplementariaId",
+			"PerfilId", "TipoCanalContactoId", "ActividadEconomicaId":
 			if idDeRelacion(registro[clave]) != parseEntero(esperado) {
 				return false
 			}
@@ -433,6 +515,22 @@ func ptrInt64(v int64) *int64    { return &v }
 func ptrBool(v bool) *bool       { return &v }
 func ptrString(v string) *string { return &v }
 
+func verificarUsuarioModificacion(
+	t *testing.T,
+	nombre string,
+	registro map[string]any,
+	esperado int64,
+) {
+	t.Helper()
+	if registro == nil {
+		t.Fatalf("%s no existe", nombre)
+	}
+	if obtenido := idDeRelacion(registro["UsuarioModificacionId"]); obtenido != esperado {
+		t.Fatalf("%s.UsuarioModificacionId = %d, se esperaba %d: %+v",
+			nombre, obtenido, esperado, registro)
+	}
+}
+
 func TestCaracterizacionNaturalCreaTodasLasSecciones(t *testing.T) {
 	fake := nuevoFakeCaracterizacion()
 	fake.terceros[101] = map[string]any{
@@ -472,6 +570,11 @@ func TestCaracterizacionNaturalCreaTodasLasSecciones(t *testing.T) {
 	if fake.naturales[77] == nil || fake.contactos[400] == nil || fake.perfiles[300] == nil {
 		t.Fatalf("no se materializaron las entidades: %+v", fake)
 	}
+	verificarUsuarioModificacion(t, "proveedor", fake.proveedores[77], 101)
+	verificarUsuarioModificacion(t, "proveedor_natural", fake.naturales[77], 101)
+	verificarUsuarioModificacion(t, "perfil_proveedor", fake.perfiles[300], 101)
+	verificarUsuarioModificacion(t, "contacto", fake.contactos[400], 101)
+	verificarUsuarioModificacion(t, "actividad_economica_proveedor", fake.actividades[500], 101)
 }
 
 func TestCaracterizacionNaturalActualizaParcialSinBorrar(t *testing.T) {
@@ -538,6 +641,9 @@ func TestCaracterizacionNaturalActualizaParcialSinBorrar(t *testing.T) {
 	if contactoGuardado["NombreContacto"] != "Nombre anterior" {
 		t.Errorf("NombreContacto se sobrescribió: %+v", contactoGuardado)
 	}
+	verificarUsuarioModificacion(t, "proveedor actualizado", fake.proveedores[77], 101)
+	verificarUsuarioModificacion(t, "proveedor_natural actualizado", fake.naturales[77], 101)
+	verificarUsuarioModificacion(t, "contacto actualizado", fake.contactos[400], 101)
 }
 
 func TestCaracterizacionNaturalReemplazaOpcion(t *testing.T) {

@@ -66,7 +66,7 @@ func (s CuentaBancariaService) Registrar(ctx context.Context, terceroID int64, e
 	}
 
 	var terceroData map[string]any
-	ok, status, err := GetOne(ctx, fmt.Sprintf("tercero/%d", terceroID), &terceroData)
+	ok, status, err := GetOne(ctx, fmt.Sprintf("/v1/tercero/%d", terceroID), &terceroData)
 	if err != nil {
 		return fallar(errorLecturaCuenta(ctx, status, "No fue posible consultar el tercero", err))
 	}
@@ -92,7 +92,9 @@ func (s CuentaBancariaService) Registrar(ctx context.Context, terceroID int64, e
 	proveedorID := idDeMapa(proveedor)
 	data.ProveedorId = proveedorID
 
-	contactoID, accionContacto, err := materializarContactoPago(ctx, proveedorID, entrada.ContactoPago, contactoExplicito)
+	contactoID, accionContacto, err := materializarContactoPago(
+		ctx, terceroID, proveedorID, entrada.ContactoPago, contactoExplicito,
+	)
 	if contactoID > 0 {
 		data.ContactoPagoId = contactoID
 	}
@@ -104,7 +106,9 @@ func (s CuentaBancariaService) Registrar(ctx context.Context, terceroID int64, e
 	}
 
 	for _, cuenta := range entrada.CuentaBancaria {
-		registrada, accion, err := materializarCuentaBancaria(ctx, proveedorID, contactoID, cuenta)
+		registrada, accion, err := materializarCuentaBancaria(
+			ctx, terceroID, proveedorID, contactoID, cuenta,
+		)
 		if err != nil {
 			var cuentaErr *CuentaBancariaError
 			if errors.As(err, &cuentaErr) {
@@ -170,7 +174,7 @@ func validarEntradaCuentaBancaria(terceroID int64, entrada models.RegistroCuenta
 func resolverProveedorCuenta(ctx context.Context, terceroID int64) (map[string]any, error) {
 	filtros := url.Values{"query": {fmt.Sprintf("TerceroId:%d", terceroID)}, "limit": {"2"}}
 	var proveedores []map[string]any
-	ok, status, err := GetAllProveedores(ctx, "proveedor", filtros, &proveedores)
+	ok, status, err := GetAllProveedoresMapas(ctx, "/v1/proveedor", filtros, &proveedores)
 	if err != nil {
 		return nil, errorDependenciaCuenta(ctx, err)
 	}
@@ -210,13 +214,19 @@ func resolverProveedorCuenta(ctx context.Context, terceroID int64) (map[string]a
 	return coincidencias[0], nil
 }
 
-func materializarContactoPago(ctx context.Context, proveedorID int64, entrada models.ContactoPagoInput, contactoExplicito int64) (int64, string, error) {
+func materializarContactoPago(
+	ctx context.Context,
+	terceroID int64,
+	proveedorID int64,
+	entrada models.ContactoPagoInput,
+	contactoExplicito int64,
+) (int64, string, error) {
 	filtro := url.Values{
 		"query": {"ProveedorId:" + strconv.FormatInt(proveedorID, 10) + ",TipoCanalContactoId:" + strconv.FormatInt(entrada.TipoCanalContactoId, 10) + ",ValorEspecifico:" + entrada.ValorEspecifico},
 		"limit": {"2"},
 	}
 	var coincidencias []map[string]any
-	ok, status, err := GetAllProveedores(ctx, "contacto", filtro, &coincidencias)
+	ok, status, err := GetAllProveedoresMapas(ctx, "/v1/contacto", filtro, &coincidencias)
 	if err != nil {
 		return 0, "", errorDependenciaCuenta(ctx, err)
 	}
@@ -236,13 +246,13 @@ func materializarContactoPago(ctx context.Context, proveedorID int64, entrada mo
 				return 0, "", errorCuentaBancaria(409, "ContactoId contradice la identidad del contacto de pago", nil)
 			}
 		}
-		return actualizarContactoPago(ctx, proveedorID, contactoExplicito, entrada)
+		return actualizarContactoPago(ctx, terceroID, proveedorID, contactoExplicito, entrada)
 	}
 	if len(coincidencias) == 0 {
-		payload := payloadContactoPago(proveedorID, entrada)
+		payload := payloadContactoPago(terceroID, proveedorID, entrada)
 		payload["Activo"] = true
 		var respuesta map[string]any
-		ok, status, err := PostProveedores(ctx, "contacto", payload, &respuesta)
+		ok, status, err := PostProveedores(ctx, "/v1/contacto", payload, &respuesta)
 		if err != nil {
 			return 0, "", errorEscrituraCuenta(ctx, status, err, "crear el contacto de pago")
 		}
@@ -257,7 +267,7 @@ func materializarContactoPago(ctx context.Context, proveedorID int64, entrada mo
 		}
 		return id, "creado", nil
 	}
-	return actualizarContactoPago(ctx, proveedorID, idDeMapa(coincidencias[0]), entrada)
+	return actualizarContactoPago(ctx, terceroID, proveedorID, idDeMapa(coincidencias[0]), entrada)
 }
 
 func filtrarContactosCuenta(ctx context.Context, registros []map[string]any, proveedorID int64, entrada models.ContactoPagoInput) ([]map[string]any, error) {
@@ -283,9 +293,15 @@ func filtrarContactosCuenta(ctx context.Context, registros []map[string]any, pro
 	return coincidencias, nil
 }
 
-func actualizarContactoPago(ctx context.Context, proveedorID, contactoID int64, entrada models.ContactoPagoInput) (int64, string, error) {
+func actualizarContactoPago(
+	ctx context.Context,
+	terceroID int64,
+	proveedorID int64,
+	contactoID int64,
+	entrada models.ContactoPagoInput,
+) (int64, string, error) {
 	var registro map[string]any
-	ok, status, err := GetOneProveedores(ctx, fmt.Sprintf("contacto/%d", contactoID), &registro)
+	ok, status, err := GetOneProveedores(ctx, fmt.Sprintf("/v1/contacto/%d", contactoID), &registro)
 	if err != nil {
 		return 0, "", errorLecturaCuenta(ctx, status, "No fue posible consultar el contacto de pago", err)
 	}
@@ -306,15 +322,17 @@ func actualizarContactoPago(ctx context.Context, proveedorID, contactoID int64, 
 	if !activo {
 		return 0, "", errorCuentaBancaria(409, "El contacto de pago está inactivo", nil)
 	}
-	if contactoPagoIgual(registro, proveedorID, entrada) {
+	if contactoPagoIgual(registro, proveedorID, entrada) &&
+		idDeRelacion(registro["UsuarioModificacionId"]) == terceroID {
 		return contactoID, "reutilizado", nil
 	}
 	payload := clonarPayload(registro)
-	for clave, valor := range payloadContactoPago(proveedorID, entrada) {
+	for clave, valor := range payloadContactoPago(terceroID, proveedorID, entrada) {
 		payload[clave] = valor
 	}
+	aplicarUsuarioModificacion(payload, terceroID)
 	var respuesta map[string]any
-	ok, status, err = PutProveedores(ctx, fmt.Sprintf("contacto/%d", contactoID), payload, &respuesta)
+	ok, status, err = PutProveedores(ctx, fmt.Sprintf("/v1/contacto/%d", contactoID), payload, &respuesta)
 	if err != nil {
 		return contactoID, "", errorActualizacionCuenta(ctx, status, err, "el contacto de pago", "ContactoPago")
 	}
@@ -333,14 +351,18 @@ func actualizarContactoPago(ctx context.Context, proveedorID, contactoID int64, 
 	return contactoID, "actualizado", nil
 }
 
-func payloadContactoPago(proveedorID int64, entrada models.ContactoPagoInput) map[string]any {
-	return map[string]any{
+func payloadContactoPago(
+	terceroID int64,
+	proveedorID int64,
+	entrada models.ContactoPagoInput,
+) map[string]any {
+	return aplicarUsuarioModificacion(map[string]any{
 		"ProveedorId":         map[string]any{"Id": proveedorID},
 		"TipoCanalContactoId": entrada.TipoCanalContactoId,
 		"ValorEspecifico":     entrada.ValorEspecifico,
 		"NombreContacto":      entrada.NombreContacto,
 		"Extension":           entrada.Extension,
-	}
+	}, terceroID)
 }
 
 func contactoPagoIgual(registro map[string]any, proveedorID int64, entrada models.ContactoPagoInput) bool {
@@ -351,19 +373,27 @@ func contactoPagoIgual(registro map[string]any, proveedorID int64, entrada model
 		return false
 	}
 	if entrada.Extension == nil {
-		return registro["Extension"] == nil
+		// El CRUD devuelve "" para una extensión no informada; null y "" son
+		// equivalentes para la comparación de idempotencia.
+		return cadenaCuenta(registro["Extension"]) == ""
 	}
 	return cadenaCuenta(registro["Extension"]) == *entrada.Extension
 }
 
-func materializarCuentaBancaria(ctx context.Context, proveedorID, contactoID int64, entrada models.CuentaBancariaInput) (models.CuentaBancariaRegistrada, string, error) {
+func materializarCuentaBancaria(
+	ctx context.Context,
+	terceroID int64,
+	proveedorID int64,
+	contactoID int64,
+	entrada models.CuentaBancariaInput,
+) (models.CuentaBancariaRegistrada, string, error) {
 	var resultado models.CuentaBancariaRegistrada
 	filtro := url.Values{
 		"query": {"ProveedorId:" + strconv.FormatInt(proveedorID, 10) + ",EntidadBancariaId:" + strconv.FormatInt(entrada.EntidadBancariaId, 10) + ",TipoCuentaId:" + strconv.FormatInt(entrada.TipoCuentaId, 10) + ",NumeroCuenta:" + entrada.NumeroCuenta},
 		"limit": {"2"},
 	}
 	var coincidencias []map[string]any
-	ok, status, err := GetAllProveedores(ctx, "cuenta_bancaria", filtro, &coincidencias)
+	ok, status, err := GetAllProveedoresMapas(ctx, "/v1/cuenta_bancaria", filtro, &coincidencias)
 	if err != nil {
 		return resultado, "", errorDependenciaCuenta(ctx, err)
 	}
@@ -378,10 +408,10 @@ func materializarCuentaBancaria(ctx context.Context, proveedorID, contactoID int
 		return resultado, "", errorCuentaBancaria(409, "Hay varias cuentas bancarias con la misma identidad; no es posible resolverlas de forma segura", nil)
 	}
 	if len(coincidencias) == 0 {
-		payload := payloadCuentaBancaria(proveedorID, contactoID, entrada)
+		payload := payloadCuentaBancaria(terceroID, proveedorID, contactoID, entrada)
 		payload["Activo"] = true
 		var respuesta map[string]any
-		ok, status, err := PostProveedores(ctx, "cuenta_bancaria", payload, &respuesta)
+		ok, status, err := PostProveedores(ctx, "/v1/cuenta_bancaria", payload, &respuesta)
 		if err != nil {
 			return resultado, "", errorEscrituraCuenta(ctx, status, err, "crear la cuenta bancaria")
 		}
@@ -399,7 +429,7 @@ func materializarCuentaBancaria(ctx context.Context, proveedorID, contactoID int
 
 	id := idDeMapa(coincidencias[0])
 	var registro map[string]any
-	ok, status, err = GetOneProveedores(ctx, fmt.Sprintf("cuenta_bancaria/%d", id), &registro)
+	ok, status, err = GetOneProveedores(ctx, fmt.Sprintf("/v1/cuenta_bancaria/%d", id), &registro)
 	if err != nil {
 		return resultado, "", errorLecturaCuenta(ctx, status, "No fue posible consultar la cuenta bancaria", err)
 	}
@@ -420,14 +450,16 @@ func materializarCuentaBancaria(ctx context.Context, proveedorID, contactoID int
 	if !activo {
 		return resultado, "", errorCuentaBancaria(409, "La cuenta bancaria existente está inactiva", nil)
 	}
-	if cuentaBancariaIgual(registro, proveedorID, contactoID, entrada) {
+	if cuentaBancariaIgual(registro, proveedorID, contactoID, entrada) &&
+		idDeRelacion(registro["UsuarioModificacionId"]) == terceroID {
 		return cuentaBancariaRegistrada(id, contactoID, entrada), "reutilizado", nil
 	}
 	payload := clonarPayload(registro)
-	for clave, valor := range payloadCuentaBancaria(proveedorID, contactoID, entrada) {
+	for clave, valor := range payloadCuentaBancaria(terceroID, proveedorID, contactoID, entrada) {
 		payload[clave] = valor
 	}
-	ok, status, err = PutProveedores(ctx, fmt.Sprintf("cuenta_bancaria/%d", id), payload, &map[string]any{})
+	aplicarUsuarioModificacion(payload, terceroID)
+	ok, status, err = PutProveedores(ctx, fmt.Sprintf("/v1/cuenta_bancaria/%d", id), payload, &map[string]any{})
 	if err != nil {
 		return cuentaBancariaRegistrada(id, contactoID, entrada), "", errorActualizacionCuenta(ctx, status, err, "la cuenta bancaria", "CuentaBancaria")
 	}
@@ -463,15 +495,20 @@ func filtrarCuentasBancarias(ctx context.Context, registros []map[string]any, pr
 	return coincidencias, nil
 }
 
-func payloadCuentaBancaria(proveedorID, contactoID int64, entrada models.CuentaBancariaInput) map[string]any {
-	return map[string]any{
+func payloadCuentaBancaria(
+	terceroID int64,
+	proveedorID int64,
+	contactoID int64,
+	entrada models.CuentaBancariaInput,
+) map[string]any {
+	return aplicarUsuarioModificacion(map[string]any{
 		"ProveedorId":            map[string]any{"Id": proveedorID},
 		"ContactoId":             map[string]any{"Id": contactoID},
 		"EntidadBancariaId":      entrada.EntidadBancariaId,
 		"TipoCuentaId":           entrada.TipoCuentaId,
 		"NumeroCuenta":           entrada.NumeroCuenta,
 		"MontoCapitalAutorizado": entrada.MontoCapitalAutorizado,
-	}
+	}, terceroID)
 }
 
 func cuentaBancariaIgual(registro map[string]any, proveedorID, contactoID int64, entrada models.CuentaBancariaInput) bool {
