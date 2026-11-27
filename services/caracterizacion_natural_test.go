@@ -272,6 +272,7 @@ type catalogosCaracterizacionFake struct {
 	codigos      map[string]int64
 	ambiguos     map[string]bool
 	grupos       map[int64]string
+	detalles     map[int64]InfoComplementariaResuelta
 	lugaresMalo  map[int64]bool
 }
 
@@ -289,6 +290,59 @@ func (f *catalogosCaracterizacionFake) InfoComplementariaPorCodigo(
 ) (int64, bool, bool, error) {
 	id, ok := f.codigos[codigo]
 	return id, ok, f.ambiguos[codigo], nil
+}
+
+func (f *catalogosCaracterizacionFake) ResolverInfoComplementaria(
+	_ context.Context,
+	codigo string,
+	codigoGrupo string,
+) (InfoComplementariaResuelta, bool, error) {
+	id, ok := f.codigos[codigo]
+	if !ok {
+		return InfoComplementariaResuelta{}, false, nil
+	}
+	grupo := f.grupos[id]
+	if codigoGrupo != "" {
+		if grupo != "" && grupo != codigoGrupo {
+			return InfoComplementariaResuelta{}, false, nil
+		}
+		grupo = codigoGrupo
+	}
+	return InfoComplementariaResuelta{
+		Id:          id,
+		Codigo:      codigo,
+		CodigoGrupo: grupo,
+		Activo:      !f.infoInactiva[id],
+		Ambiguo:     f.ambiguos[codigo],
+	}, true, nil
+}
+
+func (f *catalogosCaracterizacionFake) InfoComplementariaPorID(
+	_ context.Context,
+	id int64,
+) (InfoComplementariaResuelta, bool, error) {
+	if detalle, ok := f.detalles[id]; ok {
+		if f.infoInactiva[id] {
+			detalle.Activo = false
+		}
+		return detalle, true, nil
+	}
+	codigo := ""
+	for candidato, candidatoID := range f.codigos {
+		if candidatoID == id {
+			codigo = candidato
+			break
+		}
+	}
+	if codigo == "" {
+		return InfoComplementariaResuelta{}, false, nil
+	}
+	return InfoComplementariaResuelta{
+		Id:          id,
+		Codigo:      codigo,
+		CodigoGrupo: f.grupos[id],
+		Activo:      !f.infoInactiva[id],
+	}, true, nil
 }
 
 func (f *catalogosCaracterizacionFake) InfoComplementariaDeGrupo(
@@ -353,9 +407,9 @@ func entradaNaturalPrueba() models.RegistroCaracterizacionNatural {
 	return models.RegistroCaracterizacionNatural{
 		TerceroId: 101,
 		InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{
-			{InfoComplementariaId: ptrInt64(12), Dato: json.RawMessage(`"Femenino"`)},
-			{CodigoInfoComplementaria: ptrString("HIJOS"), Dato: json.RawMessage(`true`)},
-			{CodigoInfoComplementaria: ptrString("MIGRANTE"), Dato: json.RawMessage(`false`)},
+			{CodigoInfoComplementaria: ptrString("MASCULINO"), CodigoGrupoInfoComplementaria: ptrString("Grupo_6")},
+			{CodigoInfoComplementaria: ptrString("HIJOS"), CodigoGrupoInfoComplementaria: ptrString("Grupo_9"), Dato: json.RawMessage(`true`)},
+			{CodigoInfoComplementaria: ptrString("MIGRANTE"), CodigoGrupoInfoComplementaria: ptrString("Grupo_9"), Dato: json.RawMessage(`false`)},
 		},
 		ProveedorNatural: &models.ProveedorNaturalInput{
 			PaisNacimientoId:       &pais,
@@ -386,7 +440,8 @@ func TestCaracterizacionNaturalCreaTodasLasSecciones(t *testing.T) {
 		"TipoContribuyenteId": map[string]any{"Id": 1},
 	}
 	catalogos := &catalogosCaracterizacionFake{
-		codigos: map[string]int64{"DESCRIPCIÓN": 900, "HIJOS": 21},
+		codigos: map[string]int64{"MASCULINO": 30, "HIJOS": 21, "MIGRANTE": 444},
+		grupos:  map[int64]string{30: "Grupo_6", 21: "Grupo_9", 444: "Grupo_9"},
 	}
 	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
 
@@ -485,7 +540,7 @@ func TestCaracterizacionNaturalActualizaParcialSinBorrar(t *testing.T) {
 	}
 }
 
-func TestCaracterizacionNaturalMezclaExtension(t *testing.T) {
+func TestCaracterizacionNaturalReemplazaOpcion(t *testing.T) {
 	fake := nuevoFakeCaracterizacion()
 	fake.terceros[101] = map[string]any{
 		"Id": 101, "Activo": true,
@@ -496,18 +551,34 @@ func TestCaracterizacionNaturalMezclaExtension(t *testing.T) {
 	}
 	fake.info[200] = map[string]any{
 		"Id": 200, "TerceroId": map[string]any{"Id": 101},
-		"InfoComplementariaId": map[string]any{"Id": 900},
-		"Dato":                 `{"MIGRANTE":false,"PERSONA_PEP":true}`,
-		"Activo":               true,
+		"InfoComplementariaId": map[string]any{
+			"Id": 30, "CodigoAbreviacion": "MASCULINO",
+			"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_6"},
+		},
+		"Dato": `""`, "Activo": true,
 	}
-	servicio := servicioCaracterizacionPrueba(t, fake,
-		&catalogosCaracterizacionFake{codigos: map[string]int64{"DESCRIPCIÓN": 900}}, nil)
+	fake.info[201] = map[string]any{
+		"Id": 201, "TerceroId": map[string]any{"Id": 101},
+		"InfoComplementariaId": map[string]any{
+			"Id": 29, "CodigoAbreviacion": "FEMENINO",
+			"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_6"},
+		},
+		"Dato": `""`, "Activo": false,
+	}
+	catalogos := &catalogosCaracterizacionFake{
+		codigos: map[string]int64{"FEMENINO": 29, "MASCULINO": 30},
+		grupos:  map[int64]string{29: "Grupo_6", 30: "Grupo_6"},
+	}
+	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
 
 	resultado, err := servicio.Registrar(
 		context.Background(),
 		models.RegistroCaracterizacionNatural{
 			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{
-				{CodigoInfoComplementaria: ptrString("VICTIMA_CONFLICTO"), Dato: json.RawMessage(`true`)},
+				{
+					CodigoInfoComplementaria:      ptrString("FEMENINO"),
+					CodigoGrupoInfoComplementaria: ptrString("Grupo_6"),
+				},
 			},
 		},
 		101, "update",
@@ -518,13 +589,14 @@ func TestCaracterizacionNaturalMezclaExtension(t *testing.T) {
 	if resultado.Parcial {
 		t.Fatalf("no se esperaba parcial: %+v", resultado.Avisos)
 	}
-	dato := fake.info[200]["Dato"].(string)
-	var mapa map[string]any
-	if err := json.Unmarshal([]byte(dato), &mapa); err != nil {
-		t.Fatalf("dato no es JSON: %v", err)
+	if fake.info[200]["Activo"] != false {
+		t.Fatalf("la opción anterior debía quedar inactiva: %+v", fake.info[200])
 	}
-	if mapa["MIGRANTE"] != false || mapa["PERSONA_PEP"] != true || mapa["VICTIMA_CONFLICTO"] != true {
-		t.Fatalf("mezcla de extensión inesperada: %+v", mapa)
+	if fake.info[201]["Activo"] != true {
+		t.Fatalf("la opción nueva debía quedar activa: %+v", fake.info[201])
+	}
+	if fake.info[201]["Dato"] != `""` {
+		t.Fatalf("la opción debe guardar Dato vacío: %+v", fake.info[201])
 	}
 }
 
@@ -662,18 +734,23 @@ func TestCaracterizacionNaturalActualizaInfoComplementariaPorID(t *testing.T) {
 	}
 	fake.info[200] = map[string]any{
 		"Id": 200, "TerceroId": map[string]any{"Id": 101},
-		"InfoComplementariaId": map[string]any{"Id": 12},
-		"Dato":                 `"Viejo"`, "Activo": true,
+		"InfoComplementariaId": map[string]any{"Id": 21},
+		"Dato":                 `false`, "Activo": true,
 	}
-	servicio := servicioCaracterizacionPrueba(t, fake, nil, nil)
+	catalogos := &catalogosCaracterizacionFake{
+		detalles: map[int64]InfoComplementariaResuelta{
+			21: {Id: 21, Codigo: "HIJOS", CodigoGrupo: "Grupo_9", Activo: true},
+		},
+	}
+	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
 
 	_, err := servicio.Registrar(
 		context.Background(),
 		models.RegistroCaracterizacionNatural{
 			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{{
 				Id:                   ptrInt64(200),
-				InfoComplementariaId: ptrInt64(12),
-				Dato:                 json.RawMessage(`"Nuevo"`),
+				InfoComplementariaId: ptrInt64(21),
+				Dato:                 json.RawMessage(`true`),
 			}},
 		},
 		101, "update",
@@ -681,7 +758,7 @@ func TestCaracterizacionNaturalActualizaInfoComplementariaPorID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Registrar no debe fallar: %v", err)
 	}
-	if fake.info[200]["Dato"] != `"Nuevo"` {
+	if fake.info[200]["Dato"] != `true` {
 		t.Fatalf("no se actualizó por Id: %+v", fake.info[200])
 	}
 }
@@ -697,18 +774,23 @@ func TestCaracterizacionNaturalRechazaInfoComplementariaDeOtroTercero(t *testing
 	}
 	fake.info[200] = map[string]any{
 		"Id": 200, "TerceroId": map[string]any{"Id": 999},
-		"InfoComplementariaId": map[string]any{"Id": 12},
-		"Dato":                 `"Viejo"`, "Activo": true,
+		"InfoComplementariaId": map[string]any{"Id": 21},
+		"Dato":                 `false`, "Activo": true,
 	}
-	servicio := servicioCaracterizacionPrueba(t, fake, nil, nil)
+	catalogos := &catalogosCaracterizacionFake{
+		detalles: map[int64]InfoComplementariaResuelta{
+			21: {Id: 21, Codigo: "HIJOS", CodigoGrupo: "Grupo_9", Activo: true},
+		},
+	}
+	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
 
 	resultado, err := servicio.Registrar(
 		context.Background(),
 		models.RegistroCaracterizacionNatural{
 			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{{
 				Id:                   ptrInt64(200),
-				InfoComplementariaId: ptrInt64(12),
-				Dato:                 json.RawMessage(`"Nuevo"`),
+				InfoComplementariaId: ptrInt64(21),
+				Dato:                 json.RawMessage(`true`),
 			}},
 		},
 		101, "update",
@@ -719,12 +801,12 @@ func TestCaracterizacionNaturalRechazaInfoComplementariaDeOtroTercero(t *testing
 	if !resultado.Parcial || len(resultado.Avisos) == 0 {
 		t.Fatalf("se esperaba parcial por conflicto: %+v", resultado)
 	}
-	if fake.info[200]["Dato"] != `"Viejo"` {
+	if fake.info[200]["Dato"] != `false` {
 		t.Fatalf("no debía modificar el registro ajeno: %+v", fake.info[200])
 	}
 }
 
-func TestCaracterizacionNaturalMezclaDatoObjeto(t *testing.T) {
+func TestCaracterizacionNaturalMezclaDireccionDian(t *testing.T) {
 	fake := nuevoFakeCaracterizacion()
 	fake.terceros[101] = map[string]any{
 		"Id": 101, "Activo": true,
@@ -735,17 +817,29 @@ func TestCaracterizacionNaturalMezclaDatoObjeto(t *testing.T) {
 	}
 	fake.info[200] = map[string]any{
 		"Id": 200, "TerceroId": map[string]any{"Id": 101},
-		"InfoComplementariaId": map[string]any{"Id": 14},
-		"Dato":                 `{"Via":"Calle","DetalleVia":"10"}`, "Activo": true,
+		"InfoComplementariaId": map[string]any{"Id": 51},
+		"Dato": `{"PaisId":48,"DepartamentoId":260,"CiudadId":824,"ViaId":12,` +
+			`"Via":"CALLE","DetalleVia":"10","NumeroCruce":"20","PlacaPuerta":"30",` +
+			`"InteriorId":null,"Interior":"","DetalleInterior":"","Direccion":"CALLE 10 # 20 - 30",` +
+			`"Extra":"se conserva"}`,
+		"Activo": true,
 	}
-	servicio := servicioCaracterizacionPrueba(t, fake, nil, nil)
+	catalogos := &catalogosCaracterizacionFake{
+		detalles: map[int64]InfoComplementariaResuelta{
+			51: {Id: 51, Codigo: "DIRECCIÓN", CodigoGrupo: "Grupo_10", Activo: true},
+		},
+	}
+	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
 
 	_, err := servicio.Registrar(
 		context.Background(),
 		models.RegistroCaracterizacionNatural{
 			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{{
-				InfoComplementariaId: ptrInt64(14),
-				Dato:                 json.RawMessage(`{"NumeroCruce":"20"}`),
+				InfoComplementariaId: ptrInt64(51),
+				Dato: json.RawMessage(`{"PaisId":48,"DepartamentoId":260,"CiudadId":824,` +
+					`"ViaId":12,"Via":"CALLE","DetalleVia":"11","NumeroCruce":"21",` +
+					`"PlacaPuerta":"31","InteriorId":null,"Interior":"",` +
+					`"DetalleInterior":"","Direccion":"CALLE 11 # 21 - 31"}`),
 			}},
 		},
 		101, "update",
@@ -757,50 +851,8 @@ func TestCaracterizacionNaturalMezclaDatoObjeto(t *testing.T) {
 	if err := json.Unmarshal([]byte(fake.info[200]["Dato"].(string)), &dato); err != nil {
 		t.Fatalf("dato inválido: %v", err)
 	}
-	if dato["Via"] != "Calle" || dato["DetalleVia"] != "10" || dato["NumeroCruce"] != "20" {
-		t.Fatalf("no se mezcló el objeto: %+v", dato)
-	}
-}
-
-func TestCaracterizacionNaturalMezclaObjetosAnidados(t *testing.T) {
-	fake := nuevoFakeCaracterizacion()
-	fake.terceros[101] = map[string]any{
-		"Id": 101, "Activo": true,
-		"TipoContribuyenteId": map[string]any{"Id": 1},
-	}
-	fake.proveedores[77] = map[string]any{
-		"Id": 77, "TerceroId": 101, "TipoProveedor": 1, "Activo": true,
-	}
-	fake.info[200] = map[string]any{
-		"Id": 200, "TerceroId": map[string]any{"Id": 101},
-		"InfoComplementariaId": map[string]any{"Id": 900},
-		"Dato":                 `{"DIRECCION":{"Via":"Calle","DetalleVia":"10"},"GENERO":12}`, "Activo": true,
-	}
-	servicio := servicioCaracterizacionPrueba(t, fake,
-		&catalogosCaracterizacionFake{codigos: map[string]int64{"DESCRIPCIÓN": 900}}, nil)
-
-	_, err := servicio.Registrar(
-		context.Background(),
-		models.RegistroCaracterizacionNatural{
-			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{
-				{CodigoInfoComplementaria: ptrString("DIRECCION"), Dato: json.RawMessage(`{"NumeroCruce":"20"}`)},
-			},
-		},
-		101, "update",
-	)
-	if err != nil {
-		t.Fatalf("Registrar no debe fallar: %v", err)
-	}
-	var dato map[string]any
-	if err := json.Unmarshal([]byte(fake.info[200]["Dato"].(string)), &dato); err != nil {
-		t.Fatalf("dato inválido: %v", err)
-	}
-	direccion, _ := dato["DIRECCION"].(map[string]any)
-	if direccion["Via"] != "Calle" || direccion["DetalleVia"] != "10" || direccion["NumeroCruce"] != "20" {
-		t.Fatalf("no se mezcló el objeto anidado: %+v", direccion)
-	}
-	if dato["GENERO"] != float64(12) {
-		t.Fatalf("se perdió GENERO: %+v", dato)
+	if dato["DetalleVia"] != "11" || dato["NumeroCruce"] != "21" || dato["Extra"] != "se conserva" {
+		t.Fatalf("no se mezcló la dirección: %+v", dato)
 	}
 }
 
@@ -811,7 +863,10 @@ func TestCaracterizacionNaturalValidaDatosSemanticos(t *testing.T) {
 		"TipoContribuyenteId": map[string]any{"Id": 1},
 	}
 	catalogos := &catalogosCaracterizacionFake{
-		grupos:      map[int64]string{12: "Grupo_6"},
+		codigos: map[string]int64{
+			"MASCULINO": 30, "HIJOS": 21, "LUGAR_RESIDENCIA": 55,
+		},
+		grupos:      map[int64]string{30: "Grupo_6", 21: "Grupo_9", 55: "Grupo_10"},
 		lugaresMalo: map[int64]bool{999: true},
 	}
 	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
@@ -821,24 +876,27 @@ func TestCaracterizacionNaturalValidaDatosSemanticos(t *testing.T) {
 		entrada models.InfoComplementariaTerceroInput
 	}{
 		{
-			nombre: "género no numérico",
+			nombre: "opción con dato no vacío",
 			entrada: models.InfoComplementariaTerceroInput{
-				CodigoInfoComplementaria: ptrString("GENERO"),
-				Dato:                     json.RawMessage(`"Femenino"`),
+				CodigoInfoComplementaria:      ptrString("MASCULINO"),
+				CodigoGrupoInfoComplementaria: ptrString("Grupo_6"),
+				Dato:                          json.RawMessage(`"Femenino"`),
 			},
 		},
 		{
 			nombre: "hijos no booleano",
 			entrada: models.InfoComplementariaTerceroInput{
-				CodigoInfoComplementaria: ptrString("HIJOS"),
-				Dato:                     json.RawMessage(`"si"`),
+				CodigoInfoComplementaria:      ptrString("HIJOS"),
+				CodigoGrupoInfoComplementaria: ptrString("Grupo_9"),
+				Dato:                          json.RawMessage(`"si"`),
 			},
 		},
 		{
 			nombre: "lugar inexistente",
 			entrada: models.InfoComplementariaTerceroInput{
-				CodigoInfoComplementaria: ptrString("LUGAR_RESIDENCIA"),
-				Dato:                     json.RawMessage(`999`),
+				CodigoInfoComplementaria:      ptrString("LUGAR_RESIDENCIA"),
+				CodigoGrupoInfoComplementaria: ptrString("Grupo_10"),
+				Dato:                          json.RawMessage(`999`),
 			},
 		},
 	}
@@ -868,6 +926,7 @@ func TestCaracterizacionNaturalAvisaCodigoAmbiguo(t *testing.T) {
 	catalogos := &catalogosCaracterizacionFake{
 		codigos:  map[string]int64{"MIGRANTE": 444},
 		ambiguos: map[string]bool{"MIGRANTE": true},
+		grupos:   map[int64]string{444: "Grupo_9"},
 	}
 	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
 
@@ -875,7 +934,11 @@ func TestCaracterizacionNaturalAvisaCodigoAmbiguo(t *testing.T) {
 		context.Background(),
 		models.RegistroCaracterizacionNatural{
 			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{
-				{CodigoInfoComplementaria: ptrString("MIGRANTE"), Dato: json.RawMessage(`true`)},
+				{
+					CodigoInfoComplementaria:      ptrString("MIGRANTE"),
+					CodigoGrupoInfoComplementaria: ptrString("Grupo_9"),
+					Dato:                          json.RawMessage(`true`),
+				},
 			},
 		},
 		101, "create",
@@ -888,6 +951,85 @@ func TestCaracterizacionNaturalAvisaCodigoAmbiguo(t *testing.T) {
 	}
 	if len(resultado.Avisos) != 1 || resultado.Avisos[0].Kind != "ambiguous_match" {
 		t.Fatalf("se esperaba aviso ambiguous_match: %+v", resultado.Avisos)
+	}
+}
+
+func TestCaracterizacionNaturalResuelvePerfilPorCodigo(t *testing.T) {
+	fake := nuevoFakeCaracterizacion()
+	fake.terceros[101] = map[string]any{
+		"Id": 101, "Activo": true,
+		"TipoContribuyenteId": map[string]any{"Id": 1},
+	}
+	catalogos := &catalogosCaracterizacionFake{
+		codigos: map[string]int64{"PROFESIONAL": 24},
+		grupos:  map[int64]string{24: "Grupo_5"},
+	}
+	servicio := servicioCaracterizacionPrueba(t, fake, catalogos, nil)
+
+	resultado, err := servicio.Registrar(
+		context.Background(),
+		models.RegistroCaracterizacionNatural{
+			PerfilProveedor: []models.PerfilProveedorInput{{
+				CodigoPerfil: ptrString("PROFESIONAL"),
+			}},
+		},
+		101, "create",
+	)
+	if err != nil {
+		t.Fatalf("Registrar no debe fallar: %v", err)
+	}
+	if resultado.Parcial || len(resultado.Data.PerfilProveedor) != 1 {
+		t.Fatalf("perfil inesperado: %+v", resultado)
+	}
+	if idDeRelacion(fake.perfiles[300]["PerfilId"]) != 24 {
+		t.Fatalf("PerfilId no se resolvió por código: %+v", fake.perfiles[300])
+	}
+}
+
+func TestCaracterizacionNaturalExigeGrupoEnCodigo(t *testing.T) {
+	fake := nuevoFakeCaracterizacion()
+	fake.terceros[101] = map[string]any{
+		"Id": 101, "Activo": true,
+		"TipoContribuyenteId": map[string]any{"Id": 1},
+	}
+	servicio := servicioCaracterizacionPrueba(t, fake, nil, nil)
+
+	_, err := servicio.Registrar(
+		context.Background(),
+		models.RegistroCaracterizacionNatural{
+			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{{
+				CodigoInfoComplementaria: ptrString("SITIO_WEB"),
+			}},
+		},
+		101, "create",
+	)
+	var caracterizacionErr *CaracterizacionNaturalError
+	if !asCaracterizacionError(err, &caracterizacionErr) || caracterizacionErr.StatusCode != 400 {
+		t.Fatalf("se esperaba 400 por grupo faltante, obtuvo %v", err)
+	}
+}
+
+func TestCaracterizacionNaturalRechazaCodigoDesconocido(t *testing.T) {
+	fake := nuevoFakeCaracterizacion()
+	fake.terceros[101] = map[string]any{
+		"Id": 101, "Activo": true,
+		"TipoContribuyenteId": map[string]any{"Id": 1},
+	}
+	servicio := servicioCaracterizacionPrueba(t, fake, nil, nil)
+
+	_, err := servicio.Registrar(
+		context.Background(),
+		models.RegistroCaracterizacionNatural{
+			InfoComplementariaTercero: []models.InfoComplementariaTerceroInput{{
+				CodigoInfoComplementaria:      ptrString("NO_EXISTE"),
+				CodigoGrupoInfoComplementaria: ptrString("Grupo_9"),
+			}},
+		},
+		101, "create",
+	)
+	var caracterizacionErr *CaracterizacionNaturalError
+	if !asCaracterizacionError(err, &caracterizacionErr) || caracterizacionErr.StatusCode != 400 {
+		t.Fatalf("se esperaba 400 por código desconocido, obtuvo %v", err)
 	}
 }
 

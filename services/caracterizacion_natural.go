@@ -30,16 +30,32 @@ const (
 
 const (
 	codigoGrupoPerfil        = "Grupo_5"
-	codigoExtensionDato      = "DESCRIPCIÓN"
 	maxCuerpoInfoDato        = 16 * 1024
 	maxDescripcionPortafolio = 2000
 )
+
+// gruposOpcionInfoComplementaria son los grupos de selección única. El valor es
+// el nombre del campo del formulario y solo se usa en mensajes de error.
+var gruposOpcionInfoComplementaria = map[string]string{
+	"Grupo_1":            "DISCAPACIDAD",
+	"Grupo_2":            "ESTADO_CIVIL",
+	"Grupo_3":            "GRUPO_ETNICO",
+	"Grupo_6":            "GENERO",
+	"IDENTIDAD_GENERO":   "SE_RECONOCE_COMO",
+	"ORIENTACION_SEXUAL": "ORIENTACION_SEXUAL",
+}
+
+func esGrupoOpcionInfoComplementaria(codigoGrupo string) bool {
+	_, ok := gruposOpcionInfoComplementaria[strings.TrimSpace(codigoGrupo)]
+	return ok
+}
 
 // CatalogosCaracterizacion es la porción de catálogos que usa el dominio 2.
 type CatalogosCaracterizacion interface {
 	LugarExiste(ctx context.Context, id int64) (bool, error)
 	InfoComplementariaExiste(ctx context.Context, id int64) (bool, error)
-	InfoComplementariaPorCodigo(ctx context.Context, codigo string) (int64, bool, bool, error)
+	ResolverInfoComplementaria(ctx context.Context, codigo, codigoGrupo string) (InfoComplementariaResuelta, bool, error)
+	InfoComplementariaPorID(ctx context.Context, id int64) (InfoComplementariaResuelta, bool, error)
 	InfoComplementariaDeGrupo(ctx context.Context, id int64, codigoGrupo string) (bool, error)
 }
 
@@ -107,10 +123,12 @@ type planInfoComplementaria struct {
 	id                   *int64
 	infoComplementariaID int64
 	codigo               string
+	codigoGrupo          string
 	dato                 any
 	datoJSON             string
 	padreID              *int64
-	esExtension          bool
+	esOpcion             bool
+	grupoOpcion          string
 	ambiguo              bool
 }
 
@@ -127,7 +145,6 @@ type planCaracterizacion struct {
 	actividades    []models.ActividadEconomicaProveedorInput
 	descripcion    *string
 	consentimiento *bool
-	extension      map[string]any
 	avisos         []responses.RelationError
 }
 
@@ -492,11 +509,10 @@ func (s CaracterizacionNaturalService) preparar(
 	}
 
 	idsInfo := make(map[int64]struct{}, len(in.InfoComplementariaTercero))
-	codigosExtension := make(map[string]struct{})
-	extension := map[string]any{}
+	gruposOpcionVistos := make(map[string]struct{}, len(in.InfoComplementariaTercero))
 
 	for i, item := range in.InfoComplementariaTercero {
-		preparado, codigoExtension, err := s.prepararInfoComplementaria(ctx, item, i)
+		preparado, err := s.prepararInfoComplementaria(ctx, item, i)
 		if err != nil {
 			return plan, err
 		}
@@ -504,77 +520,77 @@ func (s CaracterizacionNaturalService) preparar(
 			plan.avisos = append(plan.avisos, responses.RelationError{
 				Path:    "InfoComplementariaTercero",
 				Service: "terceros_crud",
-				Message: fmt.Sprintf("El código %q tiene varias coincidencias activas; se usó la de menor Id", preparado.codigo),
+				Message: fmt.Sprintf("El código %q del grupo %q tiene varias coincidencias activas; se usó la de menor Id", preparado.codigo, preparado.codigoGrupo),
 				Kind:    "ambiguous_match",
 			})
-		}
-		if codigoExtension != "" {
-			if _, repetido := codigosExtension[codigoExtension]; repetido {
-				return plan, errorCaracterizacion(400,
-					fmt.Sprintf("InfoComplementariaTercero[%d]: el código %q está repetido", i, codigoExtension), nil)
-			}
-			codigosExtension[codigoExtension] = struct{}{}
-			extension[codigoExtension] = preparado.dato
-			continue
 		}
 		if _, repetido := idsInfo[preparado.infoComplementariaID]; repetido {
 			return plan, errorCaracterizacion(400,
-				fmt.Sprintf("InfoComplementariaTercero[%d]: el InfoComplementariaId %d está repetido", i, preparado.infoComplementariaID), nil)
+				fmt.Sprintf("InfoComplementariaTercero[%d]: el código %q del grupo %q está repetido", i, preparado.codigo, preparado.codigoGrupo), nil)
 		}
 		idsInfo[preparado.infoComplementariaID] = struct{}{}
+		if preparado.esOpcion {
+			clave := strings.ToUpper(strings.TrimSpace(preparado.grupoOpcion))
+			if _, repetido := gruposOpcionVistos[clave]; repetido {
+				return plan, errorCaracterizacion(400,
+					fmt.Sprintf("InfoComplementariaTercero[%d]: solo se puede enviar una opción del grupo %q", i, preparado.grupoOpcion), nil)
+			}
+			gruposOpcionVistos[clave] = struct{}{}
+		}
 		plan.info = append(plan.info, preparado)
 	}
 
-	if len(extension) > 0 {
-		idExtension, ambiguoExtension, err := s.resolverExtension(ctx, extension)
-		if err != nil {
-			return plan, err
-		}
-		datoJSON, err := json.Marshal(extension)
-		if err != nil {
-			return plan, errorCaracterizacion(400, "No fue posible serializar la extensión de caracterización", err)
-		}
-		plan.info = append(plan.info, planInfoComplementaria{
-			infoComplementariaID: idExtension,
-			codigo:               codigoExtensionDato,
-			dato:                 extension,
-			datoJSON:             string(datoJSON),
-			esExtension:          true,
-			ambiguo:              ambiguoExtension,
-		})
-		if ambiguoExtension {
-			plan.avisos = append(plan.avisos, responses.RelationError{
-				Path:    "InfoComplementariaTercero",
-				Service: "terceros_crud",
-				Message: "DESCRIPCIÓN tiene varias coincidencias activas; se usó la de menor Id",
-				Kind:    "ambiguous_match",
-			})
-		}
+	if err := s.validarCoherenciaDireccion(plan.info); err != nil {
+		return plan, err
 	}
 
 	perfilesVistos := make(map[int64]struct{}, len(plan.perfiles))
-	for i, perfil := range plan.perfiles {
+	for i := range plan.perfiles {
+		perfil := &plan.perfiles[i]
 		if perfil.Id != nil && *perfil.Id <= 0 {
 			return plan, errorCaracterizacion(400,
 				fmt.Sprintf("PerfilProveedor[%d].Id debe ser un entero positivo", i), nil)
 		}
-		if perfil.PerfilId <= 0 {
+		tienePerfilID := perfil.PerfilId > 0
+		tieneCodigoPerfil := perfil.CodigoPerfil != nil && strings.TrimSpace(*perfil.CodigoPerfil) != ""
+		if !tienePerfilID && !tieneCodigoPerfil {
 			return plan, errorCaracterizacion(400,
-				fmt.Sprintf("PerfilProveedor[%d].PerfilId debe ser un entero positivo", i), nil)
+				fmt.Sprintf("PerfilProveedor[%d]: debe traer PerfilId o CodigoPerfil", i), nil)
+		}
+		if tieneCodigoPerfil {
+			codigo := strings.TrimSpace(*perfil.CodigoPerfil)
+			if contieneControl(codigo) {
+				return plan, errorCaracterizacion(400,
+					fmt.Sprintf("PerfilProveedor[%d].CodigoPerfil no admite caracteres de control", i), nil)
+			}
+			detalle, ok, err := s.Catalogos.ResolverInfoComplementaria(ctx, codigo, codigoGrupoPerfil)
+			if err != nil {
+				return plan, errorDependencia(ctx, err)
+			}
+			if !ok || !detalle.Activo {
+				return plan, errorCaracterizacion(400,
+					fmt.Sprintf("PerfilProveedor[%d].CodigoPerfil %q no existe, está inactivo o no pertenece al grupo %s", i, codigo, codigoGrupoPerfil), nil)
+			}
+			if tienePerfilID && perfil.PerfilId != detalle.Id {
+				return plan, errorCaracterizacion(400,
+					fmt.Sprintf("PerfilProveedor[%d]: PerfilId y CodigoPerfil no coinciden", i), nil)
+			}
+			perfil.PerfilId = detalle.Id
+		} else {
+			existe, err := s.Catalogos.InfoComplementariaDeGrupo(ctx, perfil.PerfilId, codigoGrupoPerfil)
+			if err != nil {
+				return plan, errorDependencia(ctx, err)
+			}
+			if !existe {
+				return plan, errorCaracterizacion(400,
+					fmt.Sprintf("PerfilProveedor[%d].PerfilId no existe, está inactivo o no pertenece al grupo %s", i, codigoGrupoPerfil), nil)
+			}
 		}
 		if _, repetido := perfilesVistos[perfil.PerfilId]; repetido {
 			return plan, errorCaracterizacion(400,
 				fmt.Sprintf("PerfilProveedor[%d].PerfilId está repetido", i), nil)
 		}
 		perfilesVistos[perfil.PerfilId] = struct{}{}
-		existe, err := s.Catalogos.InfoComplementariaDeGrupo(ctx, perfil.PerfilId, codigoGrupoPerfil)
-		if err != nil {
-			return plan, errorDependencia(ctx, err)
-		}
-		if !existe {
-			return plan, errorCaracterizacion(400,
-				fmt.Sprintf("PerfilProveedor[%d].PerfilId no existe, está inactivo o no pertenece al grupo %s", i, codigoGrupoPerfil), nil)
-		}
 	}
 
 	contactosVistos := make(map[string]struct{}, len(plan.contactos))
@@ -625,113 +641,144 @@ func (s CaracterizacionNaturalService) prepararInfoComplementaria(
 	ctx context.Context,
 	item models.InfoComplementariaTerceroInput,
 	indice int,
-) (planInfoComplementaria, string, error) {
-	if len(item.Dato) == 0 {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
-			fmt.Sprintf("InfoComplementariaTercero[%d].Dato es obligatorio", indice), nil)
-	}
+) (planInfoComplementaria, error) {
 	if len(item.Dato) > maxCuerpoInfoDato {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
+		return planInfoComplementaria{}, errorCaracterizacion(400,
 			fmt.Sprintf("InfoComplementariaTercero[%d].Dato supera el tamaño máximo permitido", indice), nil)
 	}
-	var dato any
-	if err := json.Unmarshal(item.Dato, &dato); err != nil {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
-			fmt.Sprintf("InfoComplementariaTercero[%d].Dato no es un JSON válido", indice), nil)
-	}
 	if item.InfoComplementariaTerceroPadreId != nil && *item.InfoComplementariaTerceroPadreId <= 0 {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
+		return planInfoComplementaria{}, errorCaracterizacion(400,
 			fmt.Sprintf("InfoComplementariaTercero[%d].InfoComplementariaTerceroPadreId debe ser un entero positivo", indice), nil)
 	}
 	if item.Id != nil && *item.Id <= 0 {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
+		return planInfoComplementaria{}, errorCaracterizacion(400,
 			fmt.Sprintf("InfoComplementariaTercero[%d].Id debe ser un entero positivo", indice), nil)
 	}
 
 	tieneID := item.InfoComplementariaId != nil
 	tieneCodigo := item.CodigoInfoComplementaria != nil && strings.TrimSpace(*item.CodigoInfoComplementaria) != ""
 	if tieneID == tieneCodigo {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
+		return planInfoComplementaria{}, errorCaracterizacion(400,
 			fmt.Sprintf("InfoComplementariaTercero[%d]: debe traer exactamente uno de InfoComplementariaId o CodigoInfoComplementaria", indice), nil)
 	}
 
+	var detalle InfoComplementariaResuelta
 	if tieneID {
 		if *item.InfoComplementariaId <= 0 {
-			return planInfoComplementaria{}, "", errorCaracterizacion(400,
+			return planInfoComplementaria{}, errorCaracterizacion(400,
 				fmt.Sprintf("InfoComplementariaTercero[%d].InfoComplementariaId debe ser un entero positivo", indice), nil)
 		}
-		existe, err := s.Catalogos.InfoComplementariaExiste(ctx, *item.InfoComplementariaId)
+		resuelto, ok, err := s.Catalogos.InfoComplementariaPorID(ctx, *item.InfoComplementariaId)
 		if err != nil {
-			return planInfoComplementaria{}, "", errorDependencia(ctx, err)
+			return planInfoComplementaria{}, errorDependencia(ctx, err)
 		}
-		if !existe {
-			return planInfoComplementaria{}, "", errorCaracterizacion(400,
-				fmt.Sprintf("InfoComplementariaTercero[%d].InfoComplementariaId no existe o está inactivo", indice), nil)
+		if !ok {
+			return planInfoComplementaria{}, errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].InfoComplementariaId no existe", indice), nil)
 		}
-		datoJSON, err := json.Marshal(dato)
+		detalle = resuelto
+	} else {
+		codigo := strings.TrimSpace(*item.CodigoInfoComplementaria)
+		if contieneControl(codigo) {
+			return planInfoComplementaria{}, errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].CodigoInfoComplementaria no admite caracteres de control", indice), nil)
+		}
+		if item.CodigoGrupoInfoComplementaria == nil ||
+			strings.TrimSpace(*item.CodigoGrupoInfoComplementaria) == "" {
+			return planInfoComplementaria{}, errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].CodigoGrupoInfoComplementaria es obligatorio cuando se usa CodigoInfoComplementaria", indice), nil)
+		}
+		codigoGrupo := strings.TrimSpace(*item.CodigoGrupoInfoComplementaria)
+		if contieneControl(codigoGrupo) {
+			return planInfoComplementaria{}, errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].CodigoGrupoInfoComplementaria no admite caracteres de control", indice), nil)
+		}
+		resuelto, ok, err := s.Catalogos.ResolverInfoComplementaria(ctx, codigo, codigoGrupo)
 		if err != nil {
-			return planInfoComplementaria{}, "", errorCaracterizacion(400,
-				fmt.Sprintf("InfoComplementariaTercero[%d].Dato no se pudo serializar", indice), err)
+			return planInfoComplementaria{}, errorDependencia(ctx, err)
+		}
+		if !ok {
+			return planInfoComplementaria{}, errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].CodigoInfoComplementaria %q no existe en el grupo %q", indice, codigo, codigoGrupo), nil)
+		}
+		if !strings.EqualFold(strings.TrimSpace(resuelto.CodigoGrupo), codigoGrupo) {
+			return planInfoComplementaria{}, errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d]: el código %q no pertenece al grupo %q", indice, codigo, codigoGrupo), nil)
+		}
+		detalle = resuelto
+	}
+
+	if item.CodigoGrupoInfoComplementaria != nil &&
+		strings.TrimSpace(*item.CodigoGrupoInfoComplementaria) != "" &&
+		!strings.EqualFold(strings.TrimSpace(detalle.CodigoGrupo), strings.TrimSpace(*item.CodigoGrupoInfoComplementaria)) {
+		return planInfoComplementaria{}, errorCaracterizacion(400,
+			fmt.Sprintf("InfoComplementariaTercero[%d]: el grupo enviado no coincide con el del catálogo", indice), nil)
+	}
+
+	if esGrupoOpcionInfoComplementaria(detalle.CodigoGrupo) {
+		if !detalle.Activo {
+			return planInfoComplementaria{}, errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d]: la opción %q no existe o está inactiva en el catálogo", indice, detalle.Codigo), nil)
+		}
+		var datoOpcion any
+		if len(item.Dato) > 0 {
+			if err := json.Unmarshal(item.Dato, &datoOpcion); err != nil {
+				return planInfoComplementaria{}, errorCaracterizacion(400,
+					fmt.Sprintf("InfoComplementariaTercero[%d].Dato no es un JSON válido", indice), nil)
+			}
+			if datoOpcion != nil {
+				texto, ok := datoOpcion.(string)
+				if !ok || strings.TrimSpace(texto) != "" {
+					return planInfoComplementaria{}, errorCaracterizacion(400,
+						fmt.Sprintf("InfoComplementariaTercero[%d]: para un campo de opción Dato debe ir vacío", indice), nil)
+				}
+			}
 		}
 		return planInfoComplementaria{
 			id:                   item.Id,
-			infoComplementariaID: *item.InfoComplementariaId,
-			dato:                 dato,
-			datoJSON:             string(datoJSON),
+			infoComplementariaID: detalle.Id,
+			codigo:               detalle.Codigo,
+			codigoGrupo:          detalle.CodigoGrupo,
+			dato:                 "",
+			datoJSON:             `""`,
 			padreID:              item.InfoComplementariaTerceroPadreId,
-		}, "", nil
+			esOpcion:             true,
+			grupoOpcion:          detalle.CodigoGrupo,
+			ambiguo:              detalle.Ambiguo,
+		}, nil
 	}
 
-	codigo := strings.TrimSpace(*item.CodigoInfoComplementaria)
-	if contieneControl(codigo) {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
-			fmt.Sprintf("InfoComplementariaTercero[%d].CodigoInfoComplementaria no admite caracteres de control", indice), nil)
+	if len(item.Dato) == 0 {
+		return planInfoComplementaria{}, errorCaracterizacion(400,
+			fmt.Sprintf("InfoComplementariaTercero[%d].Dato es obligatorio", indice), nil)
 	}
-	if err := s.validarDatoPorCodigo(ctx, codigo, dato, indice); err != nil {
-		return planInfoComplementaria{}, "", err
+	var dato any
+	if err := json.Unmarshal(item.Dato, &dato); err != nil {
+		return planInfoComplementaria{}, errorCaracterizacion(400,
+			fmt.Sprintf("InfoComplementariaTercero[%d].Dato no es un JSON válido", indice), nil)
 	}
-	id, existe, ambiguo, err := s.Catalogos.InfoComplementariaPorCodigo(ctx, codigo)
-	if err != nil {
-		return planInfoComplementaria{}, "", errorDependencia(ctx, err)
+	if !detalle.Activo {
+		return planInfoComplementaria{}, errorCaracterizacion(400,
+			fmt.Sprintf("InfoComplementariaTercero[%d].CodigoInfoComplementaria %q no existe o está inactivo", indice, detalle.Codigo), nil)
 	}
-	if !existe {
-		return planInfoComplementaria{
-			codigo:  codigo,
-			dato:    dato,
-			padreID: item.InfoComplementariaTerceroPadreId,
-		}, codigo, nil
+	if err := s.validarDatoPorCodigo(ctx, detalle.Codigo, dato, indice); err != nil {
+		return planInfoComplementaria{}, err
 	}
-	if codigo == codigoExtensionDato || strings.EqualFold(codigo, "DESCRIPCION") {
-		return planInfoComplementaria{
-			codigo:  codigo,
-			dato:    dato,
-			padreID: item.InfoComplementariaTerceroPadreId,
-			ambiguo: ambiguo,
-		}, codigo, nil
-	}
-	activo, err := s.Catalogos.InfoComplementariaExiste(ctx, id)
-	if err != nil {
-		return planInfoComplementaria{}, "", errorDependencia(ctx, err)
-	}
-	if !activo {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
-			fmt.Sprintf("InfoComplementariaTercero[%d].CodigoInfoComplementaria %q no existe o está inactivo", indice, codigo), nil)
-	}
-
 	datoJSON, err := json.Marshal(dato)
 	if err != nil {
-		return planInfoComplementaria{}, "", errorCaracterizacion(400,
+		return planInfoComplementaria{}, errorCaracterizacion(400,
 			fmt.Sprintf("InfoComplementariaTercero[%d].Dato no se pudo serializar", indice), err)
 	}
 	return planInfoComplementaria{
 		id:                   item.Id,
-		infoComplementariaID: id,
-		codigo:               codigo,
+		infoComplementariaID: detalle.Id,
+		codigo:               detalle.Codigo,
+		codigoGrupo:          detalle.CodigoGrupo,
 		dato:                 dato,
 		datoJSON:             string(datoJSON),
 		padreID:              item.InfoComplementariaTerceroPadreId,
-		ambiguo:              ambiguo,
-	}, "", nil
+		ambiguo:              detalle.Ambiguo,
+	}, nil
 }
 
 func (s CaracterizacionNaturalService) validarDatoPorCodigo(
@@ -766,20 +813,12 @@ func (s CaracterizacionNaturalService) validarDatoPorCodigo(
 			return errorCaracterizacion(400,
 				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser un entero no negativo", indice, codigo), nil)
 		}
-	case "EPS", "AFP", "CCF":
-		id, ok := datoEntero(dato)
-		if !ok || id <= 0 {
-			return errorCaracterizacion(400,
-				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser un Id de parámetro", indice, codigo), nil)
-		}
-		existe, err := s.Parametros.ParametroExiste(ctx, id)
-		if err != nil {
-			return errorDependencia(ctx, err)
-		}
-		if !existe {
-			return errorCaracterizacion(400,
-				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s no existe o está inactivo", indice, codigo), nil)
-		}
+	case "EPS":
+		return s.validarParametroDeTipo(ctx, dato, "EPS", indice, codigo)
+	case "AFP":
+		return s.validarParametroDeTipo(ctx, dato, "EFP", indice, codigo)
+	case "CCF":
+		return s.validarParametroDeTipo(ctx, dato, "CCF", indice, codigo)
 	case "ACTIVIDAD_PRINCIPAL":
 		id, ok := datoEntero(dato)
 		if !ok || id <= 0 {
@@ -794,7 +833,7 @@ func (s CaracterizacionNaturalService) validarDatoPorCodigo(
 			return errorCaracterizacion(400,
 				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s no es un CIIU activo", indice, codigo), nil)
 		}
-	case "PAIS_EXPEDICION", "DEPARTAMENTO_EXPEDICION", "LUGAR_RESIDENCIA":
+	case "PAIS_EXPEDICION", "DEPARTAMENTO_EXPEDICION", "DEPTO_EXPEDICION", "LUGAR_RESIDENCIA":
 		id, ok := datoEntero(dato)
 		if !ok || id <= 0 {
 			return errorCaracterizacion(400,
@@ -809,15 +848,132 @@ func (s CaracterizacionNaturalService) validarDatoPorCodigo(
 				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s no existe o está inactivo", indice, codigo), nil)
 		}
 	case "DIRECCIÓN", "DIRECCION":
-		if _, ok := dato.(map[string]any); !ok {
-			return errorCaracterizacion(400,
-				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser un objeto", indice, codigo), nil)
-		}
+		return s.validarDireccionDian(ctx, dato, indice)
 	case "SITIO_WEB":
-		if _, ok := dato.(string); !ok {
+		texto, ok := dato.(string)
+		if !ok || strings.TrimSpace(texto) == "" {
 			return errorCaracterizacion(400,
-				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser una cadena", indice, codigo), nil)
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser una cadena no vacía", indice, codigo), nil)
 		}
+		parsed, err := url.Parse(strings.TrimSpace(texto))
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser una URL http o https válida", indice, codigo), nil)
+		}
+	}
+	return nil
+}
+
+func (s CaracterizacionNaturalService) validarParametroDeTipo(
+	ctx context.Context,
+	dato any,
+	tipo string,
+	indice int,
+	codigo string,
+) error {
+	id, ok := datoEntero(dato)
+	if !ok || id <= 0 {
+		return errorCaracterizacion(400,
+			fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s debe ser un Id de parámetro", indice, codigo), nil)
+	}
+	existe, err := s.Parametros.ParametroDeTipo(ctx, id, tipo)
+	if err != nil {
+		return errorDependencia(ctx, err)
+	}
+	if !existe {
+		return errorCaracterizacion(400,
+			fmt.Sprintf("InfoComplementariaTercero[%d].Dato para %s no existe, está inactivo o no es de tipo %s", indice, codigo, tipo), nil)
+	}
+	return nil
+}
+
+func (s CaracterizacionNaturalService) validarDireccionDian(
+	ctx context.Context,
+	dato any,
+	indice int,
+) error {
+	direccion, ok := dato.(map[string]any)
+	if !ok {
+		return errorCaracterizacion(400,
+			fmt.Sprintf("InfoComplementariaTercero[%d].Dato para DIRECCIÓN debe ser un objeto", indice), nil)
+	}
+	requeridos := []string{
+		"DepartamentoId", "CiudadId", "ViaId",
+		"DetalleVia", "NumeroCruce", "PlacaPuerta", "Direccion",
+	}
+	for _, campo := range requeridos {
+		valor, existe := direccion[campo]
+		if !existe || valor == nil {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para DIRECCIÓN requiere %s", indice, campo), nil)
+		}
+	}
+	for _, campo := range []string{"PaisId", "DepartamentoId", "CiudadId", "ViaId", "InteriorId"} {
+		valor, existe := direccion[campo]
+		if !existe || valor == nil {
+			continue
+		}
+		id, ok := datoEntero(valor)
+		if !ok || id <= 0 {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para DIRECCIÓN.%s debe ser un Id de lugar", indice, campo), nil)
+		}
+		existeLugar, err := s.Catalogos.LugarExiste(ctx, id)
+		if err != nil {
+			return errorDependencia(ctx, err)
+		}
+		if !existeLugar {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para DIRECCIÓN.%s no existe o está inactivo", indice, campo), nil)
+		}
+	}
+	for _, campo := range []string{
+		"Via", "DetalleVia", "NumeroCruce", "PlacaPuerta",
+		"Interior", "DetalleInterior", "Direccion",
+	} {
+		valor, existe := direccion[campo]
+		if !existe || valor == nil {
+			continue
+		}
+		texto, ok := valor.(string)
+		if !ok {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para DIRECCIÓN.%s debe ser una cadena", indice, campo), nil)
+		}
+		if contieneControl(texto) {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para DIRECCIÓN.%s no admite caracteres de control", indice, campo), nil)
+		}
+		if campo == "Direccion" && strings.TrimSpace(texto) == "" {
+			return errorCaracterizacion(400,
+				fmt.Sprintf("InfoComplementariaTercero[%d].Dato para DIRECCIÓN.Direccion no puede estar vacío", indice), nil)
+		}
+	}
+	return nil
+}
+
+func (s CaracterizacionNaturalService) validarCoherenciaDireccion(
+	info []planInfoComplementaria,
+) error {
+	var ciudadDireccion int64
+	var ciudadResidencia int64
+	for _, item := range info {
+		switch strings.ToUpper(strings.TrimSpace(item.codigo)) {
+		case "DIRECCIÓN", "DIRECCION":
+			if mapa, ok := item.dato.(map[string]any); ok {
+				if id, ok := datoEntero(mapa["CiudadId"]); ok {
+					ciudadDireccion = id
+				}
+			}
+		case "LUGAR_RESIDENCIA":
+			if id, ok := datoEntero(item.dato); ok {
+				ciudadResidencia = id
+			}
+		}
+	}
+	if ciudadDireccion > 0 && ciudadResidencia > 0 && ciudadDireccion != ciudadResidencia {
+		return errorCaracterizacion(400,
+			"DIRECCIÓN.CiudadId y LUGAR_RESIDENCIA deben coincidir", nil)
 	}
 	return nil
 }
@@ -867,31 +1023,6 @@ func datoEntero(dato any) (int64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func (s CaracterizacionNaturalService) resolverExtension(
-	ctx context.Context,
-	extension map[string]any,
-) (int64, bool, error) {
-	for _, codigo := range []string{codigoExtensionDato, "DESCRIPCION"} {
-		id, existe, ambiguo, err := s.Catalogos.InfoComplementariaPorCodigo(ctx, codigo)
-		if err != nil {
-			return 0, false, errorDependencia(ctx, err)
-		}
-		if existe {
-			activo, err := s.Catalogos.InfoComplementariaExiste(ctx, id)
-			if err != nil {
-				return 0, false, errorDependencia(ctx, err)
-			}
-			if !activo {
-				return 0, false, errorCaracterizacion(500,
-					"El registro DESCRIPCIÓN de info_complementaria está inactivo", nil)
-			}
-			return id, ambiguo, nil
-		}
-	}
-	return 0, false, errorCaracterizacion(500,
-		"No está configurado el registro DESCRIPCIÓN de info_complementaria para la extensión de caracterización", nil)
 }
 
 func (s CaracterizacionNaturalService) validarProveedorNatural(
@@ -1312,7 +1443,10 @@ func (s CaracterizacionNaturalService) escribirInfoComplementaria(
 			return models.InfoComplementariaTerceroRegistrada{}, "", nil, err
 		}
 	}
-	if item.id != nil && !item.esExtension {
+	if item.esOpcion {
+		return s.escribirOpcionInfoComplementaria(ctx, terceroID, item, existentes)
+	}
+	if item.id != nil {
 		return s.escribirInfoComplementariaPorID(ctx, terceroID, item, existentes)
 	}
 	var registros []map[string]any
@@ -1353,6 +1487,7 @@ func (s CaracterizacionNaturalService) escribirInfoComplementaria(
 	registrada := models.InfoComplementariaTerceroRegistrada{
 		InfoComplementariaId:             item.infoComplementariaID,
 		CodigoInfoComplementaria:         item.codigo,
+		CodigoGrupoInfoComplementaria:    item.codigoGrupo,
 		Dato:                             item.dato,
 		InfoComplementariaTerceroPadreId: item.padreID,
 	}
@@ -1416,7 +1551,7 @@ func (s CaracterizacionNaturalService) escribirInfoComplementaria(
 	datoExistente := decodificarDato(registro["Dato"])
 	datoFinal := fusionarDato(datoExistente, item.dato)
 	datoJSON := item.datoJSON
-	if !reflect.DeepEqual(datoFinal, item.dato) || item.esExtension {
+	if !reflect.DeepEqual(datoFinal, item.dato) {
 		bytes, err := json.Marshal(datoFinal)
 		if err != nil {
 			return registrada, "", aviso, errorCaracterizacion(400,
@@ -1450,6 +1585,227 @@ func (s CaracterizacionNaturalService) escribirInfoComplementaria(
 	registrada.Id = id
 	registrada.Dato = datoFinal
 	return registrada, "actualizado", aviso, nil
+}
+
+func (s CaracterizacionNaturalService) escribirOpcionInfoComplementaria(
+	ctx context.Context,
+	terceroID int64,
+	item planInfoComplementaria,
+	existentes *existentesInfoTercero,
+) (models.InfoComplementariaTerceroRegistrada, string, *responses.RelationError, error) {
+	registrada := models.InfoComplementariaTerceroRegistrada{
+		InfoComplementariaId:             item.infoComplementariaID,
+		CodigoInfoComplementaria:         item.codigo,
+		CodigoGrupoInfoComplementaria:    item.codigoGrupo,
+		Dato:                             "",
+		InfoComplementariaTerceroPadreId: item.padreID,
+	}
+	if item.padreID != nil {
+		if err := s.validarPadreInfoComplementaria(ctx, terceroID, *item.padreID); err != nil {
+			return registrada, "", nil, err
+		}
+	}
+	if existentes == nil {
+		cargados, err := s.cargarInfoExistentes(ctx, terceroID)
+		if err != nil {
+			return registrada, "", nil, err
+		}
+		existentes = cargados
+	}
+
+	// Una sola opción activa por grupo: se desactivan las demás. Los registros
+	// DOC_* comparten grupo con las opciones, pero no son opciones.
+	for id, registro := range existentes.porID {
+		if id <= 0 {
+			continue
+		}
+		if activo, ok := registro["Activo"].(bool); !ok || !activo {
+			continue
+		}
+		icID := idDeRelacion(registro["InfoComplementariaId"])
+		if icID <= 0 || icID == item.infoComplementariaID {
+			continue
+		}
+		grupo, codigo, err := s.grupoYCodigoDeRegistro(ctx, registro)
+		if err != nil {
+			return registrada, "", nil, err
+		}
+		if !strings.EqualFold(strings.TrimSpace(grupo), strings.TrimSpace(item.grupoOpcion)) {
+			continue
+		}
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(codigo)), "DOC_") {
+			continue
+		}
+		if err := s.desactivarInfoComplementaria(ctx, terceroID, id, registro); err != nil {
+			return registrada, "", nil, err
+		}
+	}
+
+	seleccionados := existentes.porInfo[item.infoComplementariaID]
+	activos, inactivos := separarRegistrosInfo(seleccionados)
+	if len(activos) > 0 {
+		registro := activos[0]
+		id := idDeMapa(registro)
+		if id <= 0 {
+			return registrada, "", nil, errorDependencia(ctx,
+				errors.New("el registro de info_complementaria_tercero no contiene Id"))
+		}
+		for _, extra := range activos[1:] {
+			if err := s.desactivarInfoComplementaria(ctx, terceroID, idDeMapa(extra), extra); err != nil {
+				return registrada, "", nil, err
+			}
+		}
+		accion := "reutilizado"
+		if datoActual, ok := decodificarDato(registro["Dato"]).(string); !ok || datoActual != "" {
+			if err := s.actualizarDatoInfoComplementaria(ctx, terceroID, id, item, registro); err != nil {
+				return registrada, "", nil, err
+			}
+			accion = "actualizado"
+		}
+		registrada.Id = id
+		return registrada, accion, nil, nil
+	}
+	if len(inactivos) > 0 {
+		registro := inactivos[0]
+		id := idDeMapa(registro)
+		if id <= 0 {
+			return registrada, "", nil, errorDependencia(ctx,
+				errors.New("el registro de info_complementaria_tercero no contiene Id"))
+		}
+		if err := s.reactivarOpcionInfoComplementaria(ctx, terceroID, id, item, registro); err != nil {
+			return registrada, "", nil, err
+		}
+		registrada.Id = id
+		return registrada, "actualizado", nil, nil
+	}
+
+	payload := map[string]any{
+		"TerceroId":            map[string]any{"Id": terceroID},
+		"InfoComplementariaId": map[string]any{"Id": item.infoComplementariaID},
+		"Dato":                 item.datoJSON,
+		"Activo":               true,
+	}
+	if item.padreID != nil {
+		payload["InfoComplementariaTerceroPadreId"] = map[string]any{"Id": *item.padreID}
+	}
+	var respuesta map[string]any
+	ok, status, err := Post(ctx, endpointInfoComplementariaTercero, payload, &respuesta)
+	if err != nil {
+		return registrada, "", nil,
+			errorEscrituraCaracterizacion(ctx, status, err, "crear info_complementaria_tercero")
+	}
+	if !ok {
+		return registrada, "", nil, errorEscrituraCaracterizacion(ctx, status,
+			fmt.Errorf("el CRUD respondió con estado %d", status), "crear info_complementaria_tercero")
+	}
+	respuesta = desenvolverData(respuesta)
+	registrada.Id = idDeMapa(respuesta)
+	if registrada.Id <= 0 {
+		return registrada, "", nil, errorCaracterizacion(502,
+			"La creación de info_complementaria_tercero no devolvió un Id utilizable", nil)
+	}
+	return registrada, "creado", nil, nil
+}
+
+func (s CaracterizacionNaturalService) grupoYCodigoDeRegistro(
+	ctx context.Context,
+	registro map[string]any,
+) (string, string, error) {
+	icID := idDeRelacion(registro["InfoComplementariaId"])
+	codigo := ""
+	grupo := ""
+	if info, ok := registro["InfoComplementariaId"].(map[string]any); ok {
+		codigo, _ = info["CodigoAbreviacion"].(string)
+		if infoGrupo, ok := info["GrupoInfoComplementariaId"].(map[string]any); ok {
+			grupo, _ = infoGrupo["CodigoAbreviacion"].(string)
+		}
+	}
+	if (codigo == "" || grupo == "") && icID > 0 {
+		detalle, ok, err := s.Catalogos.InfoComplementariaPorID(ctx, icID)
+		if err != nil {
+			return "", "", errorDependencia(ctx, err)
+		}
+		if ok {
+			if codigo == "" {
+				codigo = detalle.Codigo
+			}
+			if grupo == "" {
+				grupo = detalle.CodigoGrupo
+			}
+		}
+	}
+	return strings.TrimSpace(grupo), strings.TrimSpace(codigo), nil
+}
+
+func (s CaracterizacionNaturalService) desactivarInfoComplementaria(
+	ctx context.Context,
+	terceroID int64,
+	id int64,
+	registro map[string]any,
+) error {
+	payload := clonarPayload(registro)
+	payload["Activo"] = false
+	payload["TerceroId"] = map[string]any{"Id": terceroID}
+	payload["InfoComplementariaId"] = map[string]any{
+		"Id": idDeRelacion(registro["InfoComplementariaId"]),
+	}
+	ok, status, err := Put(ctx,
+		fmt.Sprintf("%s/%d", endpointInfoComplementariaTercero, id), payload, &map[string]any{})
+	if err != nil {
+		return errorEscrituraCaracterizacion(ctx, status, err, "desactivar info_complementaria_tercero")
+	}
+	if !ok {
+		return errorEscrituraCaracterizacion(ctx, status,
+			fmt.Errorf("el CRUD respondió con estado %d", status), "desactivar info_complementaria_tercero")
+	}
+	return nil
+}
+
+func (s CaracterizacionNaturalService) actualizarDatoInfoComplementaria(
+	ctx context.Context,
+	terceroID int64,
+	id int64,
+	item planInfoComplementaria,
+	registro map[string]any,
+) error {
+	payload := clonarPayload(registro)
+	payload["Dato"] = item.datoJSON
+	payload["TerceroId"] = map[string]any{"Id": terceroID}
+	payload["InfoComplementariaId"] = map[string]any{"Id": item.infoComplementariaID}
+	ok, status, err := Put(ctx,
+		fmt.Sprintf("%s/%d", endpointInfoComplementariaTercero, id), payload, &map[string]any{})
+	if err != nil {
+		return errorEscrituraCaracterizacion(ctx, status, err, "actualizar info_complementaria_tercero")
+	}
+	if !ok {
+		return errorEscrituraCaracterizacion(ctx, status,
+			fmt.Errorf("el CRUD respondió con estado %d", status), "actualizar info_complementaria_tercero")
+	}
+	return nil
+}
+
+func (s CaracterizacionNaturalService) reactivarOpcionInfoComplementaria(
+	ctx context.Context,
+	terceroID int64,
+	id int64,
+	item planInfoComplementaria,
+	registro map[string]any,
+) error {
+	payload := clonarPayload(registro)
+	payload["Activo"] = true
+	payload["Dato"] = item.datoJSON
+	payload["TerceroId"] = map[string]any{"Id": terceroID}
+	payload["InfoComplementariaId"] = map[string]any{"Id": item.infoComplementariaID}
+	ok, status, err := Put(ctx,
+		fmt.Sprintf("%s/%d", endpointInfoComplementariaTercero, id), payload, &map[string]any{})
+	if err != nil {
+		return errorEscrituraCaracterizacion(ctx, status, err, "reactivar info_complementaria_tercero")
+	}
+	if !ok {
+		return errorEscrituraCaracterizacion(ctx, status,
+			fmt.Errorf("el CRUD respondió con estado %d", status), "reactivar info_complementaria_tercero")
+	}
+	return nil
 }
 
 func (s CaracterizacionNaturalService) validarPadreInfoComplementaria(
@@ -1494,6 +1850,7 @@ func (s CaracterizacionNaturalService) escribirInfoComplementariaPorID(
 		Id:                               *item.id,
 		InfoComplementariaId:             item.infoComplementariaID,
 		CodigoInfoComplementaria:         item.codigo,
+		CodigoGrupoInfoComplementaria:    item.codigoGrupo,
 		Dato:                             item.dato,
 		InfoComplementariaTerceroPadreId: item.padreID,
 	}

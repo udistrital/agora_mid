@@ -22,23 +22,50 @@ func servidorCatalogosInfo(t *testing.T) *httptest.Server {
 			switch {
 			case strings.Contains(query, "MIGRANTE"):
 				_ = json.NewEncoder(w).Encode([]map[string]any{
-					{"Id": 444, "CodigoAbreviacion": "MIGRANTE", "Activo": true},
-					{"Id": 452, "CodigoAbreviacion": "MIGRANTE", "Activo": true},
+					{"Id": 444, "CodigoAbreviacion": "MIGRANTE", "Activo": true,
+						"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_9"}},
+					{"Id": 452, "CodigoAbreviacion": "MIGRANTE", "Activo": true,
+						"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_9"}},
 				})
 			case strings.Contains(query, "HIJOS"):
 				_ = json.NewEncoder(w).Encode([]map[string]any{
-					{"Id": 21, "CodigoAbreviacion": "HIJOS", "Activo": true},
+					{"Id": 21, "CodigoAbreviacion": "HIJOS", "Activo": true,
+						"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_9"}},
 				})
 			case strings.Contains(query, "INACTIVO"):
 				_ = json.NewEncoder(w).Encode([]map[string]any{
-					{"Id": 22, "CodigoAbreviacion": "INACTIVO", "Activo": false},
+					{"Id": 22, "CodigoAbreviacion": "INACTIVO", "Activo": false,
+						"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_9"}},
+				})
+			case strings.Contains(query, "NO APLICA"):
+				if strings.Contains(query, "Grupo_6") {
+					_ = json.NewEncoder(w).Encode([]map[string]any{
+						{"Id": 31, "CodigoAbreviacion": "NO APLICA", "Activo": true,
+							"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_6"}},
+					})
+					break
+				}
+				if strings.Contains(query, "Grupo_3") {
+					_ = json.NewEncoder(w).Encode([]map[string]any{
+						{"Id": 17, "CodigoAbreviacion": "NO APLICA", "Activo": true,
+							"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_3"}},
+					})
+					break
+				}
+				_ = json.NewEncoder(w).Encode([]map[string]any{
+					{"Id": 7, "CodigoAbreviacion": "NO APLICA", "Activo": true,
+						"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_1"}},
+					{"Id": 17, "CodigoAbreviacion": "NO APLICA", "Activo": true,
+						"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_3"}},
+					{"Id": 31, "CodigoAbreviacion": "NO APLICA", "Activo": true,
+						"GrupoInfoComplementariaId": map[string]any{"CodigoAbreviacion": "Grupo_6"}},
 				})
 			default:
 				_ = json.NewEncoder(w).Encode([]map[string]any{})
 			}
 		case r.URL.Path == "/v1/info_complementaria/21":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"Id": 21, "Activo": true,
+				"Id": 21, "CodigoAbreviacion": "HIJOS", "Activo": true,
 				"GrupoInfoComplementariaId": map[string]any{"Id": 9},
 			})
 		case r.URL.Path == "/v1/info_complementaria/22":
@@ -112,6 +139,50 @@ func TestCatalogosInfoComplementariaDeGrupo(t *testing.T) {
 	pertenece, err = catalogos.InfoComplementariaDeGrupo(context.Background(), 21, "Grupo_5")
 	if err != nil || pertenece {
 		t.Fatalf("no debía pertenecer a Grupo_5: %v %v", pertenece, err)
+	}
+}
+
+func TestCatalogosInfoComplementariaPorCodigoYGrupo(t *testing.T) {
+	servidor := servidorCatalogosInfo(t)
+	catalogos := NewCatalogosService(
+		clients.HTTPClient{Client: servidor.Client()},
+		servidor.URL,
+		servidor.URL,
+	)
+
+	detalle, existe, err := catalogos.ResolverInfoComplementaria(context.Background(), "NO APLICA", "Grupo_6")
+	if err != nil || !existe || detalle.Id != 31 || detalle.CodigoGrupo != "Grupo_6" {
+		t.Fatalf("NO APLICA/Grupo_6: %+v existe=%v err=%v", detalle, existe, err)
+	}
+	detalle, existe, err = catalogos.ResolverInfoComplementaria(context.Background(), "NO APLICA", "Grupo_3")
+	if err != nil || !existe || detalle.Id != 17 || detalle.CodigoGrupo != "Grupo_3" {
+		t.Fatalf("NO APLICA/Grupo_3: %+v existe=%v err=%v", detalle, existe, err)
+	}
+	detalle, existe, err = catalogos.ResolverInfoComplementaria(context.Background(), "NO APLICA", "Grupo_1")
+	if err != nil || !existe || detalle.Id != 7 || detalle.CodigoGrupo != "Grupo_1" {
+		t.Fatalf("NO APLICA/Grupo_1: %+v existe=%v err=%v", detalle, existe, err)
+	}
+	detalle, existe, err = catalogos.ResolverInfoComplementaria(context.Background(), "MIGRANTE", "Grupo_9")
+	if err != nil || !existe || detalle.Id != 444 || !detalle.Ambiguo {
+		t.Fatalf("MIGRANTE/Grupo_9: %+v existe=%v err=%v", detalle, existe, err)
+	}
+}
+
+func TestCatalogosInfoComplementariaPorID(t *testing.T) {
+	servidor := servidorCatalogosInfo(t)
+	catalogos := NewCatalogosService(
+		clients.HTTPClient{Client: servidor.Client()},
+		servidor.URL,
+		servidor.URL,
+	)
+
+	detalle, existe, err := catalogos.InfoComplementariaPorID(context.Background(), 21)
+	if err != nil || !existe || detalle.Codigo != "HIJOS" || detalle.CodigoGrupo != "Grupo_9" {
+		t.Fatalf("por Id: %+v existe=%v err=%v", detalle, existe, err)
+	}
+	_, existe, err = catalogos.InfoComplementariaPorID(context.Background(), 999)
+	if err != nil || existe {
+		t.Fatalf("999 no debía existir: existe=%v err=%v", existe, err)
 	}
 }
 

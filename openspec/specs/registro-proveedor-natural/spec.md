@@ -633,6 +633,7 @@ Ajustes obligatorios del proyecto base para este dominio:
 
 - La implementación reutiliza el `base_engine` mediante un `TerceroWriteService` con raíz `Tercero`.
 - `ProveedorWriteService` queda reservado para el dominio 2 (caracterización).
+- El dominio 2 se especifica en `openspec/specs/caracterizacion-proveedor-natural/spec.md`.
 - El spec reemplaza el alcance anterior de `registro-proveedor-natural`, que incluía la creación del proveedor.
 - `DigitoVerificacion` es obligatorio para NIT y debe ser un entero entre 0 y 9.
 - `TipoDocumentoId` se valida contra `tipo_documento`; no se hardcodean IDs.

@@ -39,6 +39,21 @@ type entradaCacheCodigo struct {
 	expira  time.Time
 }
 
+// InfoComplementariaResuelta es la proyección mínima del catálogo que necesita
+// el dominio 2: Id local, código, grupo, estado y si había varias filas activas.
+type InfoComplementariaResuelta struct {
+	Id          int64
+	Codigo      string
+	CodigoGrupo string
+	Activo      bool
+	Ambiguo     bool
+}
+
+type entradaCacheDetalle struct {
+	detalle InfoComplementariaResuelta
+	expira  time.Time
+}
+
 // CatalogosService consulta terceros_crud y ubicaciones_crud con una caché en
 // memoria por Id. Los resultados positivos y los registros inactivos se cachean
 // por ttlCatalogoPositivo; los 404 por ttlCatalogoNegativo. Los errores de
@@ -49,6 +64,7 @@ type CatalogosService struct {
 	UbicacionesBaseURL string
 	cache              *sync.Map
 	cacheCodigos       *sync.Map
+	cacheDetalle       *sync.Map
 	// InfoComplementariaOverrides permite fijar por entorno el Id de un código
 	// duplicado o dudoso, por ejemplo MID_INFOCOMP_DESCRIPCION=53.
 	InfoComplementariaOverrides map[string]int64
@@ -69,6 +85,7 @@ func NewCatalogosService(
 		UbicacionesBaseURL: ubicacionesBaseURL,
 		cache:              &sync.Map{},
 		cacheCodigos:       &sync.Map{},
+		cacheDetalle:       &sync.Map{},
 		ttlPositivo:        ttlCatalogoPositivo,
 		ttlNegativo:        ttlCatalogoNegativo,
 		ahora:              time.Now,
@@ -118,6 +135,7 @@ func (s CatalogosService) PrecargarInfoComplementaria(ctx context.Context) error
 	}
 
 	porCodigo := make(map[string][]catalogoRespuesta)
+	porCodigoGrupo := make(map[[2]string][]catalogoRespuesta)
 	for _, registro := range todos {
 		if registro.Id <= 0 {
 			continue
@@ -130,8 +148,27 @@ func (s CatalogosService) PrecargarInfoComplementaria(ctx context.Context) error
 				true, s.ttlPositivo)
 		}
 		codigo := strings.TrimSpace(registro.CodigoAbreviacion)
+		s.guardarDetalle(
+			fmt.Sprintf("info_complementaria_detalle_id:%d", registro.Id),
+			InfoComplementariaResuelta{
+				Id:          int64(registro.Id),
+				Codigo:      codigo,
+				CodigoGrupo: codigoGrupo,
+				Activo:      registro.Activo,
+			},
+			s.ttlPositivo,
+		)
 		if codigo != "" {
 			porCodigo[codigo] = append(porCodigo[codigo], registro)
+			porCodigoGrupo[[2]string{codigo, codigoGrupo}] = append(
+				porCodigoGrupo[[2]string{codigo, codigoGrupo}], registro,
+			)
+		}
+	}
+	for clave, registros := range porCodigoGrupo {
+		detalle, ok := seleccionarDetalleInfoComplementaria(registros, clave[0], clave[1])
+		if ok {
+			s.guardarDetalle(detalleCacheKey(clave[0], clave[1]), detalle, s.ttlPositivo)
 		}
 	}
 	for codigo, registros := range porCodigo {
@@ -156,6 +193,10 @@ func (s CatalogosService) PrecargarInfoComplementaria(ctx context.Context) error
 		} else if inactivoID > 0 {
 			s.guardarCodigo(clave, inactivoID, true, false, s.ttlPositivo)
 		}
+		detalle, ok := seleccionarDetalleInfoComplementaria(registros, codigo, "")
+		if ok {
+			s.guardarDetalle(detalleCacheKey(codigo, ""), detalle, s.ttlPositivo)
+		}
 	}
 	return nil
 }
@@ -166,11 +207,9 @@ func (s CatalogosService) InfoComplementariaExiste(ctx context.Context, id int64
 	return s.existe(ctx, "info_complementaria", s.TercerosBaseURL, id)
 }
 
-// InfoComplementariaPorCodigo resuelve un código de info_complementaria a su
-// Id. Devuelve existe=false cuando el código no está registrado. Si hay varios
-// activos, usa el primero por Id y devuelve ambiguo=true para que el llamador
-// emita un aviso. Si solo hay inactivos, devuelve el Id y el llamador debe
-// comprobarlo con InfoComplementariaExiste.
+// InfoComplementariaPorCodigo se conserva para compatibilidad. El dominio 2
+// usa ResolverInfoComplementaria con el código del grupo para evitar que dos
+// grupos compartan el mismo código (por ejemplo NO APLICA).
 func (s CatalogosService) InfoComplementariaPorCodigo(
 	ctx context.Context,
 	codigo string,
@@ -186,58 +225,229 @@ func (s CatalogosService) InfoComplementariaPorCodigo(
 	if id, ambiguo, ok := s.leerCacheCodigo(clave); ok {
 		return id, id > 0, ambiguo, nil
 	}
+	detalle, ok, err := s.ResolverInfoComplementaria(ctx, codigo, "")
+	if err != nil {
+		return 0, false, false, err
+	}
+	if !ok {
+		s.guardarCodigo(clave, 0, false, false, s.ttlNegativo)
+		return 0, false, false, nil
+	}
+	s.guardarCodigo(clave, detalle.Id, true, detalle.Ambiguo, s.ttlPositivo)
+	return detalle.Id, true, detalle.Ambiguo, nil
+}
+
+// ResolverInfoComplementaria resuelve (código, grupo) contra el catálogo. Los
+// Ids cambian entre ambientes; el par de códigos no. Si hay varias filas
+// activas, usa la de menor Id y marca Ambiguo.
+func (s CatalogosService) ResolverInfoComplementaria(
+	ctx context.Context,
+	codigo string,
+	codigoGrupo string,
+) (InfoComplementariaResuelta, bool, error) {
+	codigo = strings.TrimSpace(codigo)
+	codigoGrupo = strings.TrimSpace(codigoGrupo)
+	if codigo == "" {
+		return InfoComplementariaResuelta{}, false, nil
+	}
+	clave := detalleCacheKey(codigo, codigoGrupo)
+	if detalle, ok := s.leerCacheDetalle(clave); ok {
+		return detalle, detalle.Id > 0, nil
+	}
 
 	base := strings.TrimRight(strings.TrimSpace(s.TercerosBaseURL), "/")
 	if base == "" {
-		return 0, false, false, fmt.Errorf("no hay URL base configurada para %q", "info_complementaria")
+		return InfoComplementariaResuelta{}, false,
+			fmt.Errorf("no hay URL base configurada para %q", "info_complementaria")
 	}
 	endpoint, err := url.Parse(base + "/v1/info_complementaria")
 	if err != nil {
-		return 0, false, false, fmt.Errorf("URL de info_complementaria inválida: %w", err)
+		return InfoComplementariaResuelta{}, false,
+			fmt.Errorf("URL de info_complementaria inválida: %w", err)
 	}
 	query := endpoint.Query()
-	query.Set("query", "CodigoAbreviacion:"+codigo)
+	filtro := "CodigoAbreviacion:" + codigo
+	if codigoGrupo != "" {
+		filtro += ",GrupoInfoComplementariaId.CodigoAbreviacion:" + codigoGrupo
+	}
+	query.Set("query", filtro)
 	query.Set("sortby", "Id")
 	query.Set("order", "asc")
-	query.Set("limit", "10")
+	query.Set("limit", "20")
 	endpoint.RawQuery = query.Encode()
 
 	registros, err := getAPIList[catalogoRespuesta](ctx, s.Client, endpoint.String())
 	if err != nil {
-		return 0, false, false, err
+		return InfoComplementariaResuelta{}, false, err
 	}
+	detalle, ok := seleccionarDetalleInfoComplementaria(registros, codigo, codigoGrupo)
+	if !ok {
+		s.guardarDetalle(clave, InfoComplementariaResuelta{}, s.ttlNegativo)
+		return InfoComplementariaResuelta{}, false, nil
+	}
+	s.guardarDetalle(clave, detalle, s.ttlPositivo)
+	return detalle, true, nil
+}
 
-	activoID := int64(0)
+// InfoComplementariaPorID resuelve una fila por Id. Se conserva para el
+// contrato anterior y para leer el grupo de filas ya existentes.
+func (s CatalogosService) InfoComplementariaPorID(
+	ctx context.Context,
+	id int64,
+) (InfoComplementariaResuelta, bool, error) {
+	if id <= 0 {
+		return InfoComplementariaResuelta{}, false, nil
+	}
+	clave := fmt.Sprintf("info_complementaria_detalle_id:%d", id)
+	if detalle, ok := s.leerCacheDetalle(clave); ok {
+		return detalle, detalle.Id > 0, nil
+	}
+	base := strings.TrimRight(strings.TrimSpace(s.TercerosBaseURL), "/")
+	if base == "" {
+		return InfoComplementariaResuelta{}, false,
+			fmt.Errorf("no hay URL base configurada para %q", "info_complementaria")
+	}
+	var raw json.RawMessage
+	status, err := s.Client.Get(ctx, fmt.Sprintf("%s/v1/info_complementaria/%d", base, id), &raw)
+	if err != nil {
+		if status == 404 {
+			s.guardarDetalle(clave, InfoComplementariaResuelta{}, s.ttlNegativo)
+			return InfoComplementariaResuelta{}, false, nil
+		}
+		return InfoComplementariaResuelta{}, false, err
+	}
+	registro, err := decodeAPIRecord(raw)
+	if err != nil {
+		return InfoComplementariaResuelta{}, false, err
+	}
+	codigo, _ := registro["CodigoAbreviacion"].(string)
+	activo, _ := registro["Activo"].(bool)
+	codigoGrupo := ""
+	if grupo, ok := registro["GrupoInfoComplementariaId"].(map[string]any); ok {
+		codigoGrupo, _ = grupo["CodigoAbreviacion"].(string)
+		codigoGrupo = strings.TrimSpace(codigoGrupo)
+		if codigoGrupo == "" {
+			grupoID := idDeRelacion(grupo["Id"])
+			if grupoID > 0 {
+				codigoGrupo, err = s.codigoGrupoPorID(ctx, base, grupoID)
+				if err != nil {
+					return InfoComplementariaResuelta{}, false, err
+				}
+			}
+		}
+	}
+	detalle := InfoComplementariaResuelta{
+		Id:          id,
+		Codigo:      strings.TrimSpace(codigo),
+		CodigoGrupo: codigoGrupo,
+		Activo:      activo,
+	}
+	s.guardarDetalle(clave, detalle, s.ttlPositivo)
+	return detalle, true, nil
+}
+
+func (s CatalogosService) codigoGrupoPorID(
+	ctx context.Context,
+	base string,
+	id int64,
+) (string, error) {
+	var raw json.RawMessage
+	status, err := s.Client.Get(ctx,
+		fmt.Sprintf("%s/v1/grupo_info_complementaria/%d", base, id), &raw)
+	if err != nil {
+		if status == 404 {
+			return "", nil
+		}
+		return "", err
+	}
+	registro, err := decodeAPIRecord(raw)
+	if err != nil {
+		return "", err
+	}
+	codigo, _ := registro["CodigoAbreviacion"].(string)
+	return strings.TrimSpace(codigo), nil
+}
+
+func seleccionarDetalleInfoComplementaria(
+	registros []catalogoRespuesta,
+	codigo string,
+	codigoGrupo string,
+) (InfoComplementariaResuelta, bool) {
+	var activo *catalogoRespuesta
+	var inactivo *catalogoRespuesta
 	activos := 0
-	inactivoID := int64(0)
-	for _, registro := range registros {
+	for i := range registros {
+		registro := &registros[i]
 		if registro.Id <= 0 || registro.CodigoAbreviacion != codigo {
 			continue
 		}
+		if codigoGrupo != "" &&
+			!strings.EqualFold(strings.TrimSpace(registro.GrupoInfoComplementariaId.CodigoAbreviacion), codigoGrupo) {
+			continue
+		}
 		if registro.Activo {
-			if activoID == 0 || int64(registro.Id) < activoID {
-				activoID = int64(registro.Id)
+			if activo == nil || int64(registro.Id) < int64(activo.Id) {
+				activo = registro
 			}
 			activos++
 			continue
 		}
-		if inactivoID == 0 || int64(registro.Id) < inactivoID {
-			inactivoID = int64(registro.Id)
+		if inactivo == nil || int64(registro.Id) < int64(inactivo.Id) {
+			inactivo = registro
 		}
 	}
-	if activos > 0 {
-		ambiguo = activos > 1
-		s.guardarCodigo(clave, activoID, true, ambiguo, s.ttlPositivo)
-		return activoID, true, ambiguo, nil
+	elegido := activo
+	if elegido == nil {
+		elegido = inactivo
 	}
-	if inactivoID > 0 {
-		// El llamador valida Activo con InfoComplementariaExiste para poder
-		// distinguir un código inactivo de uno inexistente.
-		s.guardarCodigo(clave, inactivoID, true, false, s.ttlPositivo)
-		return inactivoID, true, false, nil
+	if elegido == nil {
+		return InfoComplementariaResuelta{}, false
 	}
-	s.guardarCodigo(clave, 0, false, false, s.ttlNegativo)
-	return 0, false, false, nil
+	return InfoComplementariaResuelta{
+		Id:          int64(elegido.Id),
+		Codigo:      elegido.CodigoAbreviacion,
+		CodigoGrupo: strings.TrimSpace(elegido.GrupoInfoComplementariaId.CodigoAbreviacion),
+		Activo:      elegido.Activo,
+		Ambiguo:     activos > 1,
+	}, true
+}
+
+func detalleCacheKey(codigo, codigoGrupo string) string {
+	return "info_complementaria_detalle:" + codigo + "|" + codigoGrupo
+}
+
+func (s CatalogosService) leerCacheDetalle(clave string) (InfoComplementariaResuelta, bool) {
+	if s.cacheDetalle == nil {
+		return InfoComplementariaResuelta{}, false
+	}
+	valor, ok := s.cacheDetalle.Load(clave)
+	if !ok {
+		return InfoComplementariaResuelta{}, false
+	}
+	entrada, ok := valor.(entradaCacheDetalle)
+	if !ok {
+		s.cacheDetalle.Delete(clave)
+		return InfoComplementariaResuelta{}, false
+	}
+	if s.reloj().Before(entrada.expira) {
+		return entrada.detalle, true
+	}
+	s.cacheDetalle.Delete(clave)
+	return InfoComplementariaResuelta{}, false
+}
+
+func (s CatalogosService) guardarDetalle(
+	clave string,
+	detalle InfoComplementariaResuelta,
+	ttl time.Duration,
+) {
+	if s.cacheDetalle == nil || ttl <= 0 {
+		return
+	}
+	s.cacheDetalle.Store(clave, entradaCacheDetalle{
+		detalle: detalle,
+		expira:  s.reloj().Add(ttl),
+	})
 }
 
 // InfoComplementariaDeGrupo valida que un registro de info_complementaria

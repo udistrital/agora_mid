@@ -18,10 +18,13 @@ type RegistroCaracterizacionNatural struct {
 
 // InfoComplementariaTerceroInput identifica un dato de caracterización. Debe
 // traer InfoComplementariaId o CodigoInfoComplementaria, no ambos a la vez.
+// Cuando se usa CodigoInfoComplementaria también se debe indicar el código del
+// grupo: los Ids cambian entre ambientes, pero (código, grupo) es estable.
 type InfoComplementariaTerceroInput struct {
 	Id                               *int64          `json:"Id,omitempty"`
 	InfoComplementariaId             *int64          `json:"InfoComplementariaId,omitempty"`
 	CodigoInfoComplementaria         *string         `json:"CodigoInfoComplementaria,omitempty"`
+	CodigoGrupoInfoComplementaria    *string         `json:"CodigoGrupoInfoComplementaria,omitempty"`
 	Dato                             json.RawMessage `json:"Dato"`
 	InfoComplementariaTerceroPadreId *int64          `json:"InfoComplementariaTerceroPadreId,omitempty"`
 }
@@ -49,10 +52,13 @@ type ProveedorNaturalInput struct {
 	ExperienciaProfesional            *int64   `json:"ExperienciaProfesional,omitempty"`
 }
 
-// PerfilProveedorInput referencia un perfil del catálogo Grupo_5.
+// PerfilProveedorInput referencia un perfil del catálogo Grupo_5. Se debe
+// enviar exactamente uno de PerfilId o CodigoPerfil; el código es estable entre
+// ambientes.
 type PerfilProveedorInput struct {
-	Id       *int64 `json:"Id,omitempty"`
-	PerfilId int64  `json:"PerfilId"`
+	Id           *int64  `json:"Id,omitempty"`
+	PerfilId     int64   `json:"PerfilId,omitempty"`
+	CodigoPerfil *string `json:"CodigoPerfil,omitempty"`
 }
 
 // ContactoProveedorInput representa un contacto del proveedor.
@@ -77,6 +83,7 @@ type InfoComplementariaTerceroRegistrada struct {
 	Id                               int64  `json:"Id"`
 	InfoComplementariaId             int64  `json:"InfoComplementariaId"`
 	CodigoInfoComplementaria         string `json:"CodigoInfoComplementaria,omitempty"`
+	CodigoGrupoInfoComplementaria    string `json:"CodigoGrupoInfoComplementaria,omitempty"`
 	Dato                             any    `json:"Dato"`
 	InfoComplementariaTerceroPadreId *int64 `json:"InfoComplementariaTerceroPadreId,omitempty"`
 }
