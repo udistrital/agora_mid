@@ -14,9 +14,13 @@ var (
 )
 
 type catalogoRespuesta struct {
-	Id                int    `json:"Id"`
-	CodigoAbreviacion string `json:"CodigoAbreviacion"`
-	Activo            bool   `json:"Activo"`
+	Id                        int    `json:"Id"`
+	CodigoAbreviacion         string `json:"CodigoAbreviacion"`
+	Activo                    bool   `json:"Activo"`
+	GrupoInfoComplementariaId struct {
+		Id                int    `json:"Id"`
+		CodigoAbreviacion string `json:"CodigoAbreviacion"`
+	} `json:"GrupoInfoComplementariaId"`
 }
 
 // ResolverTipoContribuyente resuelve P_NATURAL o P_JURIDICA por código.

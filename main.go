@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	beego "github.com/beego/beego/v2/server/web"
 	apistatus "github.com/udistrital/utils_oas/v2/apiStatusLib"
@@ -61,6 +63,23 @@ func main() {
 		urls["terceros"],
 		urls["ubicaciones"],
 	)
+	overridesInfoComplementaria, err := config.CargarOverridesInfoComplementaria(os.Getenv)
+	if err != nil {
+		log.Fatalf("resolviendo overrides de info_complementaria: %v", err)
+	}
+	catalogos.InfoComplementariaOverrides = overridesInfoComplementaria
+	if len(overridesInfoComplementaria) > 0 {
+		log.Printf("info_complementaria: %d overrides por entorno", len(overridesInfoComplementaria))
+	}
+	if err := catalogos.PrecargarInfoComplementaria(context.Background()); err != nil {
+		log.Printf("info_complementaria: no se pudo precargar: %v", err)
+	} else {
+		log.Printf("info_complementaria: catálogo precargado")
+	}
+	parametros := services.NewParametrosService(
+		clients.HTTPClient{},
+		urls["parametros"],
+	)
 
 	terceroWriteService := services.NewTerceroWriteService(
 		clients.HTTPClient{},
@@ -75,6 +94,16 @@ func main() {
 	controllers.ConfigurarTerceroJuridicoWriteService(terceroWriteService)
 	controllers.ConfigurarCuentaBancariaWriter(services.CuentaBancariaService{})
 
+	caracterizacionNatural := services.NewCaracterizacionNaturalService(
+		catalogos,
+		parametros,
+		ids.TipoContribuyenteNatural.Valor,
+		enteroEnvODefecto("MID_TIPO_PROVEEDOR_NATURAL", 1),
+		os.Getenv("MID_TIPO_PARAMETRO_CIIU"),
+		os.Getenv("MID_TIPO_PARAMETRO_CANAL_CONTACTO"),
+	)
+	controllers.ConfigurarCaracterizacionNaturalWriteService(caracterizacionNatural)
+
 	if beego.BConfig.RunMode == "dev" {
 		beego.BConfig.WebConfig.DirectoryIndex = true
 		beego.BConfig.WebConfig.StaticDir["/swagger"] = "swagger"
@@ -84,4 +113,19 @@ func main() {
 	security.SetSecurityHeaders()
 	beego.ErrorController(&customerror.CustomErrorController{})
 	beego.Run()
+}
+
+// enteroEnvODefecto lee un entero positivo desde el entorno. Si la variable no
+// está definida usa el valor por defecto; si está definida y es inválida, el
+// arranque falla para no operar con IDs incorrectos.
+func enteroEnvODefecto(nombre string, defecto int) int {
+	valor := strings.TrimSpace(os.Getenv(nombre))
+	if valor == "" {
+		return defecto
+	}
+	id, err := strconv.Atoi(valor)
+	if err != nil || id <= 0 {
+		log.Fatalf("%s debe ser un entero positivo: %q", nombre, valor)
+	}
+	return id
 }
